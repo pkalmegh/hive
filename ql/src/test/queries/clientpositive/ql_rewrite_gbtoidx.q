@@ -30,7 +30,8 @@ group by l_shipdate;
 
 select l_shipdate, count(l_shipdate)
 from lineitem
-group by l_shipdate;
+group by l_shipdate
+order by l_shipdate;
 
 set hive.optimize.index.groupby=true;
 
@@ -40,7 +41,8 @@ group by l_shipdate;
 
 select l_shipdate, count(l_shipdate)
 from lineitem
-group by l_shipdate;
+group by l_shipdate
+order by l_shipdate;
 
 set hive.optimize.index.groupby=false;
 
@@ -49,13 +51,15 @@ explain select year(l_shipdate) as year,
         month(l_shipdate) as month,
         count(l_shipdate) as monthly_shipments
 from lineitem
-group by year(l_shipdate), month(l_shipdate);
+group by year(l_shipdate), month(l_shipdate) 
+order by year, month;
 
 select year(l_shipdate) as year,
         month(l_shipdate) as month,
         count(l_shipdate) as monthly_shipments
 from lineitem
-group by year(l_shipdate), month(l_shipdate);
+group by year(l_shipdate), month(l_shipdate) 
+order by year, month;
 
 set hive.optimize.index.groupby=true;
 
@@ -63,13 +67,15 @@ explain select year(l_shipdate) as year,
         month(l_shipdate) as month,
         count(l_shipdate) as monthly_shipments
 from lineitem
-group by year(l_shipdate), month(l_shipdate);
+group by year(l_shipdate), month(l_shipdate) 
+order by year, month;
 
 select year(l_shipdate) as year,
         month(l_shipdate) as month,
         count(l_shipdate) as monthly_shipments
 from lineitem
-group by year(l_shipdate), month(l_shipdate);
+group by year(l_shipdate), month(l_shipdate) 
+order by year, month;
 
 explain select lastyear.month,
         thisyear.month,
