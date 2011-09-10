@@ -20,7 +20,6 @@ package org.apache.hadoop.hive.ql.optimizer.physical.index;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -50,10 +49,9 @@ import org.apache.hadoop.hive.ql.optimizer.IndexUtils;
 import org.apache.hadoop.hive.ql.parse.ParseContext;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
-import org.apache.hadoop.hive.ql.plan.FilterDesc;
+import org.apache.hadoop.hive.ql.plan.MapredWork;
 import org.apache.hadoop.hive.ql.plan.TableDesc;
 import org.apache.hadoop.hive.ql.plan.TableScanDesc;
-import org.apache.hadoop.hive.ql.plan.MapredWork;
 
 /**
 *
@@ -224,7 +222,6 @@ public class IndexWhereProcessor implements NodeProcessor {
   }
 
 
-
   /**
    * Insert the rewrite tasks at the head of the pctx task tree
    * @param pctx
@@ -258,3 +255,4 @@ public class IndexWhereProcessor implements NodeProcessor {
   }
 
 }
+
