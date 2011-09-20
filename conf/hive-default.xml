@@ -367,6 +367,12 @@
 </property>
 
 <property>
+  <name>hive.optimize.index.groupby</name>
+  <value>false</value>
+  <description>Whether to enable optimization of group-by queries using Aggregate indexes.</description>
+</property>
+
+<property>
   <name>hive.ppd.recognizetransivity</name>
   <value>true</value>
   <description>Whether to transitively replicate predicate filters over equijoin conditions.</description>
