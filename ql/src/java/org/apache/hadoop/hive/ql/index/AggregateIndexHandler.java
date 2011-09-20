@@ -84,7 +84,7 @@ public class AggregateIndexHandler extends CompactIndexHandler {
         colName = colName.replace("*", "ALL");
       }
       FieldSchema aggregationFunction =
-        new FieldSchema("_" + funcName + "_Of_" + colName + "", "bigint", "");
+        new FieldSchema("_" + funcName + "_of_" + colName + "", "bigint", "");
       indexTblCols.add(aggregationFunction);
     }
 
