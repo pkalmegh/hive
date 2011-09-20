@@ -63,7 +63,7 @@ import org.apache.hadoop.hive.ql.parse.SemanticException;
  * </code>
  *  to
  *  <code>
- *   select sum(_count_Of_key)
+ *   select sum(_count_of_key)
  *   from idx_table
  *   group by key;
  *  </code>

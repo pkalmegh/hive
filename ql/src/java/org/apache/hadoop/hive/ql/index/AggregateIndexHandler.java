@@ -81,7 +81,7 @@ public class AggregateIndexHandler extends CompactIndexHandler {
       String funcName = aggFuncCol[0];
       String colName = aggFuncCol[1].substring(0, aggFuncCol[1].length() - 1);
       if(colName.contains("*")){
-        colName = colName.replace("*", "ALL");
+        colName = colName.replace("*", "all");
       }
       FieldSchema aggregationFunction =
         new FieldSchema("_" + funcName + "_of_" + colName + "", "bigint", "");
