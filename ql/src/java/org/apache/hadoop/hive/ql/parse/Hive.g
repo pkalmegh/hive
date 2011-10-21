@@ -102,6 +102,7 @@ TOK_DATE;
 TOK_DATETIME;
 TOK_TIMESTAMP;
 TOK_STRING;
+TOK_BINARY;
 TOK_LIST;
 TOK_STRUCT;
 TOK_MAP;
@@ -571,7 +572,6 @@ alterTableStatementSuffix
     | alterStatementSuffixArchive
     | alterStatementSuffixUnArchive
     | alterStatementSuffixProperties
-    | alterStatementSuffixSerdeProperties
     | alterTblPartitionStatement
     | alterStatementSuffixClusterbySortby
     ;
@@ -704,10 +704,10 @@ alterViewSuffixProperties
 alterStatementSuffixSerdeProperties
 @init { msgs.push("alter serdes statement"); }
 @after { msgs.pop(); }
-    : name=Identifier KW_SET KW_SERDE serdeName=StringLiteral (KW_WITH KW_SERDEPROPERTIES tableProperties)?
-    -> ^(TOK_ALTERTABLE_SERIALIZER $name $serdeName tableProperties?)
-    | name=Identifier KW_SET KW_SERDEPROPERTIES tableProperties
-    -> ^(TOK_ALTERTABLE_SERDEPROPERTIES $name tableProperties)
+    : KW_SET KW_SERDE serdeName=StringLiteral (KW_WITH KW_SERDEPROPERTIES tableProperties)?
+    -> ^(TOK_ALTERTABLE_SERIALIZER $serdeName tableProperties?)
+    | KW_SET KW_SERDEPROPERTIES tableProperties
+    -> ^(TOK_ALTERTABLE_SERDEPROPERTIES tableProperties)
     ;
 
 tablePartitionPrefix
@@ -731,6 +731,7 @@ alterTblPartitionStatementSuffix
   | alterStatementSuffixLocation
   | alterStatementSuffixProtectMode
   | alterStatementSuffixMergeFiles
+  | alterStatementSuffixSerdeProperties
   ;
 
 alterStatementSuffixFileFormat
@@ -1301,6 +1302,7 @@ primitiveType
     | KW_DATETIME      ->    TOK_DATETIME
     | KW_TIMESTAMP     ->    TOK_TIMESTAMP
     | KW_STRING        ->    TOK_STRING
+    | KW_BINARY        ->    TOK_BINARY
     ;
 
 listType
@@ -1618,7 +1620,7 @@ joinToken
 @after { msgs.pop(); }
     :
       KW_JOIN                     -> TOK_JOIN
-    | KW_INNER KW_JOIN            -> TOK_JOIN
+    | kwInner  KW_JOIN            -> TOK_JOIN
     | KW_LEFT  KW_OUTER KW_JOIN   -> TOK_LEFTOUTERJOIN
     | KW_RIGHT KW_OUTER KW_JOIN   -> TOK_RIGHTOUTERJOIN
     | KW_FULL  KW_OUTER KW_JOIN   -> TOK_FULLOUTERJOIN
@@ -2060,6 +2062,7 @@ sysFuncNames
     | KW_DOUBLE
     | KW_BOOLEAN
     | KW_STRING
+    | KW_BINARY
     | KW_ARRAY
     | KW_MAP
     | KW_STRUCT
@@ -2102,6 +2105,10 @@ kwRole
 : 
 {input.LT(1).getText().equalsIgnoreCase("role")}? Identifier;
 
+kwInner
+: 
+{input.LT(1).getText().equalsIgnoreCase("inner")}? Identifier;
+
 KW_TRUE : 'TRUE';
 KW_FALSE : 'FALSE';
 KW_ALL : 'ALL';
@@ -2130,7 +2137,6 @@ KW_OUTER : 'OUTER';
 KW_UNIQUEJOIN : 'UNIQUEJOIN';
 KW_PRESERVE : 'PRESERVE';
 KW_JOIN : 'JOIN';
-KW_INNER : 'INNER';
 KW_LEFT : 'LEFT';
 KW_RIGHT : 'RIGHT';
 KW_FULL : 'FULL';

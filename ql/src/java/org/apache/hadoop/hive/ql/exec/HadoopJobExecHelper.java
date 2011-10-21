@@ -52,10 +52,8 @@ import org.apache.hadoop.mapred.TaskCompletionEvent;
 import org.apache.hadoop.mapred.TaskReport;
 import org.apache.hadoop.mapred.Counters.Counter;
 import org.apache.log4j.Appender;
-import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.FileAppender;
 import org.apache.log4j.LogManager;
-import org.apache.log4j.PropertyConfigurator;
 
 public class HadoopJobExecHelper {
 
@@ -312,6 +310,20 @@ public class HadoopJobExecHelper {
       errMsg.setLength(0);
 
       updateCounters(ctrs, rj);
+      
+      // Prepare data for Client Stat Publishers (if any present) and execute them
+      if (clientStatPublishers.size() > 0 && ctrs != null) {
+        Map<String, Double> exctractedCounters = extractAllCounterValues(ctrs);
+        for (ClientStatsPublisher clientStatPublisher : clientStatPublishers) {
+          try {
+            clientStatPublisher.run(exctractedCounters, rj.getID().toString());
+          } catch (RuntimeException runtimeException) {
+            LOG.error("Exception " + runtimeException.getClass().getCanonicalName()
+                + " thrown when running clientStatsPublishers. The stack trace is: ",
+                runtimeException);
+          }
+        }
+      }
 
       String report = " " + getId() + " map = " + mapProgress + "%,  reduce = " + reduceProgress
           + "%";
@@ -322,14 +334,16 @@ public class HadoopJobExecHelper {
         // find out CPU msecs
         // In the case that we can't find out this number, we just skip the step to print
         // it out.
-        Counter counterCpuMsec = ctrs.findCounter("org.apache.hadoop.mapred.Task$Counter",
-            "CPU_MILLISECONDS");
-        if (counterCpuMsec != null) {
-          long newCpuMSec = counterCpuMsec.getValue();
-          if (newCpuMSec > 0) {
-            cpuMsec = newCpuMSec;
-            report += ", Cumulative CPU "
-              + (cpuMsec / 1000D) + " sec";
+        if (ctrs != null) {
+          Counter counterCpuMsec = ctrs.findCounter("org.apache.hadoop.mapred.Task$Counter",
+              "CPU_MILLISECONDS");
+          if (counterCpuMsec != null) {
+            long newCpuMSec = counterCpuMsec.getValue();
+            if (newCpuMSec > 0) {
+              cpuMsec = newCpuMSec;
+              report += ", Cumulative CPU "
+                + (cpuMsec / 1000D) + " sec";
+            }
           }
         }
 
@@ -371,68 +385,19 @@ public class HadoopJobExecHelper {
       }
     }
 
-    //Prepare data for Client Stat Publishers (if any present) and execute them
-     if (clientStatPublishers.size() > 0){
-        Map<String, Double> exctractedCounters = extractAllCounterValues(ctrs);
-        for(ClientStatsPublisher clientStatPublisher : clientStatPublishers){
-          clientStatPublisher.run(exctractedCounters, rj.getID().toString());
+    if (ctrs != null) {
+      Counter counterCpuMsec = ctrs.findCounter("org.apache.hadoop.mapred.Task$Counter",
+          "CPU_MILLISECONDS");
+      if (counterCpuMsec != null) {
+        long newCpuMSec = counterCpuMsec.getValue();
+        if (newCpuMSec > cpuMsec) {
+          cpuMsec = newCpuMSec;
         }
-      }
-
-    Counter counterCpuMsec = ctrs.findCounter("org.apache.hadoop.mapred.Task$Counter",
-        "CPU_MILLISECONDS");
-    if (counterCpuMsec != null) {
-      long newCpuMSec = counterCpuMsec.getValue();
-      if (newCpuMSec > cpuMsec) {
-        cpuMsec = newCpuMSec;
       }
     }
 
     MapRedStats mapRedStats = new MapRedStats(numMap, numReduce, cpuMsec, success, rj.getID().toString());
-
-    Counter ctr;
-
-    ctr = ctrs.findCounter("org.apache.hadoop.mapred.Task$Counter",
-        "REDUCE_SHUFFLE_BYTES");
-    if (ctr != null) {
-      mapRedStats.setReduceShuffleBytes(ctr.getValue());
-    }
-
-    ctr = ctrs.findCounter("org.apache.hadoop.mapred.Task$Counter",
-        "MAP_INPUT_RECORDS");
-    if (ctr != null) {
-      mapRedStats.setMapInputRecords(ctr.getValue());
-    }
-
-    ctr = ctrs.findCounter("org.apache.hadoop.mapred.Task$Counter",
-        "MAP_OUTPUT_RECORDS");
-    if (ctr != null) {
-      mapRedStats.setMapOutputRecords(ctr.getValue());
-    }
-
-    ctr = ctrs.findCounter("org.apache.hadoop.mapred.Task$Counter",
-        "REDUCE_INPUT_RECORDS");
-    if (ctr != null) {
-      mapRedStats.setReduceInputRecords(ctr.getValue());
-    }
-
-    ctr = ctrs.findCounter("org.apache.hadoop.mapred.Task$Counter",
-        "REDUCE_OUTPUT_RECORDS");
-    if (ctr != null) {
-      mapRedStats.setReduceOutputRecords(ctr.getValue());
-    }
-
-    ctr = ctrs.findCounter("FileSystemCounters",
-        "HDFS_BYTES_READ");
-    if (ctr != null) {
-      mapRedStats.setHdfsRead(ctr.getValue());
-    }
-
-    ctr = ctrs.findCounter("FileSystemCounters",
-        "HDFS_BYTES_WRITTEN");
-    if (ctr != null) {
-      mapRedStats.setHdfsWrite(ctr.getValue());
-    }
+    mapRedStats.setCounters(ctrs);
 
     this.task.setDone();
     // update based on the final value of the counters

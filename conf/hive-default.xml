@@ -889,6 +889,12 @@
 </property>
 
 <property>
+  <name>hive.unlock.numretries</name>
+  <value>10</value>
+  <description>The number of times you want to retry to do one unlock</description>
+</property>
+
+<property>
   <name>hive.lock.sleep.between.retries</name>
   <value>60</value>
   <description>The sleep time (in seconds) between various retries</description>
@@ -1191,6 +1197,18 @@
   <name>hive.exec.perf.logger</name>
   <value>org.apache.hadoop.hive.ql.log.PerfLogger</value>
   <description>The class responsible logging client side performance metrics.  Must be a subclass of org.apache.hadoop.hive.ql.log.PerfLogger</description>
+</property>
+
+<property>
+  <name>hive.start.cleanup.scratchdir</name>
+  <value>false</value>
+  <description>To cleanup the hive scratchdir while starting the hive server</description>
+</property>
+
+<property>
+  <name>hive.output.file.extension</name>
+  <value></value>
+  <description>String used as a file extension for output files. If not set, defaults to the codec extension for text files (e.g. ".gz"), or no extension otherwise.</description>
 </property>
 
 </configuration>

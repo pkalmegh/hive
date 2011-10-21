@@ -184,6 +184,7 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDFSplit;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFStringToMap;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFStruct;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFTimestamp;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFToBinary;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFToUtcTimestamp;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFUnion;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFWhen;
@@ -201,6 +202,7 @@ import org.apache.hadoop.hive.ql.udf.xml.UDFXPathLong;
 import org.apache.hadoop.hive.ql.udf.xml.UDFXPathShort;
 import org.apache.hadoop.hive.ql.udf.xml.UDFXPathString;
 import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category;
 import org.apache.hadoop.hive.serde2.typeinfo.ListTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.MapTypeInfo;
@@ -374,6 +376,8 @@ public final class FunctionRegistry {
 
     registerGenericUDF(Constants.TIMESTAMP_TYPE_NAME,
         GenericUDFTimestamp.class);
+    registerGenericUDF(Constants.BINARY_TYPE_NAME,
+        GenericUDFToBinary.class);
 
     // Aggregate functions
     registerGenericUDAF("max", new GenericUDAFMax());
@@ -692,7 +696,7 @@ public final class FunctionRegistry {
    */
   @SuppressWarnings("deprecation")
   public static GenericUDAFEvaluator getGenericUDAFEvaluator(String name,
-      List<TypeInfo> argumentTypeInfos, boolean isDistinct,
+      List<ObjectInspector> argumentOIs, boolean isDistinct,
       boolean isAllColumns) throws SemanticException {
 
     GenericUDAFResolver udafResolver = getGenericUDAFResolver(name);
@@ -700,20 +704,22 @@ public final class FunctionRegistry {
       return null;
     }
 
-    TypeInfo[] parameters = new TypeInfo[argumentTypeInfos.size()];
-    for (int i = 0; i < parameters.length; i++) {
-      parameters[i] = argumentTypeInfos.get(i);
+    GenericUDAFEvaluator udafEvaluator = null;
+    ObjectInspector args[] = new ObjectInspector[argumentOIs.size()];
+    // Can't use toArray here because Java is dumb when it comes to 
+    // generics + arrays.
+    for (int ii = 0; ii < argumentOIs.size(); ++ii) {
+      args[ii] = argumentOIs.get(ii);
     }
 
-    GenericUDAFEvaluator udafEvaluator = null;
+    GenericUDAFParameterInfo paramInfo =
+        new SimpleGenericUDAFParameterInfo(
+            args, isDistinct, isAllColumns);
     if (udafResolver instanceof GenericUDAFResolver2) {
-      GenericUDAFParameterInfo paramInfo =
-          new SimpleGenericUDAFParameterInfo(
-              parameters, isDistinct, isAllColumns);
       udafEvaluator =
           ((GenericUDAFResolver2) udafResolver).getEvaluator(paramInfo);
     } else {
-      udafEvaluator = udafResolver.getEvaluator(parameters);
+      udafEvaluator = udafResolver.getEvaluator(paramInfo.getParameters());
     }
     return udafEvaluator;
   }

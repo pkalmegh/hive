@@ -140,6 +140,7 @@ public class HiveConf extends Configuration {
     SHOW_JOB_FAIL_DEBUG_INFO("hive.exec.show.job.failure.debug.info", true),
     JOB_DEBUG_TIMEOUT("hive.exec.job.debug.timeout", 30000),
     TASKLOG_DEBUG_TIMEOUT("hive.exec.tasklog.debug.timeout", 20000),
+    OUTPUT_FILE_EXTENSION("hive.output.file.extension", null),
 
     // should hive determine whether to run in local mode automatically ?
     LOCALMODEAUTO("hive.exec.mode.local.auto", false),
@@ -310,7 +311,7 @@ public class HiveConf extends Configuration {
     HIVEHADOOPMAXMEM("hive.mapred.local.mem", 0),
 
     //small table file size
-    HIVESMALLTABLESFILESIZE("hive.smalltable.filesize",25000000L), //25M
+    HIVESMALLTABLESFILESIZE("hive.mapjoin.smalltable.filesize",25000000L), //25M
 
     // random number for split sampling
     HIVESAMPLERANDOMNUM("hive.sample.seednumber", 0),
@@ -418,6 +419,7 @@ public class HiveConf extends Configuration {
     HIVE_SUPPORT_CONCURRENCY("hive.support.concurrency", false),
     HIVE_LOCK_MANAGER("hive.lock.manager", "org.apache.hadoop.hive.ql.lockmgr.zookeeper.ZooKeeperHiveLockManager"),
     HIVE_LOCK_NUMRETRIES("hive.lock.numretries", 100),
+    HIVE_UNLOCK_NUMRETRIES("hive.unlock.numretries", 10),
     HIVE_LOCK_SLEEP_BETWEEN_RETRIES("hive.lock.sleep.between.retries", 60),
     HIVE_LOCK_MAPRED_ONLY("hive.lock.mapred.only.operation", false),
 
@@ -478,6 +480,8 @@ public class HiveConf extends Configuration {
     // The class responsible for logging client side performance metrics
     // Must be a subclass of org.apache.hadoop.hive.ql.log.PerfLogger
     HIVE_PERF_LOGGER("hive.exec.perf.logger", "org.apache.hadoop.hive.ql.log.PerfLogger"),
+    // Whether to delete the scratchdir while startup
+    HIVE_START_CLEANUP_SCRATCHDIR("hive.start.cleanup.scratchdir", false),
     ;
 
     public final String varname;
