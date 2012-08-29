@@ -31,11 +31,11 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.persistence.RowContainer;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
+import org.apache.hadoop.hive.ql.plan.BucketMapJoinContext;
 import org.apache.hadoop.hive.ql.plan.FetchWork;
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc;
 import org.apache.hadoop.hive.ql.plan.MapredLocalWork;
 import org.apache.hadoop.hive.ql.plan.SMBJoinDesc;
-import org.apache.hadoop.hive.ql.plan.MapredLocalWork.BucketMapJoinContext;
 import org.apache.hadoop.hive.ql.plan.api.OperatorType;
 import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.InspectableObject;
@@ -318,10 +318,9 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
   }
 
   private List<Byte> joinOneGroup() throws HiveException {
-    int smallestPos = -1;
-    smallestPos = findSmallestKey();
+    int[] smallestPos = findSmallestKey();
     List<Byte> listOfNeedFetchNext = null;
-    if(smallestPos >= 0) {
+    if(smallestPos != null) {
       listOfNeedFetchNext = joinObject(smallestPos);
       if (listOfNeedFetchNext.size() > 0) {
         // listOfNeedFetchNext contains all tables that we have joined data in their
@@ -336,28 +335,22 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
     return listOfNeedFetchNext;
   }
 
-  private List<Byte> joinObject(int smallestPos) throws HiveException {
+  private List<Byte> joinObject(int[] smallestPos) throws HiveException {
     List<Byte> needFetchList = new ArrayList<Byte>();
-    ArrayList<Object> smallKey = keyWritables[smallestPos];
-    needFetchList.add((byte)smallestPos);
-    this.storage.put((byte) smallestPos, this.candidateStorage[smallestPos]);
-    for (Byte i : order) {
-      if ((byte) smallestPos == i) {
+    byte index = (byte) (smallestPos.length - 1);
+    for (; index >= 0; index--) {
+      if (smallestPos[index] > 0 || keyWritables[index] == null) {
+        putDummyOrEmpty(index);
         continue;
       }
-      ArrayList<Object> key = keyWritables[i];
-      if (key == null) {
-        putDummyOrEmpty(i);
-      } else {
-        int cmp = compareKeys(key, smallKey);
-        if (cmp == 0) {
-          this.storage.put((byte) i, this.candidateStorage[i]);
-          needFetchList.add(i);
-          continue;
-        } else {
-          putDummyOrEmpty(i);
-        }
+      storage.put(index, candidateStorage[index]);
+      needFetchList.add(index);
+      if (smallestPos[index] < 0) {
+        break;
       }
+    }
+    for (index--; index >= 0; index--) {
+      putDummyOrEmpty(index);
     }
     checkAndGenObject();
     for (Byte pos : needFetchList) {
@@ -419,7 +412,7 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
       WritableComparable key_1 = (WritableComparable) k1.get(i);
       WritableComparable key_2 = (WritableComparable) k2.get(i);
       if (key_1 == null && key_2 == null) {
-        return -1; // just return k1 is smaller than k2
+        return nullsafes != null && nullsafes[i] ? 0 : -1; // just return k1 is smaller than k2
       } else if (key_1 == null) {
         return -1;
       } else if (key_2 == null) {
@@ -442,8 +435,8 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
     }
   }
 
-  private int findSmallestKey() {
-    byte index = -1;
+  private int[] findSmallestKey() {
+    int[] result = new int[order.length];
     ArrayList<Object> smallestOne = null;
 
     for (byte i : order) {
@@ -453,17 +446,15 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
       }
       if (smallestOne == null) {
         smallestOne = key;
-        index = i;
+        result[i] = -1;
         continue;
       }
-      int cmp = compareKeys(key, smallestOne);
-      if (cmp < 0) {
+      result[i] = compareKeys(key, smallestOne);
+      if (result[i] < 0) {
         smallestOne = key;
-        index = i;
-        continue;
       }
     }
-    return index;
+    return smallestOne == null ? null : result;
   }
 
   private boolean processKey(byte alias, ArrayList<Object> key)
@@ -484,20 +475,22 @@ public class SMBMapJoinOperator extends AbstractMapJoinOperator<SMBJoinDesc> imp
   }
 
   private void setUpFetchOpContext(FetchOperator fetchOp, String alias) {
-    String currentInputFile = this.getExecContext().getCurrentInputFile();
-    BucketMapJoinContext bucketMatcherCxt = this.localWork
-        .getBucketMapjoinContext();
+    String currentInputFile = getExecContext().getCurrentInputFile();
+    BucketMapJoinContext bucketMatcherCxt = localWork.getBucketMapjoinContext();
+
     Class<? extends BucketMatcher> bucketMatcherCls = bucketMatcherCxt
         .getBucketMatcherClass();
     BucketMatcher bucketMatcher = (BucketMatcher) ReflectionUtils.newInstance(
         bucketMatcherCls, null);
-    this.getExecContext().setFileId(bucketMatcherCxt.getBucketFileNameMapping().get(currentInputFile));
-    LOG.info("set task id: " + this.getExecContext().getFileId());
+
+    getExecContext().setFileId(bucketMatcherCxt.createFileId(currentInputFile));
+    LOG.info("set task id: " + getExecContext().getFileId());
 
     bucketMatcher.setAliasBucketFileNameMapping(bucketMatcherCxt
         .getAliasBucketFileNameMapping());
     List<Path> aliasFiles = bucketMatcher.getAliasBucketFiles(currentInputFile,
         bucketMatcherCxt.getMapJoinBigTableAlias(), alias);
+
     Iterator<Path> iter = aliasFiles.iterator();
     fetchOp.setupContext(iter, null);
   }

@@ -21,6 +21,7 @@ package org.apache.hadoop.hive.ql.exec;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -28,6 +29,7 @@ import java.util.List;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.CommandNeedRetryException;
 import org.apache.hadoop.hive.ql.Context;
 import org.apache.hadoop.hive.ql.DriverContext;
@@ -348,10 +350,18 @@ public abstract class Task<T extends Serializable> implements Serializable, Node
     return false;
   }
 
+  public Collection<Operator<? extends Serializable>> getTopOperators() {
+    return new LinkedList<Operator<? extends Serializable>>();
+  }
+  
   public boolean hasReduce() {
     return false;
   }
 
+  public Operator<? extends Serializable> getReducer() {
+    return null;
+  }
+  
   public HashMap<String, Long> getCounters() {
     return taskCounters;
   }
@@ -497,5 +507,9 @@ public abstract class Task<T extends Serializable> implements Serializable, Node
 
   public String getJobID() {
     return jobID;
+  }
+
+  public List<FieldSchema> getResultSchema() {
+    return null;
   }
 }

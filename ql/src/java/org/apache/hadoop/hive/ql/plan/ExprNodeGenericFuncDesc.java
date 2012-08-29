@@ -26,10 +26,10 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.exec.FunctionRegistry;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.exec.Utilities;
-import org.apache.hadoop.hive.ql.parse.ErrorMsg;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.session.SessionState.LogHelper;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
@@ -66,6 +66,8 @@ public class ExprNodeGenericFuncDesc extends ExprNodeDesc implements
    * the canonical type information for this NodeDesc.
    */
   private ObjectInspector writableObjectInspector;
+  //Is this an expression that should perform a comparison for sorted searches
+  private boolean isSortedExpr;
 
   public ExprNodeGenericFuncDesc() {
   }
@@ -210,6 +212,25 @@ public class ExprNodeGenericFuncDesc extends ExprNodeDesc implements
     }
 
     ObjectInspector oi = genericUDF.initializeAndFoldConstants(childrenOIs);
+
+    String[] requiredJars = genericUDF.getRequiredJars();
+    String[] requiredFiles = genericUDF.getRequiredFiles();
+    SessionState ss = SessionState.get();
+
+    if (requiredJars != null) {
+      SessionState.ResourceType t = SessionState.find_resource_type("JAR");
+      for (String jarPath : requiredJars) {
+        ss.add_resource(t, jarPath);
+      }
+    }
+
+    if (requiredFiles != null) {
+      SessionState.ResourceType t = SessionState.find_resource_type("FILE");
+      for (String filePath : requiredFiles) {
+        ss.add_resource(t, filePath);
+      }
+    }
+
     return new ExprNodeGenericFuncDesc(oi, genericUDF, children);
   }
 
@@ -245,6 +266,14 @@ public class ExprNodeGenericFuncDesc extends ExprNodeDesc implements
     }
 
     return true;
+  }
+
+  public boolean isSortedExpr() {
+    return isSortedExpr;
+  }
+
+  public void setSortedExpr(boolean isSortedExpr) {
+    this.isSortedExpr = isSortedExpr;
   }
 
 }

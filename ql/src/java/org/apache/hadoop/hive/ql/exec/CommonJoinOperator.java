@@ -121,6 +121,8 @@ public abstract class CommonJoinOperator<T extends JoinDesc> extends
   protected transient Byte[] order; // order in which the results should
   // be output
   protected transient JoinCondDesc[] condn;
+  protected transient boolean[] nullsafes;
+
   public transient boolean noOuterJoin;
   protected transient Object[] dummyObj; // for outer joins, contains the
   // potential nulls for the concerned
@@ -151,6 +153,8 @@ public abstract class CommonJoinOperator<T extends JoinDesc> extends
   transient Byte lastAlias = null;
 
   transient boolean handleSkewJoin = false;
+
+  transient boolean hasLeftSemiJoin = false;
 
   protected transient int countAfterReport;
   protected transient int heartbeatInterval;
@@ -238,6 +242,7 @@ public abstract class CommonJoinOperator<T extends JoinDesc> extends
 
     order = conf.getTagOrder();
     condn = conf.getConds();
+    nullsafes = conf.getNullSafes();
     noOuterJoin = conf.isNoOuterJoin();
 
     totalSz = JoinUtil.populateJoinKeyValue(joinValues, conf.getExprs(),
@@ -324,6 +329,13 @@ public abstract class CommonJoinOperator<T extends JoinDesc> extends
 
     outputObjInspector = getJoinOutputObjectInspector(order,
         joinValuesStandardObjectInspectors, conf);
+
+    for( int i = 0; i < condn.length; i++ ) {
+      if(condn[i].getType() == JoinDesc.LEFT_SEMI_JOIN) {
+        hasLeftSemiJoin = true;
+      }
+    }
+
     LOG.info("JOIN "
         + ((StructObjectInspector) outputObjInspector).getTypeName()
         + " totalsz = " + totalSz);
@@ -835,7 +847,7 @@ transient boolean newGroupStarted = false;
         LOG.trace("calling genAllOneUniqueJoinObject");
         genAllOneUniqueJoinObject();
         LOG.trace("called genAllOneUniqueJoinObject");
-      } else if (!hasEmpty) {
+      } else if (!hasEmpty && !hasLeftSemiJoin) {
         LOG.trace("calling genUniqueJoinObject");
         genUniqueJoinObject(0, 0);
         LOG.trace("called genUniqueJoinObject");

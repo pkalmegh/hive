@@ -24,6 +24,7 @@ import java.util.Properties;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileStatus;
@@ -35,12 +36,12 @@ import org.apache.hadoop.hbase.mapreduce.HFileOutputFormat;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator.RecordWriter;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
+import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.TaskAttemptContext;
-import org.apache.hadoop.mapreduce.TaskAttemptID;
+import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Progressable;
 
@@ -95,12 +96,9 @@ public class HiveHFileOutputFormat extends
 
     // Create the HFile writer
     final org.apache.hadoop.mapreduce.TaskAttemptContext tac =
-      new TaskAttemptContext(job.getConfiguration(), new TaskAttemptID()) {
-        @Override
-        public void progress() {
-          progressable.progress();
-        }
-      };
+      ShimLoader.getHadoopShims().newTaskAttemptContext(
+          job.getConfiguration(), progressable);
+
     final Path outputdir = FileOutputFormat.getOutputPath(tac);
     final org.apache.hadoop.mapreduce.RecordWriter<
       ImmutableBytesWritable, KeyValue> fileWriter = getFileWriter(tac);
@@ -204,5 +202,20 @@ public class HiveHFileOutputFormat extends
         }
       }
     };
+  }
+
+  @Override
+  public void checkOutputSpecs(FileSystem ignored, JobConf jc) throws IOException {
+    //delegate to the new api
+    Job job = new Job(jc);
+    JobContext jobContext = ShimLoader.getHadoopShims().newJobContext(job);
+
+    checkOutputSpecs(jobContext);
+  }
+
+  @Override
+  public org.apache.hadoop.mapred.RecordWriter<ImmutableBytesWritable, KeyValue> getRecordWriter(
+      FileSystem ignored, JobConf job, String name, Progressable progress) throws IOException {
+    throw new NotImplementedException("This will not be invoked");
   }
 }

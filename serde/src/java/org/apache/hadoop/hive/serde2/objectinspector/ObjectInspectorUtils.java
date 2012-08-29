@@ -31,7 +31,6 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.serde.Constants;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
-import org.apache.hadoop.hive.serde2.objectinspector.ConstantObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory.ObjectInspectorOptions;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveWritableObjectInspector;
@@ -193,7 +192,7 @@ public final class ObjectInspectorUtils {
       if (i++ >= startCol) {
         result.add(copyToStandardObject(soi.getStructFieldData(row, f),
             f.getFieldObjectInspector(), objectInspectorOption));
-        if (j == numCols) {
+        if (++j == numCols) {
           break;
         }
       }
@@ -208,6 +207,9 @@ public final class ObjectInspectorUtils {
     return copyToStandardObject(o, oi, ObjectInspectorCopyOption.DEFAULT);
   }
 
+  public static Object copyToStandardJavaObject(Object o, ObjectInspector oi) {
+    return copyToStandardObject(o, oi, ObjectInspectorCopyOption.JAVA);
+  }
 
   public static Object copyToStandardObject(Object o, ObjectInspector oi,
       ObjectInspectorCopyOption objectInspectorOption) {
@@ -490,7 +492,7 @@ public final class ObjectInspectorUtils {
       ObjectInspector valueOI = mapOI.getMapValueObjectInspector();
       Map<?, ?> map = mapOI.getMap(o);
       for (Map.Entry entry : map.entrySet()) {
-        r += hashCode(entry.getKey(), keyOI) ^ 
+        r += hashCode(entry.getKey(), keyOI) ^
              hashCode(entry.getValue(), valueOI);
       }
       return r;
@@ -564,7 +566,7 @@ public final class ObjectInspectorUtils {
       ObjectInspector oi2) {
     return compare(o1, oi1, o2, oi2, new FullMapEqualComparer());
   }
-  
+
   /**
    * Compare two objects with their respective ObjectInspectors.
    */
@@ -667,7 +669,7 @@ public final class ObjectInspectorUtils {
       for (int i = 0; i < minimum; i++) {
         int r = compare(soi1.getStructFieldData(o1, fields1.get(i)), fields1
             .get(i).getFieldObjectInspector(), soi2.getStructFieldData(o2,
-            fields2.get(i)), fields2.get(i).getFieldObjectInspector(), 
+            fields2.get(i)), fields2.get(i).getFieldObjectInspector(),
             mapEqualComparer);
         if (r != 0) {
           return r;
@@ -919,6 +921,10 @@ public final class ObjectInspectorUtils {
        throw new IllegalArgumentException(
            writableOI.getCategory() + " not yet supported for constant OI");
     }
+  }
+
+  public static Object getWritableConstantValue(ObjectInspector oi) {
+    return ((ConstantObjectInspector)oi).getWritableConstantValue();
   }
 
   public static boolean supportsConstantObjectInspector(ObjectInspector oi) {

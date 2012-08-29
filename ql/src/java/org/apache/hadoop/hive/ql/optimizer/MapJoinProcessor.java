@@ -32,6 +32,7 @@ import java.util.Stack;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.exec.AbstractMapJoinOperator;
 import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.exec.GroupByOperator;
@@ -53,7 +54,6 @@ import org.apache.hadoop.hive.ql.lib.NodeProcessor;
 import org.apache.hadoop.hive.ql.lib.NodeProcessorCtx;
 import org.apache.hadoop.hive.ql.lib.Rule;
 import org.apache.hadoop.hive.ql.lib.RuleRegExp;
-import org.apache.hadoop.hive.ql.parse.ErrorMsg;
 import org.apache.hadoop.hive.ql.parse.GenMapRedWalker;
 import org.apache.hadoop.hive.ql.parse.OpParseContext;
 import org.apache.hadoop.hive.ql.parse.ParseContext;
@@ -195,7 +195,8 @@ public class MapJoinProcessor implements Transform {
       }
       // create fetchwork for partitioned table
       if (fetchWork == null) {
-        fetchWork = new FetchWork(partDir, partDesc);
+        TableDesc table = newWork.getAliasToPartnInfo().get(alias).getTableDesc();
+        fetchWork = new FetchWork(partDir, partDesc, table);
       }
       // set alias to fetch work
       newLocalWork.getAliasToFetchWork().put(alias, fetchWork);
@@ -244,13 +245,15 @@ public class MapJoinProcessor implements Transform {
   /**
    * convert a regular join to a a map-side join.
    *
+   * @param opParseCtxMap
    * @param op
    *          join operator
-   * @param qbJoin
+   * @param joinTree
    *          qb join tree
    * @param mapJoinPos
    *          position of the source to be read as part of map-reduce framework. All other sources
    *          are cached in memory
+   * @param noCheckOuterJoin
    */
   public static MapJoinOperator convertMapJoin(
       LinkedHashMap<Operator<? extends Serializable>, OpParseContext> opParseCtxMap,
@@ -432,10 +435,20 @@ public class MapJoinProcessor implements Transform {
       valueTableDescs.add(valueTableDesc);
       valueFiltedTableDescs.add(valueFilteredTableDesc);
     }
+    String dumpFilePrefix = "";
+    if( joinTree.getMapAliases() != null ) {
+      for(String mapAlias : joinTree.getMapAliases()) {
+        dumpFilePrefix = dumpFilePrefix + mapAlias;
+      }
+      dumpFilePrefix = dumpFilePrefix+"-"+PlanUtils.getCountForMapJoinDumpFilePrefix();
+    } else {
+      dumpFilePrefix = "mapfile"+PlanUtils.getCountForMapJoinDumpFilePrefix();
+    }
     MapJoinDesc mapJoinDescriptor = new MapJoinDesc(keyExprMap, keyTableDesc, valueExprMap,
         valueTableDescs, valueFiltedTableDescs, outputColumnNames, mapJoinPos, joinCondns,
-        filterMap, op.getConf().getNoOuterJoin());
+        filterMap, op.getConf().getNoOuterJoin(), dumpFilePrefix);
     mapJoinDescriptor.setTagOrder(tagOrder);
+    mapJoinDescriptor.setNullSafes(desc.getNullSafes());
 
     MapJoinOperator mapJoinOp = (MapJoinOperator) OperatorFactory.getAndMakeChild(
         mapJoinDescriptor, new RowSchema(outputRS.getColumnInfos()), newPar);
@@ -497,7 +510,7 @@ public class MapJoinProcessor implements Transform {
    *
    *
    * @param condns
-   * @return
+   * @return list of big table candidates
    */
   public static HashSet<Integer> getBigTableCandidates(JoinCondDesc[] condns) {
     HashSet<Integer> bigTableCandidates = new HashSet<Integer>();
@@ -919,7 +932,7 @@ public class MapJoinProcessor implements Transform {
 
     /**
      * @param listMapJoinsNoRed
-     * @param pGraphContext2
+     * @param pGraphContext
      */
     public MapJoinWalkerCtx(List<AbstractMapJoinOperator<? extends MapJoinDesc>> listMapJoinsNoRed,
         ParseContext pGraphContext) {

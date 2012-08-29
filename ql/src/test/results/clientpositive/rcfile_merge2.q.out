@@ -26,11 +26,13 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-5 depends on stages: Stage-1 , consists of Stage-4, Stage-3
+  Stage-7 depends on stages: Stage-1 , consists of Stage-4, Stage-3, Stage-5
   Stage-4
-  Stage-0 depends on stages: Stage-4, Stage-3
+  Stage-0 depends on stages: Stage-4, Stage-3, Stage-6
   Stage-2 depends on stages: Stage-0
   Stage-3
+  Stage-5
+  Stage-6 depends on stages: Stage-5
 
 STAGE PLANS:
   Stage: Stage-1
@@ -70,14 +72,14 @@ STAGE PLANS:
                       serde: org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
                       name: default.rcfile_merge2a
 
-  Stage: Stage-5
+  Stage: Stage-7
     Conditional Operator
 
   Stage: Stage-4
     Move Operator
       files:
           hdfs directory: true
-          destination: pfile:/data/users/franklin/hive-block-merge/build/ql/scratchdir/hive_2011-06-09_17-43-14_704_1881798584858610203/-ext-10000
+#### A masked pattern was here ####
 
   Stage: Stage-0
     Move Operator
@@ -98,6 +100,15 @@ STAGE PLANS:
 
   Stage: Stage-3
     Block level merge
+
+  Stage: Stage-5
+    Block level merge
+
+  Stage: Stage-6
+    Move Operator
+      files:
+          hdfs directory: true
+#### A masked pattern was here ####
 
 
 PREHOOK: query: INSERT OVERWRITE TABLE rcfile_merge2a PARTITION (one='1', two, three)
@@ -198,7 +209,7 @@ PREHOOK: Input: default@rcfile_merge2a@one=1/two=8/three=0
 PREHOOK: Input: default@rcfile_merge2a@one=1/two=8/three=6
 PREHOOK: Input: default@rcfile_merge2a@one=1/two=9/three=1
 PREHOOK: Input: default@rcfile_merge2a@one=1/two=9/three=7
-PREHOOK: Output: file:/tmp/franklin/hive_2011-06-09_17-43-31_872_3375960871671195008/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT SUM(HASH(c)) FROM (
     SELECT TRANSFORM(*) USING 'tr \t _' AS (c)
     FROM rcfile_merge2a
@@ -224,7 +235,7 @@ POSTHOOK: Input: default@rcfile_merge2a@one=1/two=8/three=0
 POSTHOOK: Input: default@rcfile_merge2a@one=1/two=8/three=6
 POSTHOOK: Input: default@rcfile_merge2a@one=1/two=9/three=1
 POSTHOOK: Input: default@rcfile_merge2a@one=1/two=9/three=7
-POSTHOOK: Output: file:/tmp/franklin/hive_2011-06-09_17-43-31_872_3375960871671195008/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: rcfile_merge2a PARTITION(one=1,two=0,three=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: rcfile_merge2a PARTITION(one=1,two=0,three=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: rcfile_merge2a PARTITION(one=1,two=0,three=8).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -273,7 +284,7 @@ PREHOOK: query: SELECT SUM(HASH(c)) FROM (
 ) t
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
-PREHOOK: Output: file:/tmp/franklin/hive_2011-06-09_17-43-39_034_3882742807383787420/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT SUM(HASH(c)) FROM (
     SELECT TRANSFORM(key, value, '1', PMOD(HASH(key), 10), 
         PMOD(HASH(value), 10)) USING 'tr \t _' AS (c)
@@ -281,7 +292,7 @@ POSTHOOK: query: SELECT SUM(HASH(c)) FROM (
 ) t
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
-POSTHOOK: Output: file:/tmp/franklin/hive_2011-06-09_17-43-39_034_3882742807383787420/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: rcfile_merge2a PARTITION(one=1,two=0,three=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: rcfile_merge2a PARTITION(one=1,two=0,three=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: rcfile_merge2a PARTITION(one=1,two=0,three=8).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]

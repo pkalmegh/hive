@@ -21,9 +21,14 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.security.auth.Subject;
 import javax.security.auth.login.LoginException;
 
 import org.apache.hadoop.conf.Configuration;
@@ -32,9 +37,9 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
-import org.apache.hadoop.hive.io.HiveIOExceptionHandlerChain;
 import org.apache.hadoop.hive.io.HiveIOExceptionHandlerUtil;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.InputSplit;
@@ -48,12 +53,16 @@ import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.TaskAttemptContext;
 import org.apache.hadoop.mapred.TaskCompletionEvent;
 import org.apache.hadoop.mapred.TaskID;
+import org.apache.hadoop.mapred.TaskLogServlet;
 import org.apache.hadoop.mapred.lib.CombineFileInputFormat;
 import org.apache.hadoop.mapred.lib.CombineFileSplit;
-import org.apache.hadoop.mapred.lib.NullOutputFormat;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.TaskAttemptID;
+import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UnixUserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.tools.HadoopArchives;
+import org.apache.hadoop.util.Progressable;
 import org.apache.hadoop.util.ToolRunner;
 
 /**
@@ -211,7 +220,7 @@ public class Hadoop20Shims implements HadoopShims {
     protected RecordReader<K, V> curReader;
     protected boolean isShrinked;
     protected long shrinkedLength;
-    
+
     public boolean next(K key, V value) throws IOException {
 
       while ((curReader == null)
@@ -251,7 +260,12 @@ public class Hadoop20Shims implements HadoopShims {
      * Return progress based on the amount of data processed so far.
      */
     public float getProgress() throws IOException {
-      return Math.min(1.0f, progress / (float) (split.getLength()));
+      long subprogress = 0;    // bytes processed in current split
+      if (null != curReader) {
+        // idx is always one past the current subsplit's true index.
+        subprogress = (long)(curReader.getProgress() * split.getLength(idx - 1));
+      }
+      return Math.min(1.0f, (progress + subprogress) / (float) (split.getLength()));
     }
 
     /**
@@ -287,9 +301,9 @@ public class Hadoop20Shims implements HadoopShims {
       }
       initNextRecordReader(null);
     }
-    
+
     /**
-     * do next and handle exception inside it. 
+     * do next and handle exception inside it.
      * @param key
      * @param value
      * @return
@@ -467,8 +481,7 @@ public class Hadoop20Shims implements HadoopShims {
     public void abortTask(TaskAttemptContext taskContext) { }
   }
 
-  public void setNullOutputFormat(JobConf conf) {
-    conf.setOutputFormat(NullOutputFormat.class);
+  public void prepareJobOutput(JobConf conf) {
     conf.setOutputCommitter(Hadoop20Shims.NullOutputCommitter.class);
 
     // option to bypass job setup and cleanup was introduced in hadoop-21 (MAPREDUCE-463)
@@ -503,5 +516,66 @@ public class Hadoop20Shims implements HadoopShims {
   @Override
   public String getTokenStrForm(String tokenSignature) throws IOException {
     throw new UnsupportedOperationException("Tokens are not supported in current hadoop version");
+  }
+
+  @Override
+  public void doAs(UserGroupInformation ugi, PrivilegedExceptionAction<Void> pvea) throws
+    IOException, InterruptedException {
+    try {
+      Subject.doAs(SecurityUtil.getSubject(ugi),pvea);
+    } catch (PrivilegedActionException e) {
+      throw new IOException(e);
+    }
+  }
+
+  @Override
+  public UserGroupInformation createRemoteUser(String userName, List<String> groupNames) {
+    return new UnixUserGroupInformation(userName, groupNames.toArray(new String[0]));
+  }
+
+  @Override
+  public String getTaskAttemptLogUrl(JobConf conf,
+    String taskTrackerHttpAddress, String taskAttemptId)
+    throws MalformedURLException {
+    URL taskTrackerHttpURL = new URL(taskTrackerHttpAddress);
+    return TaskLogServlet.getTaskLogUrl(
+      taskTrackerHttpURL.getHost(),
+      Integer.toString(taskTrackerHttpURL.getPort()),
+      taskAttemptId);
+  }
+
+  @Override
+  public JobTrackerState getJobTrackerState(ClusterStatus clusterStatus) throws Exception {
+    JobTrackerState state;
+    switch (clusterStatus.getJobTrackerState()) {
+    case INITIALIZING:
+      return JobTrackerState.INITIALIZING;
+    case RUNNING:
+      return JobTrackerState.RUNNING;
+    default:
+      String errorMsg = "Unrecognized JobTracker state: " + clusterStatus.getJobTrackerState();
+      throw new Exception(errorMsg);
+    }
+  }
+
+  @Override
+  public String unquoteHtmlChars(String item) {
+    return item;
+  }
+
+
+  @Override
+  public org.apache.hadoop.mapreduce.TaskAttemptContext newTaskAttemptContext(Configuration conf, final Progressable progressable) {
+    return new org.apache.hadoop.mapreduce.TaskAttemptContext(conf, new TaskAttemptID()) {
+      @Override
+      public void progress() {
+        progressable.progress();
+      }
+    };
+  }
+
+  @Override
+  public org.apache.hadoop.mapreduce.JobContext newJobContext(Job job) {
+    return new org.apache.hadoop.mapreduce.JobContext(job.getConfiguration(), job.getJobID());
   }
 }

@@ -38,9 +38,9 @@ STAGE PLANS:
                   File Output Operator
                     compressed: false
                     GlobalTableId: 0
-                    directory: file:/tmp/amarsri/hive_2011-08-23_02-56-28_075_5381552535418367629/-ext-10001
+#### A masked pattern was here ####
                     NumFilesPerFileSink: 1
-                    Stats Publishing Key Prefix: file:/tmp/amarsri/hive_2011-08-23_02-56-28_075_5381552535418367629/-ext-10001/
+#### A masked pattern was here ####
                     table:
                         input format: org.apache.hadoop.mapred.TextInputFormat
                         output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
@@ -54,9 +54,9 @@ STAGE PLANS:
                     MultiFileSpray: false
       Needs Tagging: false
       Path -> Alias:
-        pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src [src]
+#### A masked pattern was here ####
       Path -> Partition:
-        pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src 
+#### A masked pattern was here ####
           Partition
             base file name: src
             input format: org.apache.hadoop.mapred.TextInputFormat
@@ -65,14 +65,17 @@ STAGE PLANS:
               bucket_count -1
               columns key,value
               columns.types string:string
-              file.inputformat org.apache.hadoop.mapred.TextInputFormat
-              file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-              location pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src
+#### A masked pattern was here ####
               name default.src
+              numFiles 1
+              numPartitions 0
+              numRows 0
+              rawDataSize 0
               serialization.ddl struct src { string key, string value}
               serialization.format 1
               serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-              transient_lastDdlTime 1314078275
+              totalSize 5812
+#### A masked pattern was here ####
             serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
           
               input format: org.apache.hadoop.mapred.TextInputFormat
@@ -81,14 +84,17 @@ STAGE PLANS:
                 bucket_count -1
                 columns key,value
                 columns.types string:string
-                file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                location pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src
+#### A masked pattern was here ####
                 name default.src
+                numFiles 1
+                numPartitions 0
+                numRows 0
+                rawDataSize 0
                 serialization.ddl struct src { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                transient_lastDdlTime 1314078275
+                totalSize 5812
+#### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.src
             name: default.src
@@ -134,9 +140,9 @@ STAGE PLANS:
                           type: int
       Needs Tagging: false
       Path -> Alias:
-        pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src [a:src]
+#### A masked pattern was here ####
       Path -> Partition:
-        pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src 
+#### A masked pattern was here ####
           Partition
             base file name: src
             input format: org.apache.hadoop.mapred.TextInputFormat
@@ -145,14 +151,17 @@ STAGE PLANS:
               bucket_count -1
               columns key,value
               columns.types string:string
-              file.inputformat org.apache.hadoop.mapred.TextInputFormat
-              file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-              location pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src
+#### A masked pattern was here ####
               name default.src
+              numFiles 1
+              numPartitions 0
+              numRows 0
+              rawDataSize 0
               serialization.ddl struct src { string key, string value}
               serialization.format 1
               serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-              transient_lastDdlTime 1314078275
+              totalSize 5812
+#### A masked pattern was here ####
             serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
           
               input format: org.apache.hadoop.mapred.TextInputFormat
@@ -161,14 +170,17 @@ STAGE PLANS:
                 bucket_count -1
                 columns key,value
                 columns.types string:string
-                file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                location pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src
+#### A masked pattern was here ####
                 name default.src
+                numFiles 1
+                numPartitions 0
+                numRows 0
+                rawDataSize 0
                 serialization.ddl struct src { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                transient_lastDdlTime 1314078275
+                totalSize 5812
+#### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.src
             name: default.src
@@ -192,7 +204,7 @@ STAGE PLANS:
                 File Output Operator
                   compressed: false
                   GlobalTableId: 0
-                  directory: file:/tmp/amarsri/hive_2011-08-23_02-56-28_113_65205321316089257/-mr-10002
+#### A masked pattern was here ####
                   NumFilesPerFileSink: 1
                   table:
                       input format: org.apache.hadoop.mapred.SequenceFileInputFormat
@@ -208,7 +220,7 @@ STAGE PLANS:
   Stage: Stage-2
     Map Reduce
       Alias -> Map Operator Tree:
-        file:/tmp/amarsri/hive_2011-08-23_02-56-28_113_65205321316089257/-mr-10002 
+#### A masked pattern was here ####
             Reduce Output Operator
               key expressions:
                     expr: _col0
@@ -223,9 +235,9 @@ STAGE PLANS:
                     type: bigint
       Needs Tagging: false
       Path -> Alias:
-        file:/tmp/amarsri/hive_2011-08-23_02-56-28_113_65205321316089257/-mr-10002 [file:/tmp/amarsri/hive_2011-08-23_02-56-28_113_65205321316089257/-mr-10002]
+#### A masked pattern was here ####
       Path -> Partition:
-        file:/tmp/amarsri/hive_2011-08-23_02-56-28_113_65205321316089257/-mr-10002 
+#### A masked pattern was here ####
           Partition
             base file name: -mr-10002
             input format: org.apache.hadoop.mapred.SequenceFileInputFormat
@@ -261,9 +273,9 @@ STAGE PLANS:
             File Output Operator
               compressed: false
               GlobalTableId: 0
-              directory: file:/tmp/amarsri/hive_2011-08-23_02-56-28_113_65205321316089257/-ext-10001
+#### A masked pattern was here ####
               NumFilesPerFileSink: 1
-              Stats Publishing Key Prefix: file:/tmp/amarsri/hive_2011-08-23_02-56-28_113_65205321316089257/-ext-10001/
+#### A masked pattern was here ####
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
@@ -284,33 +296,33 @@ STAGE PLANS:
 PREHOOK: query: SELECT explode(array(1,2,3)) AS myCol FROM src LIMIT 3
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
-PREHOOK: Output: file:/tmp/amarsri/hive_2011-08-23_02-56-28_160_2910833187295504665/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT explode(array(1,2,3)) AS myCol FROM src LIMIT 3
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
-POSTHOOK: Output: file:/tmp/amarsri/hive_2011-08-23_02-56-28_160_2910833187295504665/-mr-10000
+#### A masked pattern was here ####
 1
 2
 3
 PREHOOK: query: SELECT explode(array(1,2,3)) AS (myCol) FROM src LIMIT 3
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
-PREHOOK: Output: file:/tmp/amarsri/hive_2011-08-23_02-56-30_684_5031217605959760308/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT explode(array(1,2,3)) AS (myCol) FROM src LIMIT 3
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
-POSTHOOK: Output: file:/tmp/amarsri/hive_2011-08-23_02-56-30_684_5031217605959760308/-mr-10000
+#### A masked pattern was here ####
 1
 2
 3
 PREHOOK: query: SELECT a.myCol, count(1) FROM (SELECT explode(array(1,2,3)) AS myCol FROM src LIMIT 3) a GROUP BY a.myCol
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
-PREHOOK: Output: file:/tmp/amarsri/hive_2011-08-23_02-56-33_209_1289105752297291373/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT a.myCol, count(1) FROM (SELECT explode(array(1,2,3)) AS myCol FROM src LIMIT 3) a GROUP BY a.myCol
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
-POSTHOOK: Output: file:/tmp/amarsri/hive_2011-08-23_02-56-33_209_1289105752297291373/-mr-10000
+#### A masked pattern was here ####
 1	1
 2	1
 3	1
@@ -344,9 +356,9 @@ STAGE PLANS:
                   File Output Operator
                     compressed: false
                     GlobalTableId: 0
-                    directory: file:/tmp/amarsri/hive_2011-08-23_02-56-38_255_4993331428918111884/-ext-10001
+#### A masked pattern was here ####
                     NumFilesPerFileSink: 1
-                    Stats Publishing Key Prefix: file:/tmp/amarsri/hive_2011-08-23_02-56-38_255_4993331428918111884/-ext-10001/
+#### A masked pattern was here ####
                     table:
                         input format: org.apache.hadoop.mapred.TextInputFormat
                         output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
@@ -360,9 +372,9 @@ STAGE PLANS:
                     MultiFileSpray: false
       Needs Tagging: false
       Path -> Alias:
-        pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src [src]
+#### A masked pattern was here ####
       Path -> Partition:
-        pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src 
+#### A masked pattern was here ####
           Partition
             base file name: src
             input format: org.apache.hadoop.mapred.TextInputFormat
@@ -371,14 +383,17 @@ STAGE PLANS:
               bucket_count -1
               columns key,value
               columns.types string:string
-              file.inputformat org.apache.hadoop.mapred.TextInputFormat
-              file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-              location pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src
+#### A masked pattern was here ####
               name default.src
+              numFiles 1
+              numPartitions 0
+              numRows 0
+              rawDataSize 0
               serialization.ddl struct src { string key, string value}
               serialization.format 1
               serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-              transient_lastDdlTime 1314078275
+              totalSize 5812
+#### A masked pattern was here ####
             serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
           
               input format: org.apache.hadoop.mapred.TextInputFormat
@@ -387,14 +402,17 @@ STAGE PLANS:
                 bucket_count -1
                 columns key,value
                 columns.types string:string
-                file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                location pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src
+#### A masked pattern was here ####
                 name default.src
+                numFiles 1
+                numPartitions 0
+                numRows 0
+                rawDataSize 0
                 serialization.ddl struct src { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                transient_lastDdlTime 1314078275
+                totalSize 5812
+#### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.src
             name: default.src
@@ -442,9 +460,9 @@ STAGE PLANS:
                           type: string
       Needs Tagging: false
       Path -> Alias:
-        pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src [a:src]
+#### A masked pattern was here ####
       Path -> Partition:
-        pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src 
+#### A masked pattern was here ####
           Partition
             base file name: src
             input format: org.apache.hadoop.mapred.TextInputFormat
@@ -453,14 +471,17 @@ STAGE PLANS:
               bucket_count -1
               columns key,value
               columns.types string:string
-              file.inputformat org.apache.hadoop.mapred.TextInputFormat
-              file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-              location pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src
+#### A masked pattern was here ####
               name default.src
+              numFiles 1
+              numPartitions 0
+              numRows 0
+              rawDataSize 0
               serialization.ddl struct src { string key, string value}
               serialization.format 1
               serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-              transient_lastDdlTime 1314078275
+              totalSize 5812
+#### A masked pattern was here ####
             serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
           
               input format: org.apache.hadoop.mapred.TextInputFormat
@@ -469,14 +490,17 @@ STAGE PLANS:
                 bucket_count -1
                 columns key,value
                 columns.types string:string
-                file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                location pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src
+#### A masked pattern was here ####
                 name default.src
+                numFiles 1
+                numPartitions 0
+                numRows 0
+                rawDataSize 0
                 serialization.ddl struct src { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                transient_lastDdlTime 1314078275
+                totalSize 5812
+#### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.src
             name: default.src
@@ -504,7 +528,7 @@ STAGE PLANS:
                 File Output Operator
                   compressed: false
                   GlobalTableId: 0
-                  directory: file:/tmp/amarsri/hive_2011-08-23_02-56-38_293_6878248083858234444/-mr-10002
+#### A masked pattern was here ####
                   NumFilesPerFileSink: 1
                   table:
                       input format: org.apache.hadoop.mapred.SequenceFileInputFormat
@@ -520,7 +544,7 @@ STAGE PLANS:
   Stage: Stage-2
     Map Reduce
       Alias -> Map Operator Tree:
-        file:/tmp/amarsri/hive_2011-08-23_02-56-38_293_6878248083858234444/-mr-10002 
+#### A masked pattern was here ####
             Reduce Output Operator
               key expressions:
                     expr: _col0
@@ -539,9 +563,9 @@ STAGE PLANS:
                     type: bigint
       Needs Tagging: false
       Path -> Alias:
-        file:/tmp/amarsri/hive_2011-08-23_02-56-38_293_6878248083858234444/-mr-10002 [file:/tmp/amarsri/hive_2011-08-23_02-56-38_293_6878248083858234444/-mr-10002]
+#### A masked pattern was here ####
       Path -> Partition:
-        file:/tmp/amarsri/hive_2011-08-23_02-56-38_293_6878248083858234444/-mr-10002 
+#### A masked pattern was here ####
           Partition
             base file name: -mr-10002
             input format: org.apache.hadoop.mapred.SequenceFileInputFormat
@@ -581,9 +605,9 @@ STAGE PLANS:
             File Output Operator
               compressed: false
               GlobalTableId: 0
-              directory: file:/tmp/amarsri/hive_2011-08-23_02-56-38_293_6878248083858234444/-ext-10001
+#### A masked pattern was here ####
               NumFilesPerFileSink: 1
-              Stats Publishing Key Prefix: file:/tmp/amarsri/hive_2011-08-23_02-56-38_293_6878248083858234444/-ext-10001/
+#### A masked pattern was here ####
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
@@ -604,22 +628,67 @@ STAGE PLANS:
 PREHOOK: query: SELECT explode(map(1,'one',2,'two',3,'three')) AS (key,val) FROM src LIMIT 3
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
-PREHOOK: Output: file:/tmp/amarsri/hive_2011-08-23_02-56-38_345_2089047557448956718/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT explode(map(1,'one',2,'two',3,'three')) AS (key,val) FROM src LIMIT 3
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
-POSTHOOK: Output: file:/tmp/amarsri/hive_2011-08-23_02-56-38_345_2089047557448956718/-mr-10000
+#### A masked pattern was here ####
 1	one
 2	two
 3	three
 PREHOOK: query: SELECT a.key, a.val, count(1) FROM (SELECT explode(map(1,'one',2,'two',3,'three')) AS (key,val) FROM src LIMIT 3) a GROUP BY a.key, a.val
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
-PREHOOK: Output: file:/tmp/amarsri/hive_2011-08-23_02-56-40_934_2953013391147671836/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT a.key, a.val, count(1) FROM (SELECT explode(map(1,'one',2,'two',3,'three')) AS (key,val) FROM src LIMIT 3) a GROUP BY a.key, a.val
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
-POSTHOOK: Output: file:/tmp/amarsri/hive_2011-08-23_02-56-40_934_2953013391147671836/-mr-10000
+#### A masked pattern was here ####
 1	one	1
 2	two	1
 3	three	1
+PREHOOK: query: drop table lazy_array_map
+PREHOOK: type: DROPTABLE
+POSTHOOK: query: drop table lazy_array_map
+POSTHOOK: type: DROPTABLE
+PREHOOK: query: create table lazy_array_map (map_col map<int,string>, array_col array<string>)
+PREHOOK: type: CREATETABLE
+POSTHOOK: query: create table lazy_array_map (map_col map<int,string>, array_col array<string>)
+POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: default@lazy_array_map
+PREHOOK: query: INSERT OVERWRITE TABLE lazy_array_map select map(1,'one',2,'two',3,'three'), array('100','200','300') FROM src LIMIT 1
+PREHOOK: type: QUERY
+PREHOOK: Input: default@src
+PREHOOK: Output: default@lazy_array_map
+POSTHOOK: query: INSERT OVERWRITE TABLE lazy_array_map select map(1,'one',2,'two',3,'three'), array('100','200','300') FROM src LIMIT 1
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@src
+POSTHOOK: Output: default@lazy_array_map
+POSTHOOK: Lineage: lazy_array_map.array_col EXPRESSION []
+POSTHOOK: Lineage: lazy_array_map.map_col EXPRESSION []
+PREHOOK: query: SELECT array_col, myCol from lazy_array_map lateral view explode(array_col) X AS myCol
+PREHOOK: type: QUERY
+PREHOOK: Input: default@lazy_array_map
+#### A masked pattern was here ####
+POSTHOOK: query: SELECT array_col, myCol from lazy_array_map lateral view explode(array_col) X AS myCol
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@lazy_array_map
+#### A masked pattern was here ####
+POSTHOOK: Lineage: lazy_array_map.array_col EXPRESSION []
+POSTHOOK: Lineage: lazy_array_map.map_col EXPRESSION []
+["100","200","300"]	100
+["100","200","300"]	200
+["100","200","300"]	300
+PREHOOK: query: SELECT map_col, myKey, myValue from lazy_array_map lateral view explode(map_col) X AS myKey, myValue
+PREHOOK: type: QUERY
+PREHOOK: Input: default@lazy_array_map
+#### A masked pattern was here ####
+POSTHOOK: query: SELECT map_col, myKey, myValue from lazy_array_map lateral view explode(map_col) X AS myKey, myValue
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@lazy_array_map
+#### A masked pattern was here ####
+POSTHOOK: Lineage: lazy_array_map.array_col EXPRESSION []
+POSTHOOK: Lineage: lazy_array_map.map_col EXPRESSION []
+{1:"one",2:"two",3:"three"}	1	one
+{1:"one",2:"two",3:"three"}	2	two
+{1:"one",2:"two",3:"three"}	3	three

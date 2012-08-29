@@ -27,6 +27,7 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.common.FileUtils;
+import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.VirtualColumn;
 import org.apache.hadoop.hive.ql.plan.TableDesc;
@@ -36,9 +37,9 @@ import org.apache.hadoop.hive.ql.stats.StatsPublisher;
 import org.apache.hadoop.hive.ql.stats.StatsSetupConst;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.JobConf;
 
@@ -53,7 +54,6 @@ public class TableScanOperator extends Operator<TableScanDesc> implements
 
   protected transient JobConf jc;
   private transient Configuration hconf;
-  private transient String partitionSpecs;
   private transient boolean inputFileChanged = false;
   private TableDesc tableDesc;
 
@@ -71,8 +71,8 @@ public class TableScanOperator extends Operator<TableScanDesc> implements
   /**
    * Other than gathering statistics for the ANALYZE command, the table scan operator
    * does not do anything special other than just forwarding the row. Since the table
-   * data is always read as part of the map-reduce framework by the mapper. But, this
-   * assumption is not true, i.e table data is not only read by the mapper, this
+   * data is always read as part of the map-reduce framework by the mapper. But, when this
+   * assumption stops to be true, i.e table data won't be only read by the mapper, this
    * operator will be enhanced to read the table.
    **/
   @Override
@@ -91,8 +91,8 @@ public class TableScanOperator extends Operator<TableScanDesc> implements
 
   private void gatherStats(Object row) {
     // first row/call or a new partition
-
     if ((currentStat == null) || inputFileChanged) {
+      String partitionSpecs;
       inputFileChanged = false;
       if (conf.getPartColumns() == null || conf.getPartColumns().size() == 0) {
         partitionSpecs = ""; // non-partitioned
@@ -183,7 +183,6 @@ public class TableScanOperator extends Operator<TableScanDesc> implements
 
     currentStat = null;
     stats = new HashMap<String, Stat>();
-    partitionSpecs = null;
     if (conf.getPartColumns() == null || conf.getPartColumns().size() == 0) {
       // NON PARTITIONED table
       return;
@@ -230,12 +229,17 @@ public class TableScanOperator extends Operator<TableScanDesc> implements
     return OperatorType.TABLESCAN;
   }
 
-  private void publishStats() {
+  private void publishStats() throws HiveException {
+    boolean isStatsReliable = conf.isStatsReliable();
+
     // Initializing a stats publisher
     StatsPublisher statsPublisher = Utilities.getStatsPublisher(jc);
     if (!statsPublisher.connect(jc)) {
       // just return, stats gathering should not block the main query.
       LOG.info("StatsPublishing error: cannot connect to database.");
+      if (isStatsReliable) {
+        throw new HiveException(ErrorMsg.STATSPUBLISHER_CONNECTION_ERROR.getErrorCodedMsg());
+      }
       return;
     }
 
@@ -257,9 +261,17 @@ public class TableScanOperator extends Operator<TableScanDesc> implements
       for(String statType : stats.get(pspecs).getStoredStats()) {
         statsToPublish.put(statType, Long.toString(stats.get(pspecs).getStat(statType)));
       }
-      statsPublisher.publishStat(key, statsToPublish);
+      if (!statsPublisher.publishStat(key, statsToPublish)) {
+        if (isStatsReliable) {
+          throw new HiveException(ErrorMsg.STATSPUBLISHER_PUBLISHING_ERROR.getErrorCodedMsg());
+        }
+      }
       LOG.info("publishing : " + key + " : " + statsToPublish.toString());
     }
-    statsPublisher.closeConnection();
+    if (!statsPublisher.closeConnection()) {
+      if (isStatsReliable) {
+        throw new HiveException(ErrorMsg.STATSPUBLISHER_CLOSING_ERROR.getErrorCodedMsg());
+      }
+    }
   }
 }

@@ -18,6 +18,9 @@
 
 package org.apache.hadoop.hive.metastore;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -44,10 +47,12 @@ import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Order;
 import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
+import org.apache.hadoop.hive.metastore.api.SkewedInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.Type;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
+import org.apache.hadoop.hive.ql.exec.Utilities;
 import org.apache.hadoop.hive.serde.Constants;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.thrift.TException;
@@ -127,6 +132,17 @@ public abstract class TestHiveMetaStore extends TestCase {
       Database db = new Database();
       db.setName(dbName);
       client.createDatabase(db);
+      db = client.getDatabase(dbName);
+      Path dbPath = new Path(db.getLocationUri());
+      FileSystem fs = FileSystem.get(dbPath.toUri(), hiveConf);
+      boolean inheritPerms = hiveConf.getBoolVar(
+          HiveConf.ConfVars.HIVE_WAREHOUSE_SUBDIR_INHERIT_PERMS);
+      FsPermission dbPermission = fs.getFileStatus(dbPath).getPermission();
+      if (inheritPerms) {
+         //Set different perms for the database dir for further tests
+         dbPermission = new FsPermission((short)488);
+         fs.setPermission(dbPath, dbPermission);
+      }
 
       client.dropType(typeName);
       Type typ1 = new Type();
@@ -157,6 +173,16 @@ public abstract class TestHiveMetaStore extends TestCase {
           .put(Constants.SERIALIZATION_FORMAT, "1");
       sd.setSortCols(new ArrayList<Order>());
 
+      //skewed information
+      SkewedInfo skewInfor = new SkewedInfo();
+      skewInfor.setSkewedColNames(Arrays.asList("name"));
+      List<String> skv = Arrays.asList("1");
+      skewInfor.setSkewedColValues(Arrays.asList(skv));
+      Map<List<String>, String> scvlm = new HashMap<List<String>, String>();
+      scvlm.put(skv, "location1");
+      skewInfor.setSkewedColValueLocationMaps(scvlm);
+      sd.setSkewedInfo(skewInfor);
+
       tbl.setPartitionKeys(new ArrayList<FieldSchema>(2));
       tbl.getPartitionKeys().add(
           new FieldSchema("ds", Constants.STRING_TYPE_NAME, ""));
@@ -172,6 +198,9 @@ public abstract class TestHiveMetaStore extends TestCase {
         // from the metastore
         tbl = client.getTable(dbName, tblName);
       }
+
+      assertEquals(dbPermission, fs.getFileStatus(new Path(tbl.getSd().getLocation()))
+          .getPermission());
 
       Partition part = makePartitionObject(dbName, tblName, vals, tbl, "/part1");
       Partition part2 = makePartitionObject(dbName, tblName, vals2, tbl, "/part2");
@@ -190,14 +219,20 @@ public abstract class TestHiveMetaStore extends TestCase {
       assertTrue("getPartition() should have thrown NoSuchObjectException", exceptionThrown);
       Partition retp = client.add_partition(part);
       assertNotNull("Unable to create partition " + part, retp);
+      assertEquals(dbPermission, fs.getFileStatus(new Path(retp.getSd().getLocation()))
+          .getPermission());
       Partition retp2 = client.add_partition(part2);
       assertNotNull("Unable to create partition " + part2, retp2);
+      assertEquals(dbPermission, fs.getFileStatus(new Path(retp2.getSd().getLocation()))
+          .getPermission());
       Partition retp3 = client.add_partition(part3);
       assertNotNull("Unable to create partition " + part3, retp3);
+      assertEquals(dbPermission, fs.getFileStatus(new Path(retp3.getSd().getLocation()))
+          .getPermission());
       Partition retp4 = client.add_partition(part4);
       assertNotNull("Unable to create partition " + part4, retp4);
-
-
+      assertEquals(dbPermission, fs.getFileStatus(new Path(retp4.getSd().getLocation()))
+          .getPermission());
 
       Partition part_get = client.getPartition(dbName, tblName, part.getValues());
       if(isThriftClient) {
@@ -279,7 +314,6 @@ public abstract class TestHiveMetaStore extends TestCase {
       assertTrue("Bad partition spec should have thrown an exception", exceptionThrown);
 
       Path partPath = new Path(part.getSd().getLocation());
-      FileSystem fs = FileSystem.get(partPath.toUri(), hiveConf);
 
 
       assertTrue(fs.exists(partPath));
@@ -302,6 +336,8 @@ public abstract class TestHiveMetaStore extends TestCase {
       // tested
       retp = client.add_partition(part);
       assertNotNull("Unable to create partition " + part, retp);
+      assertEquals(dbPermission, fs.getFileStatus(new Path(retp.getSd().getLocation()))
+          .getPermission());
 
       // test add_partitions
 
@@ -339,6 +375,7 @@ public abstract class TestHiveMetaStore extends TestCase {
       Path mp5Path = new Path(mpart5.getSd().getLocation());
       warehouse.mkdirs(mp5Path);
       assertTrue(fs.exists(mp5Path));
+      assertEquals(dbPermission, fs.getFileStatus(mp5Path).getPermission());
 
       // add_partitions(5,4) : err = duplicate keyvals on mpart4
       savedException = null;
@@ -430,6 +467,119 @@ public abstract class TestHiveMetaStore extends TestCase {
     return part4;
   }
 
+  public void testListPartitions() throws Throwable {
+    // create a table with multiple partitions
+    String dbName = "compdb";
+    String tblName = "comptbl";
+    String typeName = "Person";
+
+    cleanUp(dbName, tblName, typeName);
+
+    List<List<String>> values = new ArrayList<List<String>>();
+    values.add(makeVals("2008-07-01 14:13:12", "14"));
+    values.add(makeVals("2008-07-01 14:13:12", "15"));
+    values.add(makeVals("2008-07-02 14:13:12", "15"));
+    values.add(makeVals("2008-07-03 14:13:12", "151"));
+
+    createMultiPartitionTableSchema(dbName, tblName, typeName, values);
+
+    List<Partition> partitions = client.listPartitions(dbName, tblName, (short)-1);
+    assertNotNull("should have returned partitions", partitions);
+    assertEquals(" should have returned " + values.size() +
+      " partitions", values.size(), partitions.size());
+
+    partitions = client.listPartitions(dbName, tblName, (short)(values.size()/2));
+
+    assertNotNull("should have returned partitions", partitions);
+    assertEquals(" should have returned " + values.size() / 2 +
+      " partitions",values.size() / 2, partitions.size());
+
+
+    partitions = client.listPartitions(dbName, tblName, (short) (values.size() * 2));
+
+    assertNotNull("should have returned partitions", partitions);
+    assertEquals(" should have returned " + values.size() +
+      " partitions",values.size(), partitions.size());
+
+    cleanUp(dbName, tblName, typeName);
+
+  }
+
+
+
+  public void testListPartitionNames() throws Throwable {
+    // create a table with multiple partitions
+    String dbName = "compdb";
+    String tblName = "comptbl";
+    String typeName = "Person";
+
+    cleanUp(dbName, tblName, typeName);
+
+    List<List<String>> values = new ArrayList<List<String>>();
+    values.add(makeVals("2008-07-01 14:13:12", "14"));
+    values.add(makeVals("2008-07-01 14:13:12", "15"));
+    values.add(makeVals("2008-07-02 14:13:12", "15"));
+    values.add(makeVals("2008-07-03 14:13:12", "151"));
+
+
+
+    createMultiPartitionTableSchema(dbName, tblName, typeName, values);
+
+    List<String> partitions = client.listPartitionNames(dbName, tblName, (short)-1);
+    assertNotNull("should have returned partitions", partitions);
+    assertEquals(" should have returned " + values.size() +
+      " partitions", values.size(), partitions.size());
+
+    partitions = client.listPartitionNames(dbName, tblName, (short)(values.size()/2));
+
+    assertNotNull("should have returned partitions", partitions);
+    assertEquals(" should have returned " + values.size() / 2 +
+      " partitions",values.size() / 2, partitions.size());
+
+
+    partitions = client.listPartitionNames(dbName, tblName, (short) (values.size() * 2));
+
+    assertNotNull("should have returned partitions", partitions);
+    assertEquals(" should have returned " + values.size() +
+      " partitions",values.size(), partitions.size());
+
+    cleanUp(dbName, tblName, typeName);
+
+  }
+
+
+  public void testDropTable() throws Throwable {
+    // create a table with multiple partitions
+    String dbName = "compdb";
+    String tblName = "comptbl";
+    String typeName = "Person";
+
+    cleanUp(dbName, tblName, typeName);
+
+    List<List<String>> values = new ArrayList<List<String>>();
+    values.add(makeVals("2008-07-01 14:13:12", "14"));
+    values.add(makeVals("2008-07-01 14:13:12", "15"));
+    values.add(makeVals("2008-07-02 14:13:12", "15"));
+    values.add(makeVals("2008-07-03 14:13:12", "151"));
+
+    createMultiPartitionTableSchema(dbName, tblName, typeName, values);
+
+    client.dropTable(dbName, tblName);
+    client.dropType(typeName);
+
+    boolean exceptionThrown = false;
+    try {
+      client.getTable(dbName, tblName);
+    } catch(Exception e) {
+      assertEquals("table should not have existed",
+          NoSuchObjectException.class, e.getClass());
+      exceptionThrown = true;
+    }
+    assertTrue("Table " + tblName + " should have been dropped ", exceptionThrown);
+
+  }
+
+
   public void testAlterPartition() throws Throwable {
 
     try {
@@ -517,6 +667,136 @@ public abstract class TestHiveMetaStore extends TestCase {
     } catch (Exception e) {
       System.err.println(StringUtils.stringifyException(e));
       System.err.println("testPartition() failed.");
+      throw e;
+    }
+  }
+
+  public void testRenamePartition() throws Throwable {
+
+    try {
+      String dbName = "compdb1";
+      String tblName = "comptbl1";
+      List<String> vals = new ArrayList<String>(2);
+      vals.add("2011-07-11");
+      vals.add("8");
+      String part_path = "/ds=2011-07-11/hr=8";
+      List<String> tmp_vals = new ArrayList<String>(2);
+      tmp_vals.add("tmp_2011-07-11");
+      tmp_vals.add("-8");
+      String part2_path = "/ds=tmp_2011-07-11/hr=-8";
+
+      client.dropTable(dbName, tblName);
+      silentDropDatabase(dbName);
+      Database db = new Database();
+      db.setName(dbName);
+      db.setDescription("Rename Partition Test database");
+      client.createDatabase(db);
+
+      ArrayList<FieldSchema> cols = new ArrayList<FieldSchema>(2);
+      cols.add(new FieldSchema("name", Constants.STRING_TYPE_NAME, ""));
+      cols.add(new FieldSchema("income", Constants.INT_TYPE_NAME, ""));
+
+      Table tbl = new Table();
+      tbl.setDbName(dbName);
+      tbl.setTableName(tblName);
+      StorageDescriptor sd = new StorageDescriptor();
+      tbl.setSd(sd);
+      sd.setCols(cols);
+      sd.setCompressed(false);
+      sd.setNumBuckets(1);
+      sd.setParameters(new HashMap<String, String>());
+      sd.getParameters().put("test_param_1", "Use this for comments etc");
+      sd.setBucketCols(new ArrayList<String>(2));
+      sd.getBucketCols().add("name");
+      sd.setSerdeInfo(new SerDeInfo());
+      sd.getSerdeInfo().setName(tbl.getTableName());
+      sd.getSerdeInfo().setParameters(new HashMap<String, String>());
+      sd.getSerdeInfo().getParameters()
+          .put(Constants.SERIALIZATION_FORMAT, "1");
+      sd.setSortCols(new ArrayList<Order>());
+
+      tbl.setPartitionKeys(new ArrayList<FieldSchema>(2));
+      tbl.getPartitionKeys().add(
+          new FieldSchema("ds", Constants.STRING_TYPE_NAME, ""));
+      tbl.getPartitionKeys().add(
+          new FieldSchema("hr", Constants.INT_TYPE_NAME, ""));
+
+      client.createTable(tbl);
+
+      if (isThriftClient) {
+        // the createTable() above does not update the location in the 'tbl'
+        // object when the client is a thrift client and the code below relies
+        // on the location being present in the 'tbl' object - so get the table
+        // from the metastore
+        tbl = client.getTable(dbName, tblName);
+      }
+
+      Partition part = new Partition();
+      part.setDbName(dbName);
+      part.setTableName(tblName);
+      part.setValues(vals);
+      part.setParameters(new HashMap<String, String>());
+      part.setSd(tbl.getSd().deepCopy());
+      part.getSd().setSerdeInfo(tbl.getSd().getSerdeInfo());
+      part.getSd().setLocation(tbl.getSd().getLocation() + "/part1");
+      part.getParameters().put("retention", "10");
+      part.getSd().setNumBuckets(12);
+      part.getSd().getSerdeInfo().getParameters().put("abc", "1");
+
+      client.add_partition(part);
+
+      part.setValues(tmp_vals);
+      client.renamePartition(dbName, tblName, vals, part);
+
+      boolean exceptionThrown = false;
+      try {
+        Partition p = client.getPartition(dbName, tblName, vals);
+      } catch(Exception e) {
+        assertEquals("partition should not have existed",
+            NoSuchObjectException.class, e.getClass());
+        exceptionThrown = true;
+      }
+      assertTrue("Expected NoSuchObjectException", exceptionThrown);
+
+      Partition part3 = client.getPartition(dbName, tblName, tmp_vals);
+      assertEquals("couldn't rename partition", part3.getParameters().get(
+          "retention"), "10");
+      assertEquals("couldn't rename partition", part3.getSd().getSerdeInfo()
+          .getParameters().get("abc"), "1");
+      assertEquals("couldn't rename partition", part3.getSd().getNumBuckets(),
+          12);
+      assertEquals("new partition sd matches", part3.getSd().getLocation(),
+          tbl.getSd().getLocation() + part2_path);
+
+      part.setValues(vals);
+      client.renamePartition(dbName, tblName, tmp_vals, part);
+
+      exceptionThrown = false;
+      try {
+        Partition p = client.getPartition(dbName, tblName, tmp_vals);
+      } catch(Exception e) {
+        assertEquals("partition should not have existed",
+            NoSuchObjectException.class, e.getClass());
+        exceptionThrown = true;
+      }
+      assertTrue("Expected NoSuchObjectException", exceptionThrown);
+
+      part3 = client.getPartition(dbName, tblName, vals);
+      assertEquals("couldn't rename partition", part3.getParameters().get(
+          "retention"), "10");
+      assertEquals("couldn't rename partition", part3.getSd().getSerdeInfo()
+          .getParameters().get("abc"), "1");
+      assertEquals("couldn't rename partition", part3.getSd().getNumBuckets(),
+          12);
+      assertEquals("new partition sd matches", part3.getSd().getLocation(),
+          tbl.getSd().getLocation() + part_path);
+
+      client.dropTable(dbName, tblName);
+
+      client.dropDatabase(dbName);
+    } catch (Exception e) {
+      System.err.println(StringUtils.stringifyException(e));
+      System.err.println("testRenamePartition() failed.");
       throw e;
     }
   }
@@ -1533,11 +1813,9 @@ public abstract class TestHiveMetaStore extends TestCase {
       vals3.add("p12");
       vals3.add("p21");
 
-      silentDropDatabase(dbName);
+      cleanUp(dbName, tblName, null);
 
-      Database db = new Database();
-      db.setName(dbName);
-      client.createDatabase(db);
+      createDb(dbName);
 
       ArrayList<FieldSchema> cols = new ArrayList<FieldSchema>(2);
       cols.add(new FieldSchema("c1", Constants.STRING_TYPE_NAME, ""));
@@ -1547,26 +1825,16 @@ public abstract class TestHiveMetaStore extends TestCase {
       partCols.add(new FieldSchema("p1", Constants.STRING_TYPE_NAME, ""));
       partCols.add(new FieldSchema("p2", Constants.STRING_TYPE_NAME, ""));
 
+      Map<String, String> serdParams = new HashMap<String, String>();
+      serdParams.put(Constants.SERIALIZATION_FORMAT, "1");
+      StorageDescriptor sd = createStorageDescriptor(tblName, partCols, null, serdParams);
+
       Table tbl = new Table();
       tbl.setDbName(dbName);
       tbl.setTableName(tblName);
-      StorageDescriptor sd = new StorageDescriptor();
       tbl.setSd(sd);
-      sd.setCols(cols);
-      sd.setCompressed(false);
-      sd.setNumBuckets(1);
-      sd.setParameters(new HashMap<String, String>());
-      sd.setBucketCols(new ArrayList<String>());
-      sd.setSerdeInfo(new SerDeInfo());
-      sd.getSerdeInfo().setName(tbl.getTableName());
-      sd.getSerdeInfo().setParameters(new HashMap<String, String>());
-      sd.getSerdeInfo().getParameters()
-          .put(Constants.SERIALIZATION_FORMAT, "1");
-      sd.setSortCols(new ArrayList<Order>());
-
       tbl.setPartitionKeys(partCols);
       client.createTable(tbl);
-
       tbl = client.getTable(dbName, tblName);
 
       add_partition(client, tbl, vals, "part1");
@@ -1579,11 +1847,18 @@ public abstract class TestHiveMetaStore extends TestCase {
       checkFilter(client, dbName, tblName, "p2 >= \"p21\"", 3);
       checkFilter(client, dbName, tblName, "p2 <= \"p21\"", 2);
       checkFilter(client, dbName, tblName, "p2 <> \"p12\"", 3);
+      checkFilter(client, dbName, tblName, "p2 != \"p12\"", 3);
       checkFilter(client, dbName, tblName, "p2 like \"p2.*\"", 3);
       checkFilter(client, dbName, tblName, "p2 like \"p.*2\"", 1);
 
-      client.dropTable(dbName, tblName);
-      client.dropDatabase(dbName);
+      try {
+        checkFilter(client, dbName, tblName, "p2 !< 'dd'", 0);
+        fail("Invalid operator not detected");
+      } catch (MetaException e) {
+        // expected exception due to lexer error
+      }
+
+      cleanUp(dbName, tblName, null);
   }
 
   private void checkFilter(HiveMetaStoreClient client, String dbName,
@@ -1718,6 +1993,12 @@ public abstract class TestHiveMetaStore extends TestCase {
       tableNames = client.listTableNamesByFilter(dbName, filter, (short) 2);
       assertEquals(2, tableNames.size());
 
+      filter = org.apache.hadoop.hive.metastore.api.Constants.HIVE_FILTER_FIELD_PARAMS +
+          "test_param_1 != \"yellow\"";
+
+      tableNames = client.listTableNamesByFilter(dbName, filter, (short) 2);
+      assertEquals(2, tableNames.size());
+
       //owner = "testOwner1" and (lastAccessTime = 30 or test_param_1 = "hi")
       filter = org.apache.hadoop.hive.metastore.api.Constants.HIVE_FILTER_FIELD_OWNER +
         " = \"testOwner1\" and (" +
@@ -1754,47 +2035,33 @@ public abstract class TestHiveMetaStore extends TestCase {
     }
   }
 
-  private Table createTableForTestFilter(String dbName, String tableName, String owner, int lastAccessTime, boolean hasSecondParam) throws Exception {
-    client.dropTable(dbName, tableName);
+  private Table createTableForTestFilter(String dbName, String tableName, String owner,
+    int lastAccessTime, boolean hasSecondParam) throws Exception {
 
     ArrayList<FieldSchema> cols = new ArrayList<FieldSchema>(2);
     cols.add(new FieldSchema("name", Constants.STRING_TYPE_NAME, ""));
     cols.add(new FieldSchema("income", Constants.INT_TYPE_NAME, ""));
 
-    Table tbl = new Table();
-    tbl.setDbName(dbName);
-    tbl.setTableName(tableName);
-    tbl.setParameters(new HashMap<String, String>());
-    tbl.getParameters().put("test_param_1", "hi");
-    if (hasSecondParam) {
-      tbl.getParameters().put("test_param_2", "50");
+    Map<String, String> params = new HashMap<String, String>();
+    params.put("sd_param_1", "Use this for comments etc");
+
+    Map<String, String> serdParams = new HashMap<String, String>();
+    serdParams.put(Constants.SERIALIZATION_FORMAT, "1");
+
+    StorageDescriptor sd = createStorageDescriptor(tableName, cols, params, serdParams);
+
+    Map<String, String> partitionKeys = new HashMap<String, String>();
+    partitionKeys.put("ds", Constants.STRING_TYPE_NAME);
+    partitionKeys.put("hr", Constants.INT_TYPE_NAME);
+
+    Map<String, String> tableParams =  new HashMap<String, String>();
+    tableParams.put("test_param_1", "hi");
+    if(hasSecondParam) {
+      tableParams.put("test_param_2", "50");
     }
-    StorageDescriptor sd = new StorageDescriptor();
-    tbl.setSd(sd);
-    sd.setCols(cols);
-    sd.setCompressed(false);
-    sd.setNumBuckets(1);
-    sd.setParameters(new HashMap<String, String>());
-    sd.getParameters().put("sd_param_1", "Use this for comments etc");
-    sd.setBucketCols(new ArrayList<String>(2));
-    sd.getBucketCols().add("name");
-    sd.setSerdeInfo(new SerDeInfo());
-    sd.getSerdeInfo().setName(tbl.getTableName());
-    sd.getSerdeInfo().setParameters(new HashMap<String, String>());
-    sd.getSerdeInfo().getParameters()
-        .put(Constants.SERIALIZATION_FORMAT, "1");
-    sd.setSortCols(new ArrayList<Order>());
 
-    tbl.setOwner(owner);
-    tbl.setLastAccessTime(lastAccessTime);
-
-    tbl.setPartitionKeys(new ArrayList<FieldSchema>(2));
-    tbl.getPartitionKeys().add(
-        new FieldSchema("ds", Constants.STRING_TYPE_NAME, ""));
-    tbl.getPartitionKeys().add(
-        new FieldSchema("hr", Constants.INT_TYPE_NAME, ""));
-
-    client.createTable(tbl);
+    Table tbl = createTable(dbName, tableName, owner, tableParams,
+        partitionKeys, sd, lastAccessTime);
 
     if (isThriftClient) {
       // the createTable() above does not update the location in the 'tbl'
@@ -1805,4 +2072,232 @@ public abstract class TestHiveMetaStore extends TestCase {
     }
     return tbl;
   }
+  /**
+   * Verify that if another  client, either a metastore Thrift server or  a Hive CLI instance
+   * renames a table recently created by this instance, and hence potentially in its cache, the
+   * current instance still sees the change.
+   * @throws Exception
+   */
+  public void testConcurrentMetastores() throws Exception {
+    String dbName = "concurrentdb";
+    String tblName = "concurrenttbl";
+    String renameTblName = "rename_concurrenttbl";
+
+    try {
+      cleanUp(dbName, tblName, null);
+
+      createDb(dbName);
+
+      ArrayList<FieldSchema> cols = new ArrayList<FieldSchema>(2);
+      cols.add(new FieldSchema("c1", Constants.STRING_TYPE_NAME, ""));
+      cols.add(new FieldSchema("c2", Constants.INT_TYPE_NAME, ""));
+
+      Map<String, String> params = new HashMap<String, String>();
+      params.put("test_param_1", "Use this for comments etc");
+
+      Map<String, String> serdParams = new HashMap<String, String>();
+      serdParams.put(Constants.SERIALIZATION_FORMAT, "1");
+
+      StorageDescriptor sd =  createStorageDescriptor(tblName, cols, params, serdParams);
+
+      createTable(dbName, tblName, null, null, null, sd, 0);
+
+      // get the table from the client, verify the name is correct
+      Table tbl2 = client.getTable(dbName, tblName);
+
+      assertEquals("Client returned table with different name.", tbl2.getTableName(), tblName);
+
+      // Simulate renaming via another metastore Thrift server or another Hive CLI instance
+      updateTableNameInDB(tblName, renameTblName);
+
+      // get the table from the client again, verify the name has been updated
+      Table tbl3 = client.getTable(dbName, renameTblName);
+
+      assertEquals("Client returned table with different name after rename.",
+          tbl3.getTableName(), renameTblName);
+
+    } catch (Exception e) {
+      System.err.println(StringUtils.stringifyException(e));
+      System.err.println("testConcurrentMetastores() failed.");
+      throw e;
+    } finally {
+      silentDropDatabase(dbName);
+    }
+  }
+
+  /**
+   * This method simulates another Hive metastore renaming a table, by accessing the db and
+   * updating the name.
+   *
+   * Unfortunately, derby cannot be run in two different JVMs simultaneously, but the only way
+   * to rename without having it put in this client's cache is to run a metastore in a separate JVM,
+   * so this simulation is required.
+   * @param oldTableName
+   * @param newTableName
+   * @throws SQLException
+   */
+  private void updateTableNameInDB(String oldTableName, String newTableName) throws SQLException {
+    String connectionStr = HiveConf.getVar(hiveConf, HiveConf.ConfVars.METASTORECONNECTURLKEY);
+    int interval= HiveConf.getIntVar(hiveConf, HiveConf.ConfVars.METASTOREINTERVAL);
+    int attempts = HiveConf.getIntVar(hiveConf, HiveConf.ConfVars.METASTOREATTEMPTS);
+
+
+    Utilities.SQLCommand<Void> execUpdate = new Utilities.SQLCommand<Void>() {
+      @Override
+      public Void run(PreparedStatement stmt) throws SQLException {
+        stmt.executeUpdate();
+        return null;
+      }
+    };
+
+    Connection conn = Utilities.connectWithRetry(connectionStr, interval, attempts);
+
+    PreparedStatement updateStmt = Utilities.prepareWithRetry(conn,
+        "UPDATE TBLS SET tbl_name = '" + newTableName + "' WHERE tbl_name = '" + oldTableName + "'",
+        interval, attempts);
+
+    Utilities.executeWithRetry(execUpdate, updateStmt, interval, attempts);
+  }
+
+  private void cleanUp(String dbName, String tableName, String typeName) throws Exception {
+    if(dbName != null && tableName != null) {
+      client.dropTable(dbName, tableName);
+    }
+    if(dbName != null) {
+      silentDropDatabase(dbName);
+    }
+    if(typeName != null) {
+      client.dropType(typeName);
+    }
+  }
+
+  private Database createDb(String dbName) throws Exception {
+    if(null == dbName) { return null; }
+    Database db = new Database();
+    db.setName(dbName);
+    client.createDatabase(db);
+    return db;
+  }
+
+  private Type createType(String typeName, Map<String, String> fields) throws Throwable {
+    Type typ1 = new Type();
+    typ1.setName(typeName);
+    typ1.setFields(new ArrayList<FieldSchema>(fields.size()));
+    for(String fieldName : fields.keySet()) {
+      typ1.getFields().add(
+          new FieldSchema(fieldName, fields.get(fieldName), ""));
+    }
+    client.createType(typ1);
+    return typ1;
+  }
+
+  private Table createTable(String dbName, String tblName, String owner,
+      Map<String,String> tableParams, Map<String, String> partitionKeys,
+      StorageDescriptor sd, int lastAccessTime) throws Exception {
+    Table tbl = new Table();
+    tbl.setDbName(dbName);
+    tbl.setTableName(tblName);
+    if(tableParams != null) {
+      tbl.setParameters(tableParams);
+    }
+
+    if(owner != null) {
+      tbl.setOwner(owner);
+    }
+
+    if(partitionKeys != null) {
+      tbl.setPartitionKeys(new ArrayList<FieldSchema>(partitionKeys.size()));
+      for(String key : partitionKeys.keySet()) {
+        tbl.getPartitionKeys().add(
+            new FieldSchema(key, partitionKeys.get(key), ""));
+      }
+    }
+
+    tbl.setSd(sd);
+    tbl.setLastAccessTime(lastAccessTime);
+
+    client.createTable(tbl);
+    return tbl;
+  }
+
+  private StorageDescriptor createStorageDescriptor(String tableName,
+    List<FieldSchema> cols, Map<String, String> params, Map<String, String> serdParams)  {
+    StorageDescriptor sd = new StorageDescriptor();
+
+    sd.setCols(cols);
+    sd.setCompressed(false);
+    sd.setNumBuckets(1);
+    sd.setParameters(params);
+    sd.setBucketCols(new ArrayList<String>(2));
+    sd.getBucketCols().add("name");
+    sd.setSerdeInfo(new SerDeInfo());
+    sd.getSerdeInfo().setName(tableName);
+    sd.getSerdeInfo().setParameters(serdParams);
+    sd.getSerdeInfo().getParameters()
+        .put(Constants.SERIALIZATION_FORMAT, "1");
+    sd.setSortCols(new ArrayList<Order>());
+
+    return sd;
+  }
+
+  private List<Partition> createPartitions(String dbName, Table tbl,
+      List<List<String>> values)  throws Throwable {
+    int i = 1;
+    List<Partition> partitions = new ArrayList<Partition>();
+    for(List<String> vals : values) {
+      Partition part = makePartitionObject(dbName, tbl.getTableName(), vals, tbl, "/part"+i);
+      i++;
+      // check if the partition exists (it shouldn't)
+      boolean exceptionThrown = false;
+      try {
+        Partition p = client.getPartition(dbName, tbl.getTableName(), vals);
+      } catch(Exception e) {
+        assertEquals("partition should not have existed",
+            NoSuchObjectException.class, e.getClass());
+        exceptionThrown = true;
+      }
+      assertTrue("getPartition() should have thrown NoSuchObjectException", exceptionThrown);
+      Partition retp = client.add_partition(part);
+      assertNotNull("Unable to create partition " + part, retp);
+      partitions.add(retp);
+    }
+    return partitions;
+  }
+
+  private void createMultiPartitionTableSchema(String dbName, String tblName,
+      String typeName, List<List<String>> values)
+      throws Throwable, MetaException, TException, NoSuchObjectException {
+    createDb(dbName);
+
+    Map<String, String> fields = new HashMap<String, String>();
+    fields.put("name", Constants.STRING_TYPE_NAME);
+    fields.put("income", Constants.INT_TYPE_NAME);
+
+    Type typ1 = createType(typeName, fields);
+
+    Map<String , String> partitionKeys = new HashMap<String, String>();
+    partitionKeys.put("ds", Constants.STRING_TYPE_NAME);
+    partitionKeys.put("hr", Constants.STRING_TYPE_NAME);
+
+    Map<String, String> params = new HashMap<String, String>();
+    params.put("test_param_1", "Use this for comments etc");
+
+    Map<String, String> serdParams = new HashMap<String, String>();
+    serdParams.put(Constants.SERIALIZATION_FORMAT, "1");
+
+    StorageDescriptor sd =  createStorageDescriptor(tblName, typ1.getFields(), params, serdParams);
+
+    Table tbl = createTable(dbName, tblName, null, null, partitionKeys, sd, 0);
+
+    if (isThriftClient) {
+      // the createTable() above does not update the location in the 'tbl'
+      // object when the client is a thrift client and the code below relies
+      // on the location being present in the 'tbl' object - so get the table
+      // from the metastore
+      tbl = client.getTable(dbName, tblName);
+    }
+
+    createPartitions(dbName, tbl, values);
+  }
+
 }

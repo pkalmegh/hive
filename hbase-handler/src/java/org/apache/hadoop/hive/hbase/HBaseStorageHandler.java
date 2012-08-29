@@ -32,10 +32,10 @@ import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.MasterNotRunningException;
-import org.apache.hadoop.hbase.ZooKeeperConnectionException;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hive.hbase.HBaseSerDe.ColumnMapping;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
 import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.hive.metastore.api.Constants;
@@ -44,7 +44,6 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.ql.index.IndexPredicateAnalyzer;
 import org.apache.hadoop.hive.ql.index.IndexSearchCondition;
 import org.apache.hadoop.hive.ql.metadata.DefaultStorageHandler;
-import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.hadoop.hive.ql.metadata.HiveStoragePredicateHandler;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.TableDesc;
@@ -64,8 +63,8 @@ public class HBaseStorageHandler extends DefaultStorageHandler
   implements HiveMetaHook, HiveStoragePredicateHandler {
 
   final static public String DEFAULT_PREFIX = "default.";
-  
-  private HBaseConfiguration hbaseConf;
+
+  private Configuration hbaseConf;
   private HBaseAdmin admin;
 
   private HBaseAdmin getHBaseAdmin() throws MetaException {
@@ -74,10 +73,8 @@ public class HBaseStorageHandler extends DefaultStorageHandler
         admin = new HBaseAdmin(hbaseConf);
       }
       return admin;
-    } catch (MasterNotRunningException mnre) {
-      throw new MetaException(StringUtils.stringifyException(mnre));
-    } catch (ZooKeeperConnectionException zkce) {
-      throw new MetaException(StringUtils.stringifyException(zkce));
+    } catch (IOException ioe) {
+      throw new MetaException(StringUtils.stringifyException(ioe));
     }
   }
 
@@ -141,17 +138,9 @@ public class HBaseStorageHandler extends DefaultStorageHandler
       String tableName = getHBaseTableName(tbl);
       Map<String, String> serdeParam = tbl.getSd().getSerdeInfo().getParameters();
       String hbaseColumnsMapping = serdeParam.get(HBaseSerDe.HBASE_COLUMNS_MAPPING);
+      List<ColumnMapping> columnsMapping = null;
 
-      if (hbaseColumnsMapping == null) {
-        throw new MetaException("No hbase.columns.mapping defined in Serde.");
-      }
-
-      List<String> hbaseColumnFamilies = new ArrayList<String>();
-      List<String> hbaseColumnQualifiers = new ArrayList<String>();
-      List<byte []> hbaseColumnFamiliesBytes = new ArrayList<byte []>();
-      List<byte []> hbaseColumnQualifiersBytes = new ArrayList<byte []>();
-      int iKey = HBaseSerDe.parseColumnMapping(hbaseColumnsMapping, hbaseColumnFamilies,
-          hbaseColumnFamiliesBytes, hbaseColumnQualifiers, hbaseColumnQualifiersBytes);
+      columnsMapping = HBaseSerDe.parseColumnsMapping(hbaseColumnsMapping);
 
       HTableDescriptor tableDesc;
 
@@ -160,8 +149,13 @@ public class HBaseStorageHandler extends DefaultStorageHandler
         if (!isExternal) {
           // Create the column descriptors
           tableDesc = new HTableDescriptor(tableName);
-          Set<String> uniqueColumnFamilies = new HashSet<String>(hbaseColumnFamilies);
-          uniqueColumnFamilies.remove(hbaseColumnFamilies.get(iKey));
+          Set<String> uniqueColumnFamilies = new HashSet<String>();
+
+          for (ColumnMapping colMap : columnsMapping) {
+            if (!colMap.hbaseRowKey) {
+              uniqueColumnFamilies.add(colMap.familyName);
+            }
+          }
 
           for (String columnFamily : uniqueColumnFamilies) {
             tableDesc.addFamily(new HColumnDescriptor(Bytes.toBytes(columnFamily)));
@@ -183,13 +177,15 @@ public class HBaseStorageHandler extends DefaultStorageHandler
         // make sure the schema mapping is right
         tableDesc = getHBaseAdmin().getTableDescriptor(Bytes.toBytes(tableName));
 
-        for (int i = 0; i < hbaseColumnFamilies.size(); i++) {
-          if (i == iKey) {
+        for (int i = 0; i < columnsMapping.size(); i++) {
+          ColumnMapping colMap = columnsMapping.get(i);
+
+          if (colMap.hbaseRowKey) {
             continue;
           }
 
-          if (!tableDesc.hasFamily(hbaseColumnFamiliesBytes.get(i))) {
-            throw new MetaException("Column Family " + hbaseColumnFamilies.get(i)
+          if (!tableDesc.hasFamily(colMap.familyNameBytes)) {
+            throw new MetaException("Column Family " + colMap.familyName
                 + " is not defined in hbase table " + tableName);
           }
         }
@@ -235,7 +231,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
 
   @Override
   public void setConf(Configuration conf) {
-    hbaseConf = new HBaseConfiguration(conf);
+    hbaseConf = HBaseConfiguration.create(conf);
   }
 
   @Override
@@ -259,6 +255,19 @@ public class HBaseStorageHandler extends DefaultStorageHandler
   }
 
   @Override
+  public void configureInputJobProperties(
+    TableDesc tableDesc,
+    Map<String, String> jobProperties) {
+      configureTableJobProperties(tableDesc, jobProperties);
+  }
+
+  @Override
+  public void configureOutputJobProperties(
+    TableDesc tableDesc,
+    Map<String, String> jobProperties) {
+      configureTableJobProperties(tableDesc, jobProperties);
+  }
+
   public void configureTableJobProperties(
     TableDesc tableDesc,
     Map<String, String> jobProperties) {
@@ -268,6 +277,8 @@ public class HBaseStorageHandler extends DefaultStorageHandler
     jobProperties.put(
       HBaseSerDe.HBASE_COLUMNS_MAPPING,
       tableProperties.getProperty(HBaseSerDe.HBASE_COLUMNS_MAPPING));
+    jobProperties.put(HBaseSerDe.HBASE_TABLE_DEFAULT_STORAGE_TYPE,
+      tableProperties.getProperty(HBaseSerDe.HBASE_TABLE_DEFAULT_STORAGE_TYPE,"string"));
 
     String tableName =
       tableProperties.getProperty(HBaseSerDe.HBASE_TABLE_NAME);
@@ -291,20 +302,34 @@ public class HBaseStorageHandler extends DefaultStorageHandler
       org.apache.hadoop.hive.serde.Constants.LIST_COLUMNS);
     List<String> columnNames =
       Arrays.asList(columnNameProperty.split(","));
+
     HBaseSerDe hbaseSerde = (HBaseSerDe) deserializer;
+    int keyColPos = hbaseSerde.getKeyColumnOffset();
+    String keyColType = jobConf.get(org.apache.hadoop.hive.serde.Constants.LIST_COLUMN_TYPES).
+        split(",")[keyColPos];
     IndexPredicateAnalyzer analyzer =
-      HiveHBaseTableInputFormat.newIndexPredicateAnalyzer(
-        columnNames.get(hbaseSerde.getKeyColumnOffset()));
+      HiveHBaseTableInputFormat.newIndexPredicateAnalyzer(columnNames.get(keyColPos), keyColType,
+        hbaseSerde.getStorageFormatOfCol(keyColPos).get(0));
     List<IndexSearchCondition> searchConditions =
       new ArrayList<IndexSearchCondition>();
     ExprNodeDesc residualPredicate =
       analyzer.analyzePredicate(predicate, searchConditions);
-    if (searchConditions.size() != 1) {
+    int scSize = searchConditions.size();
+    if (scSize < 1 || 2 < scSize) {
       // Either there was nothing which could be pushed down (size = 0),
-      // or more than one predicate (size > 1); in the latter case,
-      // we bail out for now since multiple lookups on the key are
-      // either contradictory or redundant.  We'll need to handle
-      // this better later when we support more interesting predicates.
+      // there were complex predicates which we don't support yet.
+      // Currently supported are one of the form:
+      // 1. key < 20                        (size = 1)
+      // 2. key = 20                        (size = 1)
+      // 3. key < 20 and key > 10           (size = 2)
+      return null;
+    }
+    if (scSize == 2 &&
+        (searchConditions.get(0).getComparisonOp()
+        .equals("org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual") ||
+        searchConditions.get(1).getComparisonOp()
+        .equals("org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual"))) {
+      // If one of the predicates is =, then any other predicate with it is illegal.
       return null;
     }
 

@@ -25,8 +25,8 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Map.Entry;
+import java.util.Set;
 
 /**
  * Map Join operator Descriptor implementation.
@@ -47,11 +47,15 @@ public class MapJoinDesc extends JoinDesc implements Serializable {
 
   private transient String bigTableAlias;
 
-  private LinkedHashMap<String, LinkedHashMap<String, ArrayList<String>>> aliasBucketFileNameMapping;
-  private LinkedHashMap<String, Integer> bucketFileNameMapping;
+  private Map<String, Map<String, List<String>>> aliasBucketFileNameMapping;
+  private Map<String, Integer> bigTableBucketNumMapping;
+  private Map<String, List<String>> bigTablePartSpecToFileMapping;
+
+  //map join dump file name
+  private String dumpFilePrefix;
 
   public MapJoinDesc() {
-    bucketFileNameMapping = new LinkedHashMap<String, Integer>();
+    bigTableBucketNumMapping = new LinkedHashMap<String, Integer>();
   }
 
   public MapJoinDesc(MapJoinDesc clone) {
@@ -63,21 +67,24 @@ public class MapJoinDesc extends JoinDesc implements Serializable {
     this.retainList = clone.retainList;
     this.bigTableAlias = clone.bigTableAlias;
     this.aliasBucketFileNameMapping = clone.aliasBucketFileNameMapping;
-    this.bucketFileNameMapping = clone.bucketFileNameMapping;
+    this.bigTableBucketNumMapping = clone.bigTableBucketNumMapping;
+    this.bigTablePartSpecToFileMapping = clone.bigTablePartSpecToFileMapping;
+    this.dumpFilePrefix = clone.dumpFilePrefix;
   }
 
   public MapJoinDesc(final Map<Byte, List<ExprNodeDesc>> keys,
       final TableDesc keyTblDesc, final Map<Byte, List<ExprNodeDesc>> values,
       final List<TableDesc> valueTblDescs,final List<TableDesc> valueFilteredTblDescs,  List<String> outputColumnNames,
       final int posBigTable, final JoinCondDesc[] conds,
-      final Map<Byte, List<ExprNodeDesc>> filters, boolean noOuterJoin) {
+      final Map<Byte, List<ExprNodeDesc>> filters, boolean noOuterJoin, String dumpFilePrefix) {
     super(values, outputColumnNames, noOuterJoin, conds, filters);
     this.keys = keys;
     this.keyTblDesc = keyTblDesc;
     this.valueTblDescs = valueTblDescs;
     this.valueFilteredTblDescs = valueFilteredTblDescs;
     this.posBigTable = posBigTable;
-    this.bucketFileNameMapping = new LinkedHashMap<String, Integer>();
+    this.bigTableBucketNumMapping = new LinkedHashMap<String, Integer>();
+    this.dumpFilePrefix = dumpFilePrefix;
     initRetainExprList();
   }
 
@@ -101,6 +108,21 @@ public class MapJoinDesc extends JoinDesc implements Serializable {
 
   public void setRetainList(Map<Byte, List<Integer>> retainList) {
     this.retainList = retainList;
+  }
+
+  /**
+   * @return the dumpFilePrefix
+   */
+  public String getDumpFilePrefix() {
+    return dumpFilePrefix;
+  }
+
+  /**
+   * @param dumpFilePrefix
+   *          the dumpFilePrefix to set
+   */
+  public void setDumpFilePrefix(String dumpFilePrefix) {
+    this.dumpFilePrefix = dumpFilePrefix;
   }
 
   /**
@@ -187,20 +209,28 @@ public class MapJoinDesc extends JoinDesc implements Serializable {
     this.bigTableAlias = bigTableAlias;
   }
 
-  public LinkedHashMap<String, LinkedHashMap<String, ArrayList<String>>> getAliasBucketFileNameMapping() {
+  public Map<String, Map<String, List<String>>> getAliasBucketFileNameMapping() {
     return aliasBucketFileNameMapping;
   }
 
   public void setAliasBucketFileNameMapping(
-      LinkedHashMap<String, LinkedHashMap<String, ArrayList<String>>> aliasBucketFileNameMapping) {
+      Map<String, Map<String, List<String>>> aliasBucketFileNameMapping) {
     this.aliasBucketFileNameMapping = aliasBucketFileNameMapping;
   }
 
-  public LinkedHashMap<String, Integer> getBucketFileNameMapping() {
-    return bucketFileNameMapping;
+  public Map<String, Integer> getBigTableBucketNumMapping() {
+    return bigTableBucketNumMapping;
   }
 
-  public void setBucketFileNameMapping(LinkedHashMap<String, Integer> bucketFileNameMapping) {
-    this.bucketFileNameMapping = bucketFileNameMapping;
+  public void setBigTableBucketNumMapping(Map<String, Integer> bigTableBucketNumMapping) {
+    this.bigTableBucketNumMapping = bigTableBucketNumMapping;
+  }
+
+  public Map<String, List<String>> getBigTablePartSpecToFileMapping() {
+    return bigTablePartSpecToFileMapping;
+  }
+
+  public void setBigTablePartSpecToFileMapping(Map<String, List<String>> partToFileMapping) {
+    this.bigTablePartSpecToFileMapping = partToFileMapping;
   }
 }

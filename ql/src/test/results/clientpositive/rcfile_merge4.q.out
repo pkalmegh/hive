@@ -59,11 +59,13 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-5 depends on stages: Stage-1 , consists of Stage-4, Stage-3
+  Stage-7 depends on stages: Stage-1 , consists of Stage-4, Stage-3, Stage-5
   Stage-4
-  Stage-0 depends on stages: Stage-4, Stage-3
+  Stage-0 depends on stages: Stage-4, Stage-3, Stage-6
   Stage-2 depends on stages: Stage-0
   Stage-3
+  Stage-5
+  Stage-6 depends on stages: Stage-5
 
 STAGE PLANS:
   Stage: Stage-1
@@ -88,14 +90,14 @@ STAGE PLANS:
                     serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                     name: default.rcfile_merge3b
 
-  Stage: Stage-5
+  Stage: Stage-7
     Conditional Operator
 
   Stage: Stage-4
     Move Operator
       files:
           hdfs directory: true
-          destination: pfile:/data/users/sohanjain/test_builds/hive_2338/apache-hive/build/ql/scratchdir/hive_2011-08-04_13-25-14_644_6452502380428044849/-ext-10000
+#### A masked pattern was here ####
 
   Stage: Stage-0
     Move Operator
@@ -113,7 +115,7 @@ STAGE PLANS:
   Stage: Stage-3
     Map Reduce
       Alias -> Map Operator Tree:
-        pfile:/data/users/sohanjain/test_builds/hive_2338/apache-hive/build/ql/scratchdir/hive_2011-08-04_13-25-14_644_6452502380428044849/-ext-10002 
+#### A masked pattern was here ####
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -122,6 +124,25 @@ STAGE PLANS:
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
                   serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                   name: default.rcfile_merge3b
+
+  Stage: Stage-5
+    Map Reduce
+      Alias -> Map Operator Tree:
+#### A masked pattern was here ####
+            File Output Operator
+              compressed: false
+              GlobalTableId: 0
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.rcfile_merge3b
+
+  Stage: Stage-6
+    Move Operator
+      files:
+          hdfs directory: true
+#### A masked pattern was here ####
 
 
 PREHOOK: query: INSERT OVERWRITE TABLE rcfile_merge3b
@@ -149,7 +170,7 @@ PREHOOK: query: SELECT SUM(HASH(c)) FROM (
 PREHOOK: type: QUERY
 PREHOOK: Input: default@rcfile_merge3a@ds=1
 PREHOOK: Input: default@rcfile_merge3a@ds=2
-PREHOOK: Output: file:/tmp/sohanjain/hive_2011-08-04_13-25-22_015_1952357736048403985/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT SUM(HASH(c)) FROM (
     SELECT TRANSFORM(key, value) USING 'tr \t _' AS (c)
     FROM rcfile_merge3a
@@ -157,7 +178,7 @@ POSTHOOK: query: SELECT SUM(HASH(c)) FROM (
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@rcfile_merge3a@ds=1
 POSTHOOK: Input: default@rcfile_merge3a@ds=2
-POSTHOOK: Output: file:/tmp/sohanjain/hive_2011-08-04_13-25-22_015_1952357736048403985/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: rcfile_merge3a PARTITION(ds=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: rcfile_merge3a PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: rcfile_merge3a PARTITION(ds=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -171,14 +192,14 @@ PREHOOK: query: SELECT SUM(HASH(c)) FROM (
 ) t
 PREHOOK: type: QUERY
 PREHOOK: Input: default@rcfile_merge3b
-PREHOOK: Output: file:/tmp/sohanjain/hive_2011-08-04_13-25-25_174_5852382972905961516/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT SUM(HASH(c)) FROM (
     SELECT TRANSFORM(key, value) USING 'tr \t _' AS (c)
     FROM rcfile_merge3b
 ) t
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@rcfile_merge3b
-POSTHOOK: Output: file:/tmp/sohanjain/hive_2011-08-04_13-25-25_174_5852382972905961516/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: rcfile_merge3a PARTITION(ds=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: rcfile_merge3a PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: rcfile_merge3a PARTITION(ds=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]

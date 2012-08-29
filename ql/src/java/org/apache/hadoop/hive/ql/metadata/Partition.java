@@ -151,7 +151,7 @@ public class Partition implements Serializable {
       sd.read(prot);
     } catch (TException e) {
       LOG.error("Could not create a copy of StorageDescription");
-      throw new HiveException("Could not create a copy of StorageDescription");
+      throw new HiveException("Could not create a copy of StorageDescription",e);
     }
 
     tpart.setSd(sd);
@@ -198,7 +198,7 @@ public class Partition implements Serializable {
           }
         }
         // set default if columns are not set
-        if (tPartition.getSd().getCols() == null) {
+        if (tPartition.getSd().getCols() == null || tPartition.getSd().getCols().size() == 0) {
           if (table.getCols() != null) {
             tPartition.getSd().setCols(table.getCols());
           }
@@ -290,7 +290,7 @@ public class Partition implements Serializable {
   }
 
   /**
-   * @param class1
+   * @param outputFormatClass
    */
   public void setOutputFormatClass(Class<? extends HiveOutputFormat> outputFormatClass) {
     this.outputFormatClass = outputFormatClass;
@@ -518,11 +518,38 @@ public class Partition implements Serializable {
   }
 
   /**
+   * Set Partition's values
+   *
+   * @param partSpec
+   *          Partition specifications.
+   * @throws HiveException
+   *           Thrown if we could not create the partition.
+   */
+  public void setValues(Map<String, String> partSpec)
+      throws HiveException {
+    List<String> pvals = new ArrayList<String>();
+    for (FieldSchema field : table.getPartCols()) {
+      String val = partSpec.get(field.getName());
+      if (val == null) {
+        throw new HiveException(
+            "partition spec is invalid. field.getName() does not exist in input.");
+      }
+      pvals.add(val);
+    }
+    tPartition.setValues(pvals);
+  }
+
+  /**
    * @param protectMode
    */
   public void setProtectMode(ProtectMode protectMode){
     Map<String, String> parameters = tPartition.getParameters();
-    parameters.put(ProtectMode.PARAMETER_NAME, protectMode.toString());
+    String pm = protectMode.toString();
+    if (pm != null) {
+      parameters.put(ProtectMode.PARAMETER_NAME, pm);
+    } else {
+      parameters.remove(ProtectMode.PARAMETER_NAME);
+    }
     tPartition.setParameters(parameters);
   }
 
@@ -562,7 +589,8 @@ public class Partition implements Serializable {
    */
   public boolean canDrop() {
     ProtectMode mode = getProtectMode();
-    return (!mode.noDrop && !mode.offline && !mode.readOnly);
+    ProtectMode parentMode = table.getProtectMode();
+    return (!mode.noDrop && !mode.offline && !mode.readOnly && !parentMode.noDropCascade);
   }
 
   /**

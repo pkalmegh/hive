@@ -18,6 +18,7 @@
 package org.apache.hadoop.hive.serde2.lazybinary;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,14 +36,22 @@ import org.apache.hadoop.hive.serde2.binarysortable.MyTestClass;
 import org.apache.hadoop.hive.serde2.binarysortable.MyTestInnerStruct;
 import org.apache.hadoop.hive.serde2.binarysortable.TestBinarySortableSerDe;
 import org.apache.hadoop.hive.serde2.lazy.ByteArrayRef;
+import org.apache.hadoop.hive.serde2.lazy.LazyBinary;
+import org.apache.hadoop.hive.serde2.lazy.LazyFactory;
+import org.apache.hadoop.hive.serde2.lazy.objectinspector.primitive.AbstractPrimitiveLazyObjectInspector;
+import org.apache.hadoop.hive.serde2.lazy.objectinspector.primitive.LazyPrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.lazybinary.objectinspector.LazyBinaryMapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory.ObjectInspectorOptions;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.JavaBinaryObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.WritableBinaryObjectInspector;
 import org.apache.hadoop.io.BytesWritable;
 
 /**
@@ -53,7 +62,7 @@ public class TestLazyBinarySerDe extends TestCase {
 
   /**
    * Generate a random struct array.
-   * 
+   *
    * @param r
    *          random number generator
    * @return an struct array
@@ -71,7 +80,7 @@ public class TestLazyBinarySerDe extends TestCase {
 
   /**
    * Initialize the LazyBinarySerDe.
-   * 
+   *
    * @param fieldNames
    *          table field names
    * @param fieldTypes
@@ -91,7 +100,7 @@ public class TestLazyBinarySerDe extends TestCase {
 
   /**
    * Test the LazyBinarySerDe.
-   * 
+   *
    * @param rows
    *          array of structs to be serialized
    * @param rowOI
@@ -134,7 +143,7 @@ public class TestLazyBinarySerDe extends TestCase {
    * Compare two structs that have different number of fields. We just compare
    * the first few common fields, ignoring the fields existing in one struct but
    * not the other.
-   * 
+   *
    * @see ObjectInspectorUtils#compare(Object, ObjectInspector, Object,
    *      ObjectInspector)
    */
@@ -195,7 +204,7 @@ public class TestLazyBinarySerDe extends TestCase {
           .nextInt(5) - 2, r.nextInt(5) - 2);
       List<Integer> li = randField > 8 ? null : TestBinarySortableSerDe
           .getRandIntegerArray(r);
-      ByteArrayRef ba  = TestBinarySortableSerDe.getRandBA(r, itest);
+      byte[] ba  = TestBinarySortableSerDe.getRandBA(r, itest);
       Map<String, List<MyTestInnerStruct>> mp = new HashMap<String, List<MyTestInnerStruct>>();
       String key = TestBinarySortableSerDe.getRandString(r);
       List<MyTestInnerStruct> value = randField > 10 ? null
@@ -262,7 +271,7 @@ public class TestLazyBinarySerDe extends TestCase {
           .nextInt(5) - 2, r.nextInt(5) - 2);
       List<Integer> li = randField > 8 ? null : TestBinarySortableSerDe
           .getRandIntegerArray(r);
-      ByteArrayRef ba = TestBinarySortableSerDe.getRandBA(r, itest);
+      byte[] ba = TestBinarySortableSerDe.getRandBA(r, itest);
       MyTestClass input = new MyTestClass(b, s, n, l, f, d, st, is, li, ba);
       BytesWritable bw = (BytesWritable) serde1.serialize(input, rowOI1);
       Object output = serde2.deserialize(bw);
@@ -317,7 +326,7 @@ public class TestLazyBinarySerDe extends TestCase {
           .nextInt(5) - 2, r.nextInt(5) - 2);
       List<Integer> li = randField > 8 ? null : TestBinarySortableSerDe
           .getRandIntegerArray(r);
-      ByteArrayRef ba = TestBinarySortableSerDe.getRandBA(r, itest);
+      byte[] ba = TestBinarySortableSerDe.getRandBA(r, itest);
       MyTestClass input = new MyTestClass(b, s, n, l, f, d, st, is, li,ba);
       BytesWritable bw = (BytesWritable) serde1.serialize(input, rowOI1);
       Object output = serde2.deserialize(bw);
@@ -464,7 +473,7 @@ public class TestLazyBinarySerDe extends TestCase {
 
   /**
    * The test entrance function.
-   * 
+   *
    * @throws Throwable
    */
   public void testLazyBinarySerDe() throws Throwable {
@@ -490,7 +499,7 @@ public class TestLazyBinarySerDe extends TestCase {
             .nextInt(5) - 2, r.nextInt(5) - 2);
         List<Integer> li = randField > 8 ? null : TestBinarySortableSerDe
             .getRandIntegerArray(r);
-        ByteArrayRef ba = TestBinarySortableSerDe.getRandBA(r, i);
+        byte[] ba = TestBinarySortableSerDe.getRandBA(r, i);
         MyTestClass t = new MyTestClass(b, s, n, l, f, d, st, is, li, ba);
         rows[i] = t;
       }
@@ -522,4 +531,78 @@ public class TestLazyBinarySerDe extends TestCase {
       throw e;
     }
   }
+
+  private final  byte[] inpBArray = {'1','\u0001','3','4'};
+  private BytesWritable getInputBytesWritable() {
+    //create input BytesWritable. This would have capacity greater than length)
+    BytesWritable bW = new BytesWritable();
+    bW.set(inpBArray, 0, inpBArray.length);
+    return bW;
+  }
+
+  /**
+   * Test to see if byte[] with correct contents is generated by
+   * JavaBinaryObjectInspector from input BytesWritable
+   * @throws Throwable
+   */
+  public void testJavaBinaryObjectInspector() throws Throwable {
+    BytesWritable bW = getInputBytesWritable();
+
+    //create JavaBinaryObjectInspector
+    JavaBinaryObjectInspector binInspector =
+        PrimitiveObjectInspectorFactory.javaByteArrayObjectInspector;
+
+    //convert BytesWritable to byte][
+    byte[] outBARef = binInspector.set(null, bW);
+
+    assertTrue("compare input and output BAs",
+        Arrays.equals(inpBArray, outBARef));
+  }
+
+
+  /**
+   * Test to see if byte[] with correct contents is generated by
+   * WritableBinaryObjectInspector from input BytesWritable
+   * @throws Throwable
+   */
+  public void testWritableBinaryObjectInspector() throws Throwable {
+    BytesWritable bW = getInputBytesWritable();
+
+    //test WritableBinaryObjectInspector
+    WritableBinaryObjectInspector writableBinInsp =
+        PrimitiveObjectInspectorFactory.writableBinaryObjectInspector;
+
+    //convert BytesWritable to byte[]
+    byte[] outBARef = writableBinInsp.getPrimitiveJavaObject(bW);
+
+    assertTrue("compare input and output BAs",
+        Arrays.equals(inpBArray, outBARef));
+  }
+
+  /**
+   * Test to see if byte[] with correct contents is generated by
+   * LazyBinaryObjectInspector from input BytesWritable
+   * @throws Throwable
+   */
+  public void testLazyBinaryObjectInspector() throws Throwable {
+
+    //create input ByteArrayRef
+    ByteArrayRef inpBARef = new ByteArrayRef();
+    inpBARef.setData(inpBArray);
+
+    AbstractPrimitiveLazyObjectInspector<?> binInspector = LazyPrimitiveObjectInspectorFactory
+    .getLazyObjectInspector(PrimitiveCategory.BINARY, false, (byte)0);
+
+    //create LazyBinary initialed with inputBA
+    LazyBinary lazyBin = (LazyBinary) LazyFactory.createLazyObject(binInspector);
+    lazyBin.init(inpBARef, 0, inpBArray.length);
+
+    //use inspector to get a byte[] out of LazyBinary
+    byte[] outBARef = (byte[]) binInspector.getPrimitiveJavaObject(lazyBin);
+
+    assertTrue("compare input and output BAs",
+        Arrays.equals(inpBArray, outBARef));
+
+  }
+
 }

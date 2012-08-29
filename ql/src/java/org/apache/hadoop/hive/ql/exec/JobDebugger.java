@@ -19,55 +19,66 @@
 package org.apache.hadoop.hive.ql.exec;
 
 import java.io.IOException;
-import java.io.Serializable;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Collections;
+import java.lang.Exception;
+import java.net.MalformedURLException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.ql.exec.Operator.ProgressCounter;
+import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.exec.errors.ErrorAndSolution;
 import org.apache.hadoop.hive.ql.exec.errors.TaskLogProcessor;
-import org.apache.hadoop.hive.ql.history.HiveHistory.Keys;
-import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.session.SessionState.LogHelper;
 import org.apache.hadoop.hive.shims.ShimLoader;
-import org.apache.hadoop.mapred.Counters;
-import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.TaskCompletionEvent;
-import org.apache.hadoop.mapred.TaskReport;
 
 /**
  * JobDebugger takes a RunningJob that has failed and grabs the top 4 failing
  * tasks and outputs this information to the Hive CLI.
  */
 public class JobDebugger implements Runnable {
-  private JobConf conf;
-  private RunningJob rj;
-  private LogHelper console;
-  private Map<String, Integer> failures = new HashMap<String, Integer>(); // Mapping from task ID to the number of failures
-  private Set<String> successes = new HashSet<String>(); // Successful task ID's
-  private Map<String, TaskInfo> taskIdToInfo = new HashMap<String, TaskInfo>();
+  private final JobConf conf;
+  private final RunningJob rj;
+  private final LogHelper console;
+  private final Map<String, List<List<String>>> stackTraces;
+  // Mapping from task ID to the number of failures
+  private final Map<String, Integer> failures = new HashMap<String, Integer>();
+  private final Set<String> successes = new HashSet<String>(); // Successful task ID's
+  private final Map<String, TaskInfo> taskIdToInfo = new HashMap<String, TaskInfo>();
+  private int maxFailures = 0;
 
   // Used for showJobFailDebugInfo
   private static class TaskInfo {
     String jobId;
     Set<String> logUrls;
+    int errorCode;  // Obtained from the HiveException thrown
+    String[] diagnosticMesgs;
 
     public TaskInfo(String jobId) {
       this.jobId = jobId;
       logUrls = new HashSet<String>();
+      errorCode = 0;
+      diagnosticMesgs = null;
     }
 
     public void addLogUrl(String logUrl) {
       logUrls.add(logUrl);
+    }
+
+    public void setErrorCode(int errorCode) {
+      this.errorCode = errorCode;
+    }
+
+    public void setDiagnosticMesgs(String[] diagnosticMesgs) {
+      this.diagnosticMesgs = diagnosticMesgs;
     }
 
     public Set<String> getLogUrls() {
@@ -77,12 +88,29 @@ public class JobDebugger implements Runnable {
     public String getJobId() {
       return jobId;
     }
+
+    public int getErrorCode() {
+      return errorCode;
+    }
+
+    public String[] getDiagnosticMesgs() {
+      return diagnosticMesgs;
+    }
   }
 
   public JobDebugger(JobConf conf, RunningJob rj, LogHelper console) {
     this.conf = conf;
     this.rj = rj;
     this.console = console;
+    this.stackTraces = null;
+  }
+
+  public JobDebugger(JobConf conf, RunningJob rj, LogHelper console,
+      Map<String, List<List<String>>> stackTraces) {
+    this.conf = conf;
+    this.rj = rj;
+    this.console = console;
+    this.stackTraces = stackTraces;
   }
 
   public void run() {
@@ -92,21 +120,32 @@ public class JobDebugger implements Runnable {
       console.printError(e.getMessage());
     }
   }
-  private String getTaskAttemptLogUrl(String taskTrackerHttpAddress, String taskAttemptId) {
-    return taskTrackerHttpAddress + "/tasklog?taskid=" + taskAttemptId + "&start=-8193";
+
+  public static int extractErrorCode(String[] diagnostics) {
+    int result = 0;
+    Pattern errorCodeRegex = ErrorMsg.getErrorCodePattern();
+    for (String mesg : diagnostics) {
+      Matcher matcher = errorCodeRegex.matcher(mesg);
+      if (matcher.find()) {
+        result = Integer.parseInt(matcher.group(1));
+        // We don't exit the loop early because we want to extract the error code
+        // corresponding to the bottommost error coded exception.
+      }
+    }
+    return result;
   }
 
-  class TaskLogGrabber implements Runnable {
+  class TaskInfoGrabber implements Runnable {
 
     public void run() {
       try {
-        getTaskLogs();
-      } catch (IOException e) {
+        getTaskInfos();
+      } catch (Exception e) {
         console.printError(e.getMessage());
       }
     }
 
-    private void getTaskLogs() throws IOException {
+    private void getTaskInfos() throws IOException, MalformedURLException {
       int startIndex = 0;
       while (true) {
         TaskCompletionEvent[] taskCompletions = rj.getTaskCompletionEvents(startIndex);
@@ -116,6 +155,7 @@ public class JobDebugger implements Runnable {
         }
 
         boolean more = true;
+        boolean firstError = true;
         for (TaskCompletionEvent t : taskCompletions) {
           // getTaskJobIDs returns Strings for compatibility with Hadoop versions
           // without TaskID or TaskAttemptID
@@ -131,7 +171,10 @@ public class JobDebugger implements Runnable {
           // and the logs
           String taskId = taskJobIds[0];
           String jobId = taskJobIds[1];
-          console.printError("Examining task ID: " + taskId + " from job " + jobId);
+          if (firstError) {
+            console.printError("Examining task ID: " + taskId + " (and more) from job " + jobId);
+            firstError = false;
+          }
 
           TaskInfo ti = taskIdToInfo.get(taskId);
           if (ti == null) {
@@ -140,13 +183,22 @@ public class JobDebugger implements Runnable {
           }
           // These tasks should have come from the same job.
           assert (ti.getJobId() != null &&  ti.getJobId().equals(jobId));
-          ti.getLogUrls().add(getTaskAttemptLogUrl(t.getTaskTrackerHttp(), t.getTaskId()));
+          String taskAttemptLogUrl = ShimLoader.getHadoopShims().getTaskAttemptLogUrl(
+            conf, t.getTaskTrackerHttp(), t.getTaskId());
+          if (taskAttemptLogUrl != null) {
+            ti.getLogUrls().add(taskAttemptLogUrl);
+          }
 
-          // If a task failed, then keep track of the total number of failures
-          // for that task (typically, a task gets re-run up to 4 times if it
-          // fails
-
+          // If a task failed, fetch its error code (if available).
+          // Also keep track of the total number of failures for that
+          // task (typically, a task gets re-run up to 4 times if it fails.
           if (t.getTaskStatus() != TaskCompletionEvent.Status.SUCCEEDED) {
+            if (ti.getErrorCode() == 0) {
+              String[] diags = rj.getTaskDiagnostics(t.getTaskAttemptId());
+              ti.setErrorCode(extractErrorCode(diags));
+              ti.setDiagnosticMesgs(diags);
+            }
+
             Integer failAttempts = failures.get(taskId);
             if (failAttempts == null) {
               failAttempts = Integer.valueOf(0);
@@ -165,14 +217,21 @@ public class JobDebugger implements Runnable {
     }
   }
 
+  private void computeMaxFailures() {
+    maxFailures = 0;
+    for (Integer failCount : failures.values()) {
+      if (maxFailures < failCount.intValue()) {
+        maxFailures = failCount.intValue();
+      }
+    }
+  }
+
   @SuppressWarnings("deprecation")
   private void showJobFailDebugInfo() throws IOException {
-
-
     console.printError("Error during job, obtaining debugging information...");
     // Loop to get all task completion events because getTaskCompletionEvents
     // only returns a subset per call
-    TaskLogGrabber tlg = new TaskLogGrabber();
+    TaskInfoGrabber tlg = new TaskInfoGrabber();
     Thread t = new Thread(tlg);
     try {
       t.start();
@@ -181,7 +240,7 @@ public class JobDebugger implements Runnable {
       console.printError("Timed out trying to finish grabbing task log URLs, "
           + "some task info may be missing");
     }
-    
+
     // Remove failures for tasks that succeeded
     for (String task : successes) {
       failures.remove(task);
@@ -190,56 +249,82 @@ public class JobDebugger implements Runnable {
     if (failures.keySet().size() == 0) {
       return;
     }
-
     // Find the highest failure count
-    int maxFailures = 0;
-    for (Integer failCount : failures.values()) {
-      if (maxFailures < failCount.intValue()) {
-        maxFailures = failCount.intValue();
-      }
-    }
+    computeMaxFailures() ;
 
     // Display Error Message for tasks with the highest failure count
-    String jtUrl = JobTrackerURLResolver.getURL(conf);
+    String jtUrl = null;
+    try {
+      jtUrl = JobTrackerURLResolver.getURL(conf);
+    } catch (Exception e) {
+      console.printError("Unable to retrieve URL for Hadoop Task logs. "
+          + e.getMessage());
+    }
 
     for (String task : failures.keySet()) {
       if (failures.get(task).intValue() == maxFailures) {
         TaskInfo ti = taskIdToInfo.get(task);
         String jobId = ti.getJobId();
-        String taskUrl = jtUrl + "/taskdetails.jsp?jobid=" + jobId + "&tipid=" + task.toString();
+        String taskUrl = (jtUrl == null) ? "Unavailable" :
+            jtUrl + "/taskdetails.jsp?jobid=" + jobId + "&tipid=" + task.toString();
 
         TaskLogProcessor tlp = new TaskLogProcessor(conf);
         for (String logUrl : ti.getLogUrls()) {
           tlp.addTaskAttemptLogUrl(logUrl);
         }
 
-        List<ErrorAndSolution> errors = tlp.getErrors();
-
-        StringBuilder sb = new StringBuilder();
-        // We use a StringBuilder and then call printError only once as
-        // printError will write to both stderr and the error log file. In
-        // situations where both the stderr and the log file output is
-        // simultaneously output to a single stream, this will look cleaner.
-        sb.append("\n");
-        sb.append("Task with the most failures(" + maxFailures + "): \n");
-        sb.append("-----\n");
-        sb.append("Task ID:\n  " + task + "\n\n");
-        sb.append("URL:\n  " + taskUrl + "\n");
-
-        for (ErrorAndSolution e : errors) {
-          sb.append("\n");
-          sb.append("Possible error:\n  " + e.getError() + "\n\n");
-          sb.append("Solution:\n  " + e.getSolution() + "\n");
+        if (HiveConf.getBoolVar(conf, HiveConf.ConfVars.JOB_DEBUG_CAPTURE_STACKTRACES) &&
+            stackTraces != null) {
+          if (!stackTraces.containsKey(jobId)) {
+            stackTraces.put(jobId, new ArrayList<List<String>>());
+          }
+          stackTraces.get(jobId).addAll(tlp.getStackTraces());
         }
-        sb.append("-----\n");
 
-        console.printError(sb.toString());
+        if (HiveConf.getBoolVar(conf, HiveConf.ConfVars.SHOW_JOB_FAIL_DEBUG_INFO)) {
+          List<ErrorAndSolution> errors = tlp.getErrors();
+
+          StringBuilder sb = new StringBuilder();
+          // We use a StringBuilder and then call printError only once as
+          // printError will write to both stderr and the error log file. In
+          // situations where both the stderr and the log file output is
+          // simultaneously output to a single stream, this will look cleaner.
+          sb.append("\n");
+          sb.append("Task with the most failures(" + maxFailures + "): \n");
+          sb.append("-----\n");
+          sb.append("Task ID:\n  " + task + "\n\n");
+          sb.append("URL:\n  " + taskUrl + "\n");
+
+          for (ErrorAndSolution e : errors) {
+            sb.append("\n");
+            sb.append("Possible error:\n  " + e.getError() + "\n\n");
+            sb.append("Solution:\n  " + e.getSolution() + "\n");
+          }
+          sb.append("-----\n");
+
+          sb.append("Diagnostic Messages for this Task:\n");
+          String[] diagMesgs = ti.getDiagnosticMesgs();
+          for (String mesg : diagMesgs) {
+            sb.append(mesg + "\n");
+          }
+          console.printError(sb.toString());
+        }
 
         // Only print out one task because that's good enough for debugging.
         break;
       }
     }
     return;
+  }
 
+  public int getErrorCode() {
+    for (String task : failures.keySet()) {
+      if (failures.get(task).intValue() == maxFailures) {
+        TaskInfo ti = taskIdToInfo.get(task);
+        return ti.getErrorCode();
+      }
+    }
+    // Should never reach here unless there were no failed tasks.
+    return 0;
   }
 }

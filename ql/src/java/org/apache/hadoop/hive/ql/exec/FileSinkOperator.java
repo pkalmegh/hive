@@ -34,8 +34,8 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.common.FileUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.io.HiveFileFormatUtils;
-import org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat;
 import org.apache.hadoop.hive.ql.io.HiveKey;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
 import org.apache.hadoop.hive.ql.io.HivePartitioner;
@@ -52,10 +52,10 @@ import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.Serializer;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.SubStructObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
@@ -399,7 +399,7 @@ public class FileSinkOperator extends TerminalOperator<FileSinkDesc> implements
       int filesIdx = 0;
       Set<Integer> seenBuckets = new HashSet<Integer>();
       for (int idx = 0; idx < totalFiles; idx++) {
-        if (this.getExecContext() != null && this.getExecContext().getFileId() != -1) {
+        if (this.getExecContext() != null && this.getExecContext().getFileId() != null) {
           LOG.info("replace taskId from execContext ");
 
           taskId = Utilities.replaceTaskIdFromFilename(taskId, this.getExecContext().getFileId());
@@ -705,7 +705,6 @@ public class FileSinkOperator extends TerminalOperator<FileSinkDesc> implements
 
   @Override
   public void closeOp(boolean abort) throws HiveException {
-
     if (!bDynParts && !filesCreated) {
       createBucketFiles(fsp);
     }
@@ -762,22 +761,53 @@ public class FileSinkOperator extends TerminalOperator<FileSinkDesc> implements
 
   @Override
   public void augmentPlan() {
-    PlanUtils.configureTableJobPropertiesForStorageHandler(
+    PlanUtils.configureOutputJobPropertiesForStorageHandler(
         getConf().getTableInfo());
   }
 
-  private void publishStats() {
+  public void checkOutputSpecs(FileSystem ignored, JobConf job) throws IOException {
+    if (hiveOutputFormat == null) {
+      try {
+        hiveOutputFormat = conf.getTableInfo().getOutputFileFormatClass().newInstance();
+      } catch (Exception ex) {
+        throw new IOException(ex);
+      }
+    }
+    Utilities.copyTableJobPropertiesToConf(conf.getTableInfo(), job);
+
+    if (conf.getTableInfo().isNonNative()) {
+      //check the ouput specs only if it is a storage handler (native tables's outputformats does
+      //not set the job's output properties correctly)
+      try {
+        hiveOutputFormat.checkOutputSpecs(ignored, job);
+      } catch (NoSuchMethodError e) {
+        //For BC, ignore this for now, but leave a log message
+        LOG.warn("HiveOutputFormat should implement checkOutputSpecs() method`");
+      }
+    }
+  }
+
+  private void publishStats() throws HiveException {
+    boolean isStatsReliable = conf.isStatsReliable();
+
     // Initializing a stats publisher
     StatsPublisher statsPublisher = Utilities.getStatsPublisher(jc);
 
     if (statsPublisher == null) {
       // just return, stats gathering should not block the main query
       LOG.error("StatsPublishing error: StatsPublisher is not initialized.");
+      if (isStatsReliable) {
+        throw new HiveException(ErrorMsg.STATSPUBLISHER_NOT_OBTAINED.getErrorCodedMsg());
+      }
       return;
     }
+
     if (!statsPublisher.connect(hconf)) {
       // just return, stats gathering should not block the main query
       LOG.error("StatsPublishing error: cannot connect to database");
+      if (isStatsReliable) {
+        throw new HiveException(ErrorMsg.STATSPUBLISHER_CONNECTION_ERROR.getErrorCodedMsg());
+      }
       return;
     }
 
@@ -802,8 +832,20 @@ public class FileSinkOperator extends TerminalOperator<FileSinkDesc> implements
       for (String statType : fspValue.stat.getStoredStats()) {
         statsToPublish.put(statType, Long.toString(fspValue.stat.getStat(statType)));
       }
-      statsPublisher.publishStat(key, statsToPublish);
+      if (!statsPublisher.publishStat(key, statsToPublish)) {
+        // The original exception is lost.
+        // Not changing the interface to maintain backward compatibility
+        if (isStatsReliable) {
+          throw new HiveException(ErrorMsg.STATSPUBLISHER_PUBLISHING_ERROR.getErrorCodedMsg());
+        }
+      }
     }
-    statsPublisher.closeConnection();
+    if (!statsPublisher.closeConnection()) {
+      // The original exception is lost.
+      // Not changing the interface to maintain backward compatibility
+      if (isStatsReliable) {
+        throw new HiveException(ErrorMsg.STATSPUBLISHER_CLOSING_ERROR.getErrorCodedMsg());
+      }
+    }
   }
 }

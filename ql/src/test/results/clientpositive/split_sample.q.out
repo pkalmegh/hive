@@ -1,31 +1,7 @@
-PREHOOK: query: drop table ss_src1
-PREHOOK: type: DROPTABLE
-POSTHOOK: query: drop table ss_src1
-POSTHOOK: type: DROPTABLE
-PREHOOK: query: drop table ss_src2
-PREHOOK: type: DROPTABLE
-POSTHOOK: query: drop table ss_src2
-POSTHOOK: type: DROPTABLE
-PREHOOK: query: drop table ss_src3
-PREHOOK: type: DROPTABLE
-POSTHOOK: query: drop table ss_src3
-POSTHOOK: type: DROPTABLE
-PREHOOK: query: drop table ss_i_part
-PREHOOK: type: DROPTABLE
-POSTHOOK: query: drop table ss_i_part
-POSTHOOK: type: DROPTABLE
-PREHOOK: query: drop table ss_t3
-PREHOOK: type: DROPTABLE
-POSTHOOK: query: drop table ss_t3
-POSTHOOK: type: DROPTABLE
-PREHOOK: query: drop table ss_t4
-PREHOOK: type: DROPTABLE
-POSTHOOK: query: drop table ss_t4
-POSTHOOK: type: DROPTABLE
-PREHOOK: query: drop table ss_t5
-PREHOOK: type: DROPTABLE
-POSTHOOK: query: drop table ss_t5
-POSTHOOK: type: DROPTABLE
+PREHOOK: query: USE default
+PREHOOK: type: SWITCHDATABASE
+POSTHOOK: query: USE default
+POSTHOOK: type: SWITCHDATABASE
 PREHOOK: query: -- create multiple file inputs (two enable multiple splits)
 create table ss_i_part (key int, value string) partitioned by (p string)
 PREHOOK: type: CREATETABLE
@@ -86,14 +62,30 @@ POSTHOOK: Lineage: ss_i_part PARTITION(p=2).key EXPRESSION [(src)src.FieldSchema
 POSTHOOK: Lineage: ss_i_part PARTITION(p=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=3).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-PREHOOK: query: select count(1) from ss_src2 tablesample(1 percent)
+PREHOOK: query: -- EXCLUDE_HADOOP_MAJOR_VERSIONS(0.22)
+-- This test sets mapred.max.split.size=300 and hive.merge.smallfiles.avgsize=1
+-- in an attempt to force the generation of multiple splits and multiple output files.
+-- However, Hadoop 0.20 is incapable of generating splits smaller than the block size
+-- when using CombineFileInputFormat, so only one split is generated. This has a
+-- significant impact on the results of the TABLESAMPLE(x PERCENT). This issue was
+-- fixed in MAPREDUCE-2046 which is included in 0.22.
+
+select count(1) from ss_src2 tablesample(1 percent)
 PREHOOK: type: QUERY
 PREHOOK: Input: default@ss_src2
-PREHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-29-59_672_5340499223023451247/-mr-10000
-POSTHOOK: query: select count(1) from ss_src2 tablesample(1 percent)
+#### A masked pattern was here ####
+POSTHOOK: query: -- EXCLUDE_HADOOP_MAJOR_VERSIONS(0.22)
+-- This test sets mapred.max.split.size=300 and hive.merge.smallfiles.avgsize=1
+-- in an attempt to force the generation of multiple splits and multiple output files.
+-- However, Hadoop 0.20 is incapable of generating splits smaller than the block size
+-- when using CombineFileInputFormat, so only one split is generated. This has a
+-- significant impact on the results of the TABLESAMPLE(x PERCENT). This issue was
+-- fixed in MAPREDUCE-2046 which is included in 0.22.
+
+select count(1) from ss_src2 tablesample(1 percent)
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@ss_src2
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-29-59_672_5340499223023451247/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -166,11 +158,11 @@ STAGE PLANS:
 PREHOOK: query: select key, value from ss_src2 tablesample(1 percent) limit 10
 PREHOOK: type: QUERY
 PREHOOK: Input: default@ss_src2
-PREHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-30-03_317_5639033412567410651/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select key, value from ss_src2 tablesample(1 percent) limit 10
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@ss_src2
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-30-03_317_5639033412567410651/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -328,13 +320,13 @@ PREHOOK: type: QUERY
 PREHOOK: Input: default@ss_t3
 PREHOOK: Input: default@ss_t4
 PREHOOK: Input: default@ss_t5
-PREHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-30-41_918_5918690336656515818/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select sum(s) from (select s from ss_t3 union all select s from ss_t4 union all select s from ss_t5) t
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@ss_t3
 POSTHOOK: Input: default@ss_t4
 POSTHOOK: Input: default@ss_t5
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-30-41_918_5918690336656515818/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -435,11 +427,11 @@ STAGE PLANS:
 PREHOOK: query: select count(distinct key) from ss_src2 tablesample(70 percent) limit 10
 PREHOOK: type: QUERY
 PREHOOK: Input: default@ss_src2
-PREHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-30-45_442_8267295644835428515/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select count(distinct key) from ss_src2 tablesample(70 percent) limit 10
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@ss_src2
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-30-45_442_8267295644835428515/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -457,12 +449,12 @@ PREHOOK: query: -- sample all splits
 select count(1) from ss_src2 tablesample(100 percent)
 PREHOOK: type: QUERY
 PREHOOK: Input: default@ss_src2
-PREHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-30-48_535_5957132414625414610/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: -- sample all splits
 select count(1) from ss_src2 tablesample(100 percent)
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@ss_src2
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-30-48_535_5957132414625414610/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -547,11 +539,11 @@ STAGE PLANS:
 PREHOOK: query: select key from (select key from ss_src2 tablesample(1 percent) limit 10) subq
 PREHOOK: type: QUERY
 PREHOOK: Input: default@ss_src2
-PREHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-30-51_707_2683276877135168244/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select key from (select key from ss_src2 tablesample(1 percent) limit 10) subq
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@ss_src2
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-30-51_707_2683276877135168244/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -578,12 +570,12 @@ PREHOOK: query: -- groupby
 select key, count(1) from ss_src2 tablesample(1 percent) group by key order by key
 PREHOOK: type: QUERY
 PREHOOK: Input: default@ss_src2
-PREHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-30-54_744_4312177153319365155/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: -- groupby
 select key, count(1) from ss_src2 tablesample(1 percent) group by key order by key
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@ss_src2
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-30-54_744_4312177153319365155/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -930,12 +922,12 @@ PREHOOK: query: select t2.key as k from ss_src1 join ss_src2 tablesample(1 perce
 PREHOOK: type: QUERY
 PREHOOK: Input: default@ss_src1
 PREHOOK: Input: default@ss_src2
-PREHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-31-03_979_2033527038780549337/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select t2.key as k from ss_src1 join ss_src2 tablesample(1 percent) t2 on ss_src1.key=t2.key order by k
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@ss_src1
 POSTHOOK: Input: default@ss_src2
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-31-03_979_2033527038780549337/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -4147,14 +4139,14 @@ select t1.key as k1, t2.key as k from ss_src1 tablesample(80 percent) t1 full ou
 PREHOOK: type: QUERY
 PREHOOK: Input: default@ss_src1
 PREHOOK: Input: default@ss_src2
-PREHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-31-11_392_6043096014814851274/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select * from (
 select t1.key as k1, t2.key as k from ss_src1 tablesample(80 percent) t1 full outer join ss_src2 tablesample(2 percent) t2 on t1.key=t2.key
 ) subq where k in (199, 10199, 20199) or k1 in (199, 10199, 20199)
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@ss_src1
 POSTHOOK: Input: default@ss_src2
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-31-11_392_6043096014814851274/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -4270,11 +4262,11 @@ STAGE PLANS:
 PREHOOK: query: select count(1) from ss_src2 tablesample(1 percent)
 PREHOOK: type: QUERY
 PREHOOK: Input: default@ss_src2
-PREHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-31-16_229_2237875557716282307/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select count(1) from ss_src2 tablesample(1 percent)
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@ss_src2
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-31-16_229_2237875557716282307/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -4291,11 +4283,11 @@ POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(n
 PREHOOK: query: select count(1) from ss_src2 tablesample(50 percent)
 PREHOOK: type: QUERY
 PREHOOK: Input: default@ss_src2
-PREHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-31-19_327_114358942722250184/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select count(1) from ss_src2 tablesample(50 percent)
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@ss_src2
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-04-29_02-31-19_327_114358942722250184/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -4309,143 +4301,3 @@ POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(n
 POSTHOOK: Lineage: ss_i_part PARTITION(p=3).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 1000
-PREHOOK: query: drop table ss_src1
-PREHOOK: type: DROPTABLE
-PREHOOK: Input: default@ss_src1
-PREHOOK: Output: default@ss_src1
-POSTHOOK: query: drop table ss_src1
-POSTHOOK: type: DROPTABLE
-POSTHOOK: Input: default@ss_src1
-POSTHOOK: Output: default@ss_src1
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-PREHOOK: query: drop table ss_src2
-PREHOOK: type: DROPTABLE
-PREHOOK: Input: default@ss_src2
-PREHOOK: Output: default@ss_src2
-POSTHOOK: query: drop table ss_src2
-POSTHOOK: type: DROPTABLE
-POSTHOOK: Input: default@ss_src2
-POSTHOOK: Output: default@ss_src2
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-PREHOOK: query: drop table ss_src3
-PREHOOK: type: DROPTABLE
-PREHOOK: Input: default@ss_src3
-PREHOOK: Output: default@ss_src3
-POSTHOOK: query: drop table ss_src3
-POSTHOOK: type: DROPTABLE
-POSTHOOK: Input: default@ss_src3
-POSTHOOK: Output: default@ss_src3
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-PREHOOK: query: drop table ss_i_part
-PREHOOK: type: DROPTABLE
-PREHOOK: Input: default@ss_i_part
-PREHOOK: Output: default@ss_i_part
-POSTHOOK: query: drop table ss_i_part
-POSTHOOK: type: DROPTABLE
-POSTHOOK: Input: default@ss_i_part
-POSTHOOK: Output: default@ss_i_part
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-PREHOOK: query: drop table ss_t3
-PREHOOK: type: DROPTABLE
-PREHOOK: Input: default@ss_t3
-PREHOOK: Output: default@ss_t3
-POSTHOOK: query: drop table ss_t3
-POSTHOOK: type: DROPTABLE
-POSTHOOK: Input: default@ss_t3
-POSTHOOK: Output: default@ss_t3
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-PREHOOK: query: drop table ss_t4
-PREHOOK: type: DROPTABLE
-PREHOOK: Input: default@ss_t4
-PREHOOK: Output: default@ss_t4
-POSTHOOK: query: drop table ss_t4
-POSTHOOK: type: DROPTABLE
-POSTHOOK: Input: default@ss_t4
-POSTHOOK: Output: default@ss_t4
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-PREHOOK: query: drop table ss_t5
-PREHOOK: type: DROPTABLE
-PREHOOK: Input: default@ss_t5
-PREHOOK: Output: default@ss_t5
-POSTHOOK: query: drop table ss_t5
-POSTHOOK: type: DROPTABLE
-POSTHOOK: Input: default@ss_t5
-POSTHOOK: Output: default@ss_t5
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: ss_i_part PARTITION(p=3).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]

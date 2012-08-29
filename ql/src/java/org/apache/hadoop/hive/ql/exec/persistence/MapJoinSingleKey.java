@@ -39,7 +39,6 @@ public class MapJoinSingleKey extends AbstractMapJoinKey {
   }
 
   /**
-   * @param metadataTag
    * @param obj
    */
   public MapJoinSingleKey(Object obj) {
@@ -139,8 +138,8 @@ public class MapJoinSingleKey extends AbstractMapJoinKey {
   }
 
   @Override
-  public boolean hasAnyNulls() {
-    if (obj == null) {
+  public boolean hasAnyNulls(boolean[] nullsafes) {
+    if (obj == null && (nullsafes == null || !nullsafes[0])) {
       return true;
     }
     return false;

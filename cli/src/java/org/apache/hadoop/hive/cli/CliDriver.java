@@ -32,12 +32,12 @@ import java.util.Map;
 import java.util.Set;
 
 import jline.ArgumentCompletor;
-import jline.ArgumentCompletor.AbstractArgumentDelimiter;
-import jline.ArgumentCompletor.ArgumentDelimiter;
 import jline.Completor;
 import jline.ConsoleReader;
 import jline.History;
 import jline.SimpleCompletor;
+import jline.ArgumentCompletor.AbstractArgumentDelimiter;
+import jline.ArgumentCompletor.ArgumentDelimiter;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
@@ -46,6 +46,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.HiveInterruptUtils;
 import org.apache.hadoop.hive.common.LogUtils;
 import org.apache.hadoop.hive.common.LogUtils.LogInitializationException;
+import org.apache.hadoop.hive.common.io.CachingPrintStream;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.CommandNeedRetryException;
@@ -55,8 +56,10 @@ import org.apache.hadoop.hive.ql.exec.HadoopJobExecHelper;
 import org.apache.hadoop.hive.ql.exec.Utilities;
 import org.apache.hadoop.hive.ql.exec.Utilities.StreamPrinter;
 import org.apache.hadoop.hive.ql.parse.ParseDriver;
+import org.apache.hadoop.hive.ql.parse.VariableSubstitution;
 import org.apache.hadoop.hive.ql.processors.CommandProcessor;
 import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory;
+import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.session.SessionState.LogHelper;
 import org.apache.hadoop.hive.service.HiveClient;
@@ -93,6 +96,8 @@ public class CliDriver {
 
   public int processCmd(String cmd) {
     CliSessionState ss = (CliSessionState) SessionState.get();
+    // Flush the print stream, so it doesn't include output from the last command
+    ss.err.flush();
     String cmd_trimmed = cmd.trim();
     String[] tokens = tokenizeCmd(cmd_trimmed);
     int ret = 0;
@@ -124,6 +129,7 @@ public class CliDriver {
     } else if (cmd_trimmed.startsWith("!")) {
 
       String shell_cmd = cmd_trimmed.substring(1);
+      shell_cmd = new VariableSubstitution().substitute(ss.getConf(), shell_cmd);
 
       // shell_cmd = "/bin/bash -c \'" + shell_cmd + "\'";
       try {
@@ -295,7 +301,12 @@ public class CliDriver {
             if (ss.getIsVerbose()) {
               ss.out.println(firstToken + " " + cmd_1);
             }
-            ret = proc.run(cmd_1).getResponseCode();
+            CommandProcessorResponse res = proc.run(cmd_1);
+            if (res.getResponseCode() != 0) {
+              ss.out.println("Query returned non-zero code: " + res.getResponseCode() +
+                  ", cause: " + res.getErrorMessage());
+            }
+            ret = res.getResponseCode();
           }
         }
       } catch (CommandNeedRetryException e) {
@@ -344,7 +355,7 @@ public class CliDriver {
    * @param allowInterupting
    *          When true the function will handle SIG_INT (Ctrl+C) by interrupting the processing and
    *          returning -1
-   * @return
+   * @return 0 if ok
    */
   public int processLine(String line, boolean allowInterupting) {
     SignalHandler oldSignal = null;
@@ -461,7 +472,21 @@ public class CliDriver {
     }
     if (ss.initFiles.size() == 0) {
       if (System.getenv("HIVE_HOME") != null) {
-        String hivercDefault = System.getenv("HIVE_HOME") + File.separator + "bin" + File.separator + HIVERCFILE;
+        String hivercDefault = System.getenv("HIVE_HOME") + File.separator +
+          "bin" + File.separator + HIVERCFILE;
+        if (new File(hivercDefault).exists()) {
+          int rc = processFile(hivercDefault);
+          if (rc != 0) {
+            System.exit(rc);
+          }
+          console.printError("Putting the global hiverc in " +
+                             "$HIVE_HOME/bin/.hiverc is deprecated. Please "+
+                             "use $HIVE_CONF_DIR/.hiverc instead.");
+        }
+      }
+      if (System.getenv("HIVE_CONF_DIR") != null) {
+        String hivercDefault = System.getenv("HIVE_CONF_DIR") + File.separator
+          + HIVERCFILE;
         if (new File(hivercDefault).exists()) {
           int rc = processFile(hivercDefault);
           if (rc != 0) {
@@ -470,7 +495,8 @@ public class CliDriver {
         }
       }
       if (System.getProperty("user.home") != null) {
-        String hivercUser = System.getProperty("user.home") + File.separator + HIVERCFILE;
+        String hivercUser = System.getProperty("user.home") + File.separator +
+          HIVERCFILE;
         if (new File(hivercUser).exists()) {
           int rc = processFile(hivercUser);
           if (rc != 0) {
@@ -482,7 +508,17 @@ public class CliDriver {
     ss.setIsSilent(saveSilent);
   }
 
-  public static Completor getCommandCompletor () {
+  public void processSelectDatabase(CliSessionState ss) throws IOException {
+    String database = ss.database;
+    if (database != null) {
+      int rc = processLine("use " + database + ";");
+      if (rc != 0) {
+        System.exit(rc);
+      }
+    }
+  }
+
+  public static Completor[] getCommandCompletor () {
     // SimpleCompletor matches against a pre-defined wordlist
     // We start with an empty wordlist and build it up
     SimpleCompletor sc = new SimpleCompletor(new String[0]);
@@ -545,7 +581,32 @@ public class CliDriver {
       }
     };
 
-    return completor;
+    HiveConf.ConfVars[] confs = HiveConf.ConfVars.values();
+    String[] vars = new String[confs.length];
+    for (int i = 0; i < vars.length; i++) {
+      vars[i] = confs[i].varname;
+    }
+    SimpleCompletor conf = new SimpleCompletor(vars);
+    conf.setDelimiter(".");
+
+    SimpleCompletor set = new SimpleCompletor("set") {
+      @Override
+      public int complete(String buffer, int cursor, List clist) {
+        return buffer != null && buffer.equals("set") ? super.complete(buffer, cursor, clist) : -1;
+      }
+    };
+    ArgumentCompletor propCompletor = new ArgumentCompletor(new Completor[]{set, conf}) {
+      @Override
+      @SuppressWarnings("unchecked")
+      public int complete(String buffer, int offset, List completions) {
+        int ret = super.complete(buffer, offset, completions);
+        if (completions.size() == 1) {
+          completions.set(0, ((String)completions.get(0)).trim());
+        }
+        return ret;
+      }
+    };
+    return new Completor[] {propCompletor, completor};
   }
 
   public static void main(String[] args) throws Exception {
@@ -575,7 +636,8 @@ public class CliDriver {
     ss.in = System.in;
     try {
       ss.out = new PrintStream(System.out, true, "UTF-8");
-      ss.err = new PrintStream(System.err, true, "UTF-8");
+      ss.info = new PrintStream(System.err, true, "UTF-8");
+      ss.err = new CachingPrintStream(System.err, true, "UTF-8");
     } catch (UnsupportedEncodingException e) {
       return 3;
     }
@@ -596,6 +658,7 @@ public class CliDriver {
     HiveConf conf = ss.getConf();
     for (Map.Entry<Object, Object> item : ss.cmdProperties.entrySet()) {
       conf.set((String) item.getKey(), (String) item.getValue());
+      ss.getOverriddenConfigurations().put((String) item.getKey(), (String) item.getValue());
     }
 
     SessionState.start(ss);
@@ -628,6 +691,9 @@ public class CliDriver {
     CliDriver cli = new CliDriver();
     cli.setHiveVariables(oproc.getHiveVariables());
 
+    // use the specified database if specified
+    cli.processSelectDatabase(ss);
+
     // Execute -i init files (always in silent mode)
     cli.processInitFiles(ss);
 
@@ -647,12 +713,27 @@ public class CliDriver {
     ConsoleReader reader = new ConsoleReader();
     reader.setBellEnabled(false);
     // reader.setDebug(new PrintWriter(new FileWriter("writer.debug", true)));
-    reader.addCompletor(getCommandCompletor());
+    for (Completor completor : getCommandCompletor()) {
+      reader.addCompletor(completor);
+    }
 
     String line;
     final String HISTORYFILE = ".hivehistory";
-    String historyFile = System.getProperty("user.home") + File.separator + HISTORYFILE;
-    reader.setHistory(new History(new File(historyFile)));
+    String historyDirectory = System.getProperty("user.home");
+    try {
+      if ((new File(historyDirectory)).exists()) {
+        String historyFile = historyDirectory + File.separator + HISTORYFILE;
+        reader.setHistory(new History(new File(historyFile)));
+      } else {
+        System.err.println("WARNING: Directory for Hive history file: " + historyDirectory +
+                           " does not exist.   History will not be available during this session.");
+      }
+    } catch (Exception e) {
+      System.err.println("WARNING: Encountered an error while trying to initialize Hive's " +
+                         "history file.  History will not be available during this session.");
+      System.err.println(e.getMessage());
+    }
+
     int ret = 0;
 
     String prefix = "";

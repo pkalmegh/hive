@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?> 
-<java version="1.6.0_24" class="java.beans.XMLDecoder"> 
+#### A masked pattern was here #### 
  <object id="MapRedTask0" class="org.apache.hadoop.hive.ql.exec.MapRedTask"> 
   <void property="childTasks"> 
    <object class="java.util.ArrayList"> 
     <void method="add"> 
      <object class="org.apache.hadoop.hive.ql.exec.ConditionalTask"> 
       <void property="id"> 
-       <string>Stage-6</string> 
+       <string>Stage-9</string> 
       </void> 
       <void property="listTasks"> 
        <object id="ArrayList0" class="java.util.ArrayList"> 
@@ -17,7 +17,7 @@
             <void method="add"> 
              <object id="MoveTask1" class="org.apache.hadoop.hive.ql.exec.MoveTask"> 
               <void property="id"> 
-               <string>Stage-2</string> 
+               <string>Stage-3</string> 
               </void> 
               <void property="parentTasks"> 
                <object class="java.util.ArrayList"> 
@@ -34,14 +34,14 @@
                    </object> 
                   </void> 
                   <void property="id"> 
-                   <string>Stage-4</string> 
+                   <string>Stage-5</string> 
                   </void> 
                   <void property="work"> 
                    <object id="MapredWork0" class="org.apache.hadoop.hive.ql.plan.MapredWork"> 
                     <void property="aliasToWork"> 
                      <object class="java.util.LinkedHashMap"> 
                       <void method="put"> 
-                       <string>file:/data/users/charleschen/hive-trunk/build/ql/scratchdir/hive_2011-09-01_02-45-52_814_3035590220477791065/-ext-10001</string> 
+                       #### A masked pattern was here #### 
                        <object id="TableScanOperator0" class="org.apache.hadoop.hive.ql.exec.TableScanOperator"> 
                         <void property="childOperators"> 
                          <object class="java.util.ArrayList"> 
@@ -50,7 +50,7 @@
                             <void property="conf"> 
                              <object class="org.apache.hadoop.hive.ql.plan.FileSinkDesc"> 
                               <void property="dirName"> 
-                               <string>file:/data/users/charleschen/hive-trunk/build/ql/scratchdir/hive_2011-09-01_02-45-52_814_3035590220477791065/-ext-10000</string> 
+                               #### A masked pattern was here #### 
                               </void> 
                               <void property="numFiles"> 
                                <int>1</int> 
@@ -195,10 +195,10 @@
                     <void property="pathToAliases"> 
                      <object class="java.util.LinkedHashMap"> 
                       <void method="put"> 
-                       <string>file:/data/users/charleschen/hive-trunk/build/ql/scratchdir/hive_2011-09-01_02-45-52_814_3035590220477791065/-ext-10001</string> 
+                       #### A masked pattern was here #### 
                        <object class="java.util.ArrayList"> 
                         <void method="add"> 
-                         <string>file:/data/users/charleschen/hive-trunk/build/ql/scratchdir/hive_2011-09-01_02-45-52_814_3035590220477791065/-ext-10001</string> 
+                         #### A masked pattern was here #### 
                         </void> 
                        </object> 
                       </void> 
@@ -207,7 +207,7 @@
                     <void property="pathToPartitionInfo"> 
                      <object class="java.util.LinkedHashMap"> 
                       <void method="put"> 
-                       <string>file:/data/users/charleschen/hive-trunk/build/ql/scratchdir/hive_2011-09-01_02-45-52_814_3035590220477791065/-ext-10001</string> 
+                       #### A masked pattern was here #### 
                        <object class="org.apache.hadoop.hive.ql.plan.PartitionDesc"> 
                         <void property="baseFileName"> 
                          <string>-ext-10001</string> 
@@ -264,6 +264,58 @@
                   </void> 
                  </object> 
                 </void> 
+                <void method="add"> 
+                 <object id="MoveTask2" class="org.apache.hadoop.hive.ql.exec.MoveTask"> 
+                  <void property="childTasks"> 
+                   <object class="java.util.ArrayList"> 
+                    <void method="add"> 
+                     <object idref="MoveTask1"/> 
+                    </void> 
+                   </object> 
+                  </void> 
+                  <void property="id"> 
+                   <string>Stage-8</string> 
+                  </void> 
+                  <void property="parentTasks"> 
+                   <object class="java.util.ArrayList"> 
+                    <void method="add"> 
+                     <object id="MapRedTask2" class="org.apache.hadoop.hive.ql.exec.MapRedTask"> 
+                      <void property="childTasks"> 
+                       <object class="java.util.ArrayList"> 
+                        <void method="add"> 
+                         <object idref="MoveTask2"/> 
+                        </void> 
+                       </object> 
+                      </void> 
+                      <void property="id"> 
+                       <string>Stage-7</string> 
+                      </void> 
+                      <void property="work"> 
+                       <object idref="MapredWork0"/> 
+                      </void> 
+                     </object> 
+                    </void> 
+                   </object> 
+                  </void> 
+                  <void property="work"> 
+                   <object id="MoveWork0" class="org.apache.hadoop.hive.ql.plan.MoveWork"> 
+                    <void property="loadFileWork"> 
+                     <object class="org.apache.hadoop.hive.ql.plan.LoadFileDesc"> 
+                      <void property="isDfsDir"> 
+                       <boolean>true</boolean> 
+                      </void> 
+                      <void property="sourceDir"> 
+                       #### A masked pattern was here #### 
+                      </void> 
+                      <void property="targetDir"> 
+                       #### A masked pattern was here #### 
+                      </void> 
+                     </object> 
+                    </void> 
+                   </object> 
+                  </void> 
+                 </object> 
+                </void> 
                </object> 
               </void> 
               <void property="work"> 
@@ -280,7 +332,7 @@
                    <boolean>true</boolean> 
                   </void> 
                   <void property="sourceDir"> 
-                   <string>file:/data/users/charleschen/hive-trunk/build/ql/scratchdir/hive_2011-09-01_02-45-52_814_3035590220477791065/-ext-10000</string> 
+                   #### A masked pattern was here #### 
                   </void> 
                   <void property="targetDir"> 
                    <string>../build/ql/test/data/warehouse/union.out</string> 
@@ -294,29 +346,18 @@
            </object> 
           </void> 
           <void property="id"> 
-           <string>Stage-5</string> 
+           <string>Stage-6</string> 
           </void> 
           <void property="work"> 
-           <object id="MoveWork0" class="org.apache.hadoop.hive.ql.plan.MoveWork"> 
-            <void property="loadFileWork"> 
-             <object class="org.apache.hadoop.hive.ql.plan.LoadFileDesc"> 
-              <void property="isDfsDir"> 
-               <boolean>true</boolean> 
-              </void> 
-              <void property="sourceDir"> 
-               <string>file:/data/users/charleschen/hive-trunk/build/ql/scratchdir/hive_2011-09-01_02-45-52_814_3035590220477791065/-ext-10001</string> 
-              </void> 
-              <void property="targetDir"> 
-               <string>file:/data/users/charleschen/hive-trunk/build/ql/scratchdir/hive_2011-09-01_02-45-52_814_3035590220477791065/-ext-10000</string> 
-              </void> 
-             </object> 
-            </void> 
-           </object> 
+           <object idref="MoveWork0"/> 
           </void> 
          </object> 
         </void> 
         <void method="add"> 
          <object idref="MapRedTask1"/> 
+        </void> 
+        <void method="add"> 
+         <object idref="MapRedTask2"/> 
         </void> 
        </object> 
       </void> 
@@ -333,7 +374,7 @@
       <void property="resolverCtx"> 
        <object class="org.apache.hadoop.hive.ql.plan.ConditionalResolverMergeFiles$ConditionalResolverMergeFilesCtx"> 
         <void property="dir"> 
-         <string>file:/data/users/charleschen/hive-trunk/build/ql/scratchdir/hive_2011-09-01_02-45-52_814_3035590220477791065/-ext-10001</string> 
+         #### A masked pattern was here #### 
         </void> 
         <void property="listTasks"> 
          <object idref="ArrayList0"/> 
@@ -359,7 +400,7 @@
    </object> 
   </void> 
   <void property="id"> 
-   <string>Stage-3</string> 
+   <string>Stage-4</string> 
   </void> 
   <void property="work"> 
    <object class="org.apache.hadoop.hive.ql.plan.MapredWork"> 
@@ -386,6 +427,10 @@
           <string>default.src</string> 
          </void> 
          <void method="put"> 
+          <string>numFiles</string> 
+          <string>1</string> 
+         </void> 
+         <void method="put"> 
           <string>columns.types</string> 
           <string>string:string</string> 
          </void> 
@@ -402,6 +447,18 @@
           <string>key,value</string> 
          </void> 
          <void method="put"> 
+          <string>rawDataSize</string> 
+          <string>0</string> 
+         </void> 
+         <void method="put"> 
+          <string>numRows</string> 
+          <string>0</string> 
+         </void> 
+         <void method="put"> 
+          <string>numPartitions</string> 
+          <string>0</string> 
+         </void> 
+         <void method="put"> 
           <string>bucket_count</string> 
           <string>-1</string> 
          </void> 
@@ -414,16 +471,20 @@
           <string>org.apache.hadoop.mapred.TextInputFormat</string> 
          </void> 
          <void method="put"> 
+          <string>totalSize</string> 
+          <string>5812</string> 
+         </void> 
+         <void method="put"> 
           <string>file.outputformat</string> 
           <string>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</string> 
          </void> 
          <void method="put"> 
           <string>location</string> 
-          <string>pfile:/data/users/charleschen/hive-trunk/build/ql/test/data/warehouse/src</string> 
+          #### A masked pattern was here #### 
          </void> 
          <void method="put"> 
           <string>transient_lastDdlTime</string> 
-          <string>1314870352</string> 
+          #### A masked pattern was here #### 
          </void> 
         </object> 
        </void> 
@@ -448,6 +509,10 @@
             <string>default.src</string> 
            </void> 
            <void method="put"> 
+            <string>numFiles</string> 
+            <string>1</string> 
+           </void> 
+           <void method="put"> 
             <string>columns.types</string> 
             <string>string:string</string> 
            </void> 
@@ -464,6 +529,18 @@
             <string>key,value</string> 
            </void> 
            <void method="put"> 
+            <string>rawDataSize</string> 
+            <string>0</string> 
+           </void> 
+           <void method="put"> 
+            <string>numRows</string> 
+            <string>0</string> 
+           </void> 
+           <void method="put"> 
+            <string>numPartitions</string> 
+            <string>0</string> 
+           </void> 
+           <void method="put"> 
             <string>bucket_count</string> 
             <string>-1</string> 
            </void> 
@@ -476,16 +553,20 @@
             <string>org.apache.hadoop.mapred.TextInputFormat</string> 
            </void> 
            <void method="put"> 
+            <string>totalSize</string> 
+            <string>5812</string> 
+           </void> 
+           <void method="put"> 
             <string>file.outputformat</string> 
             <string>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</string> 
            </void> 
            <void method="put"> 
             <string>location</string> 
-            <string>pfile:/data/users/charleschen/hive-trunk/build/ql/test/data/warehouse/src</string> 
+            #### A masked pattern was here #### 
            </void> 
            <void method="put"> 
             <string>transient_lastDdlTime</string> 
-            <string>1314870352</string> 
+            #### A masked pattern was here #### 
            </void> 
           </object> 
          </void> 
@@ -524,13 +605,13 @@
                            <int>1</int> 
                           </void> 
                           <void property="dirName"> 
-                           <string>file:/data/users/charleschen/hive-trunk/build/ql/scratchdir/hive_2011-09-01_02-45-52_814_3035590220477791065/-ext-10001</string> 
+                           #### A masked pattern was here #### 
                           </void> 
                           <void property="numFiles"> 
                            <int>1</int> 
                           </void> 
                           <void property="statsAggPrefix"> 
-                           <string>file:/data/users/charleschen/hive-trunk/build/ql/scratchdir/hive_2011-09-01_02-45-52_814_3035590220477791065/-ext-10000/</string> 
+                           #### A masked pattern was here #### 
                           </void> 
                           <void property="tableInfo"> 
                            <object idref="TableDesc0"/> 
@@ -849,12 +930,12 @@
                     <void property="typeInfo"> 
                      <object class="org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo"> 
                       <void property="typeName"> 
-                       <string>int</string> 
+                       <string>double</string> 
                       </void> 
                      </object> 
                     </void> 
                     <void property="value"> 
-                     <int>100</int> 
+                     <double>100.0</double> 
                     </void> 
                    </object> 
                   </void> 
@@ -1030,7 +1111,7 @@
     <void property="pathToAliases"> 
      <object class="java.util.LinkedHashMap"> 
       <void method="put"> 
-       <string>pfile:/data/users/charleschen/hive-trunk/build/ql/test/data/warehouse/src</string> 
+       #### A masked pattern was here #### 
        <object class="java.util.ArrayList"> 
         <void method="add"> 
          <string>unioninput:src</string> 
@@ -1042,7 +1123,7 @@
     <void property="pathToPartitionInfo"> 
      <object class="java.util.LinkedHashMap"> 
       <void method="put"> 
-       <string>pfile:/data/users/charleschen/hive-trunk/build/ql/test/data/warehouse/src</string> 
+       #### A masked pattern was here #### 
        <object class="org.apache.hadoop.hive.ql.plan.PartitionDesc"> 
         <void property="baseFileName"> 
          <string>src</string> 
@@ -1066,6 +1147,10 @@
            <string>default.src</string> 
           </void> 
           <void method="put"> 
+           <string>numFiles</string> 
+           <string>1</string> 
+          </void> 
+          <void method="put"> 
            <string>columns.types</string> 
            <string>string:string</string> 
           </void> 
@@ -1082,6 +1167,18 @@
            <string>key,value</string> 
           </void> 
           <void method="put"> 
+           <string>rawDataSize</string> 
+           <string>0</string> 
+          </void> 
+          <void method="put"> 
+           <string>numRows</string> 
+           <string>0</string> 
+          </void> 
+          <void method="put"> 
+           <string>numPartitions</string> 
+           <string>0</string> 
+          </void> 
+          <void method="put"> 
            <string>bucket_count</string> 
            <string>-1</string> 
           </void> 
@@ -1094,16 +1191,20 @@
            <string>org.apache.hadoop.mapred.TextInputFormat</string> 
           </void> 
           <void method="put"> 
+           <string>totalSize</string> 
+           <string>5812</string> 
+          </void> 
+          <void method="put"> 
            <string>file.outputformat</string> 
            <string>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</string> 
           </void> 
           <void method="put"> 
            <string>location</string> 
-           <string>pfile:/data/users/charleschen/hive-trunk/build/ql/test/data/warehouse/src</string> 
+           #### A masked pattern was here #### 
           </void> 
           <void method="put"> 
            <string>transient_lastDdlTime</string> 
-           <string>1314870352</string> 
+           #### A masked pattern was here #### 
           </void> 
          </object> 
         </void> 
@@ -1128,6 +1229,10 @@
              <string>default.src</string> 
             </void> 
             <void method="put"> 
+             <string>numFiles</string> 
+             <string>1</string> 
+            </void> 
+            <void method="put"> 
              <string>columns.types</string> 
              <string>string:string</string> 
             </void> 
@@ -1144,6 +1249,18 @@
              <string>key,value</string> 
             </void> 
             <void method="put"> 
+             <string>rawDataSize</string> 
+             <string>0</string> 
+            </void> 
+            <void method="put"> 
+             <string>numRows</string> 
+             <string>0</string> 
+            </void> 
+            <void method="put"> 
+             <string>numPartitions</string> 
+             <string>0</string> 
+            </void> 
+            <void method="put"> 
              <string>bucket_count</string> 
              <string>-1</string> 
             </void> 
@@ -1156,16 +1273,20 @@
              <string>org.apache.hadoop.mapred.TextInputFormat</string> 
             </void> 
             <void method="put"> 
+             <string>totalSize</string> 
+             <string>5812</string> 
+            </void> 
+            <void method="put"> 
              <string>file.outputformat</string> 
              <string>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</string> 
             </void> 
             <void method="put"> 
              <string>location</string> 
-             <string>pfile:/data/users/charleschen/hive-trunk/build/ql/test/data/warehouse/src</string> 
+             #### A masked pattern was here #### 
             </void> 
             <void method="put"> 
              <string>transient_lastDdlTime</string> 
-             <string>1314870352</string> 
+             #### A masked pattern was here #### 
             </void> 
            </object> 
           </void> 

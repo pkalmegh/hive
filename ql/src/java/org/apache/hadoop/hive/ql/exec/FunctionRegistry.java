@@ -18,8 +18,11 @@
 
 package org.apache.hadoop.hive.ql.exec;
 
+import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -29,6 +32,9 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -146,20 +152,25 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDAFnGrams;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFArray;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFArrayContains;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFAssertTrue;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBetween;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBridge;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFCase;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFCoalesce;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFConcatWS;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFSortArray;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFEWAHBitmapAnd;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFEWAHBitmapEmpty;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFEWAHBitmapOr;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFElt;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFField;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFFormatNumber;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFFromUtcTimestamp;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFHash;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIf;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIn;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIndex;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFInFile;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFInstr;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFLocate;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFMap;
@@ -168,6 +179,7 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDFMapValues;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFNamedStruct;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPAnd;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualNS;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrGreaterThan;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrLessThan;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPGreaterThan;
@@ -177,6 +189,7 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPNotEqual;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPNotNull;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPNull;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPOr;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFPrintf;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFReflect;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFSentences;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFSize;
@@ -186,12 +199,15 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDFStruct;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFTimestamp;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFToBinary;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFToUtcTimestamp;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFTranslate;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFUnion;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFWhen;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDTF;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDTFExplode;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDTFInline;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDTFJSONTuple;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDTFParseUrlTuple;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDTFStack;
 import org.apache.hadoop.hive.ql.udf.generic.SimpleGenericUDAFParameterInfo;
 import org.apache.hadoop.hive.ql.udf.xml.GenericUDFXPath;
 import org.apache.hadoop.hive.ql.udf.xml.UDFXPathBoolean;
@@ -209,8 +225,13 @@ import org.apache.hadoop.hive.serde2.typeinfo.MapTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
+import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.util.ReflectionUtils;
 
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 /**
  * FunctionRegistry.
@@ -222,7 +243,7 @@ public final class FunctionRegistry {
   /**
    * The mapping from expression function names to expression classes.
    */
-  static Map<String, FunctionInfo> mFunctions = new LinkedHashMap<String, FunctionInfo>();
+  static Map<String, FunctionInfo> mFunctions = Collections.synchronizedMap(new LinkedHashMap<String, FunctionInfo>());
   static {
     registerUDF("concat", UDFConcat.class, false);
     registerUDF("substr", UDFSubstr.class, false);
@@ -288,6 +309,7 @@ public final class FunctionRegistry {
     registerUDF("parse_url", UDFParseUrl.class, false);
     registerGenericUDF("split", GenericUDFSplit.class);
     registerGenericUDF("str_to_map", GenericUDFStringToMap.class);
+    registerGenericUDF("translate", GenericUDFTranslate.class);
 
     registerUDF("positive", UDFOPPositive.class, true, "+");
     registerUDF("negative", UDFOPNegative.class, true, "-");
@@ -341,6 +363,7 @@ public final class FunctionRegistry {
     registerGenericUDF("or", GenericUDFOPOr.class);
     registerGenericUDF("=", GenericUDFOPEqual.class);
     registerGenericUDF("==", GenericUDFOPEqual.class);
+    registerGenericUDF("<=>", GenericUDFOPEqualNS.class);
     registerGenericUDF("!=", GenericUDFOPNotEqual.class);
     registerGenericUDF("<>", GenericUDFOPNotEqual.class);
     registerGenericUDF("<", GenericUDFOPLessThan.class);
@@ -349,6 +372,7 @@ public final class FunctionRegistry {
     registerGenericUDF(">=", GenericUDFOPEqualOrGreaterThan.class);
     registerGenericUDF("not", GenericUDFOPNot.class);
     registerGenericUDF("!", GenericUDFOPNot.class);
+    registerGenericUDF("between", GenericUDFBetween.class);
 
     registerGenericUDF("ewah_bitmap_and", GenericUDFEWAHBitmapAnd.class);
     registerGenericUDF("ewah_bitmap_or", GenericUDFEWAHBitmapOr.class);
@@ -411,8 +435,10 @@ public final class FunctionRegistry {
 
     // Generic UDFs
     registerGenericUDF("reflect", GenericUDFReflect.class);
+    registerGenericUDF("java_method", GenericUDFReflect.class);
 
     registerGenericUDF("array", GenericUDFArray.class);
+    registerGenericUDF("assert_true", GenericUDFAssertTrue.class);
     registerGenericUDF("map", GenericUDFMap.class);
     registerGenericUDF("struct", GenericUDFStruct.class);
     registerGenericUDF("named_struct", GenericUDFNamedStruct.class);
@@ -423,14 +449,18 @@ public final class FunctionRegistry {
     registerGenericUDF("hash", GenericUDFHash.class);
     registerGenericUDF("coalesce", GenericUDFCoalesce.class);
     registerGenericUDF("index", GenericUDFIndex.class);
+    registerGenericUDF("in_file", GenericUDFInFile.class);
     registerGenericUDF("instr", GenericUDFInstr.class);
     registerGenericUDF("locate", GenericUDFLocate.class);
     registerGenericUDF("elt", GenericUDFElt.class);
     registerGenericUDF("concat_ws", GenericUDFConcatWS.class);
+    registerGenericUDF("sort_array", GenericUDFSortArray.class);
     registerGenericUDF("array_contains", GenericUDFArrayContains.class);
     registerGenericUDF("sentences", GenericUDFSentences.class);
     registerGenericUDF("map_keys", GenericUDFMapKeys.class);
     registerGenericUDF("map_values", GenericUDFMapValues.class);
+    registerGenericUDF("format_number", GenericUDFFormatNumber.class);
+    registerGenericUDF("printf", GenericUDFPrintf.class);
 
     registerGenericUDF("from_utc_timestamp", GenericUDFFromUtcTimestamp.class);
     registerGenericUDF("to_utc_timestamp", GenericUDFToUtcTimestamp.class);
@@ -438,8 +468,10 @@ public final class FunctionRegistry {
 
     // Generic UDTF's
     registerGenericUDTF("explode", GenericUDTFExplode.class);
+    registerGenericUDTF("inline", GenericUDTFInline.class);
     registerGenericUDTF("json_tuple", GenericUDTFJSONTuple.class);
     registerGenericUDTF("parse_url_tuple", GenericUDTFParseUrlTuple.class);
+    registerGenericUDTF("stack", GenericUDTFStack.class);
   }
 
   public static void registerTemporaryUDF(String functionName,
@@ -606,6 +638,28 @@ public final class FunctionRegistry {
   }
 
   /**
+   * Find a common class for union-all operator
+   */
+  public static TypeInfo getCommonClassForUnionAll(TypeInfo a, TypeInfo b) {
+    if (a.equals(b)) {
+      return a;
+    }
+    if (FunctionRegistry.implicitConvertable(a, b)) {
+      return b;
+    }
+    if (FunctionRegistry.implicitConvertable(b, a)) {
+      return a;
+    }
+    for (TypeInfo t : numericTypeList) {
+      if (FunctionRegistry.implicitConvertable(a, t)
+          && FunctionRegistry.implicitConvertable(b, t)) {
+        return t;
+      }
+    }
+    return null;
+  }
+
+  /**
    * Find a common class that objects of both TypeInfo a and TypeInfo b can
    * convert to. This is used for comparing objects of type a and type b.
    *
@@ -619,7 +673,6 @@ public final class FunctionRegistry {
     if (a.equals(b)) {
       return a;
     }
-
     for (TypeInfo t : numericTypeList) {
       if (FunctionRegistry.implicitConvertable(a, t)
           && FunctionRegistry.implicitConvertable(b, t)) {
@@ -691,7 +744,9 @@ public final class FunctionRegistry {
    *
    * @param name
    *          the name of the UDAF
-   * @param argumentTypeInfos
+   * @param argumentOIs
+   * @param isDistinct
+   * @param isAllColumns
    * @return The UDAF evaluator
    */
   @SuppressWarnings("deprecation")
@@ -706,7 +761,7 @@ public final class FunctionRegistry {
 
     GenericUDAFEvaluator udafEvaluator = null;
     ObjectInspector args[] = new ObjectInspector[argumentOIs.size()];
-    // Can't use toArray here because Java is dumb when it comes to 
+    // Can't use toArray here because Java is dumb when it comes to
     // generics + arrays.
     for (int ii = 0; ii < argumentOIs.size(); ++ii) {
       args[ii] = argumentOIs.get(ii);
@@ -1122,6 +1177,82 @@ public final class FunctionRegistry {
   public static boolean isOpPositive(ExprNodeDesc desc) {
     Class<? extends UDF> udfClass = getUDFClassFromExprDesc(desc);
     return UDFOPPositive.class == udfClass;
+  }
+
+  /**
+   * Registers the appropriate kind of temporary function based on a class's
+   * type.
+   *
+   * @param functionName name under which to register function
+   *
+   * @param udfClass class implementing UD[A|T]F
+   *
+   * @return true if udfClass's type was recognized (so registration
+   * succeeded); false otherwise
+   */
+  public static boolean registerTemporaryFunction(
+    String functionName, Class<?> udfClass) {
+
+    if (UDF.class.isAssignableFrom(udfClass)) {
+      FunctionRegistry.registerTemporaryUDF(
+        functionName, (Class<? extends UDF>) udfClass, false);
+    } else if (GenericUDF.class.isAssignableFrom(udfClass)) {
+      FunctionRegistry.registerTemporaryGenericUDF(
+        functionName, (Class<? extends GenericUDF>) udfClass);
+    } else if (GenericUDTF.class.isAssignableFrom(udfClass)) {
+      FunctionRegistry.registerTemporaryGenericUDTF(
+        functionName, (Class<? extends GenericUDTF>) udfClass);
+    } else if (UDAF.class.isAssignableFrom(udfClass)) {
+      FunctionRegistry.registerTemporaryUDAF(
+        functionName, (Class<? extends UDAF>) udfClass);
+    } else if (GenericUDAFResolver.class.isAssignableFrom(udfClass)) {
+      FunctionRegistry.registerTemporaryGenericUDAF(
+        functionName, (GenericUDAFResolver)
+        ReflectionUtils.newInstance(udfClass, null));
+    } else {
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Registers Hive functions from a plugin jar, using metadata from
+   * the jar's META-INF/class-info.xml.
+   *
+   * @param jarLocation URL for reading jar file
+   *
+   * @param classLoader classloader to use for loading function classes
+   */
+  public static void registerFunctionsFromPluginJar(
+    URL jarLocation,
+    ClassLoader classLoader) throws Exception {
+
+    URL url = new URL("jar:" + jarLocation + "!/META-INF/class-info.xml");
+    InputStream inputStream = null;
+    try {
+      inputStream = url.openStream();
+      DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+      DocumentBuilder docBuilder = dbf.newDocumentBuilder();
+      Document doc = docBuilder.parse(inputStream);
+      Element root = doc.getDocumentElement();
+      if (!root.getTagName().equals("ClassList")) {
+        return;
+      }
+      NodeList children = root.getElementsByTagName("Class");
+      for (int i = 0; i < children.getLength(); ++i) {
+        Element child = (Element) children.item(i);
+        String javaName = child.getAttribute("javaname");
+        String sqlName = child.getAttribute("sqlname");
+        Class<?> udfClass = Class.forName(javaName, true, classLoader);
+        boolean registered = registerTemporaryFunction(sqlName, udfClass);
+        if (!registered) {
+          throw new RuntimeException(
+            "Class " + udfClass + " is not a Hive function implementation");
+        }
+      }
+    } finally {
+      IOUtils.closeStream(inputStream);
+    }
   }
 
   private FunctionRegistry() {

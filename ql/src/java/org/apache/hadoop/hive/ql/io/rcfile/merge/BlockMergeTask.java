@@ -20,8 +20,6 @@ package org.apache.hadoop.hive.ql.io.rcfile.merge;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -37,13 +35,13 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.Context;
 import org.apache.hadoop.hive.ql.DriverContext;
 import org.apache.hadoop.hive.ql.QueryPlan;
-import org.apache.hadoop.hive.ql.exec.ExecDriver;
 import org.apache.hadoop.hive.ql.exec.HadoopJobExecHelper;
 import org.apache.hadoop.hive.ql.exec.HadoopJobExecHook;
 import org.apache.hadoop.hive.ql.exec.Task;
 import org.apache.hadoop.hive.ql.exec.Throttle;
 import org.apache.hadoop.hive.ql.exec.Utilities;
 import org.apache.hadoop.hive.ql.io.CombineHiveInputFormat;
+import org.apache.hadoop.hive.ql.io.HiveOutputFormatImpl;
 import org.apache.hadoop.hive.ql.plan.api.StageType;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.session.SessionState.LogHelper;
@@ -91,7 +89,8 @@ public class BlockMergeTask extends Task<MergeWork> implements Serializable,
     HiveConf.setVar(job, HiveConf.ConfVars.HIVEINPUTFORMAT,
         CombineHiveInputFormat.class.getName());
     success = true;
-    ShimLoader.getHadoopShims().setNullOutputFormat(job);
+    ShimLoader.getHadoopShims().prepareJobOutput(job);
+    job.setOutputFormat(HiveOutputFormatImpl.class);
     job.setMapperClass(work.getMapperClass());
 
     Context ctx = driverContext.getCtx();
@@ -192,8 +191,8 @@ public class BlockMergeTask extends Task<MergeWork> implements Serializable,
         HiveConf.setVar(job, HiveConf.ConfVars.METASTOREPWD, "HIVE");
       }
       JobClient jc = new JobClient(job);
-      
-      String addedJars = ExecDriver.getResourceFiles(job, SessionState.ResourceType.JAR);
+
+      String addedJars = Utilities.getResourceFiles(job, SessionState.ResourceType.JAR);
       if (!addedJars.isEmpty()) {
         job.set("tmpjars", addedJars);
       }
@@ -235,7 +234,7 @@ public class BlockMergeTask extends Task<MergeWork> implements Serializable,
           HadoopJobExecHelper.runningJobKillURIs.remove(rj.getJobID());
           jobID = rj.getID().toString();
         }
-        RCFileMergeMapper.jobClose(outputPath, success, job, console);
+        RCFileMergeMapper.jobClose(outputPath, success, job, console, work.getDynPartCtx());
       } catch (Exception e) {
       }
     }
@@ -257,18 +256,16 @@ public class BlockMergeTask extends Task<MergeWork> implements Serializable,
   public static String INPUT_SEPERATOR = ":";
 
   public static void main(String[] args) {
-
-    ArrayList<String> jobConfArgs = new ArrayList<String>();
-
     String inputPathStr = null;
     String outputDir = null;
+    String jobConfFileName = null;
 
     try {
       for (int i = 0; i < args.length; i++) {
         if (args[i].equals("-input")) {
           inputPathStr = args[++i];
-        } else if (args[i].equals("-jobconf")) {
-          jobConfArgs.add(args[++i]);
+        } else if (args[i].equals("-jobconffile")) {
+          jobConfFileName = args[++i];
         } else if (args[i].equals("-outputDir")) {
           outputDir = args[++i];
         }
@@ -291,7 +288,6 @@ public class BlockMergeTask extends Task<MergeWork> implements Serializable,
 
     FileSystem fs = null;
     JobConf conf = new JobConf(BlockMergeTask.class);
-    HiveConf hiveConf = new HiveConf(conf, BlockMergeTask.class);
     for (String path : paths) {
       try {
         Path pathObj = new Path(path);
@@ -312,23 +308,10 @@ public class BlockMergeTask extends Task<MergeWork> implements Serializable,
       }
     }
 
-    StringBuilder sb = new StringBuilder("JobConf:\n");
-
-    for (String one : jobConfArgs) {
-      int eqIndex = one.indexOf('=');
-      if (eqIndex != -1) {
-        try {
-          String key = one.substring(0, eqIndex);
-          String value = URLDecoder.decode(one.substring(eqIndex + 1), "UTF-8");
-          conf.set(key, value);
-          sb.append(key).append("=").append(value).append("\n");
-        } catch (UnsupportedEncodingException e) {
-          System.err.println("Unexpected error " + e.getMessage()
-              + " while encoding " + one.substring(eqIndex + 1));
-          System.exit(3);
-        }
-      }
+    if (jobConfFileName != null) {
+      conf.addResource(new Path(jobConfFileName));
     }
+    HiveConf hiveConf = new HiveConf(conf, BlockMergeTask.class);
 
     Log LOG = LogFactory.getLog(BlockMergeTask.class.getName());
     boolean isSilent = HiveConf.getBoolVar(conf,
@@ -346,9 +329,6 @@ public class BlockMergeTask extends Task<MergeWork> implements Serializable,
       }
     }
 
-    // log the list of job conf parameters for reference
-    LOG.info(sb.toString());
-
     MergeWork mergeWork = new MergeWork(inputPaths, outputDir);
     DriverContext driverCxt = new DriverContext();
     BlockMergeTask taskExec = new BlockMergeTask();
@@ -364,7 +344,7 @@ public class BlockMergeTask extends Task<MergeWork> implements Serializable,
 
   private static void printUsage() {
     System.err.println("BlockMergeTask -input <colon seperated input paths>  "
-        + "-outputDir outputDir [-jobconf k1=v1 [-jobconf k2=v2] ...] ");
+        + "-outputDir outputDir [-jobconffile <job conf file>] ");
     System.exit(1);
   }
 

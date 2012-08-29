@@ -39,7 +39,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: (key = 86)
+                  expr: (key = 86.0)
                   type: boolean
               Select Operator
                 expressions:
@@ -90,12 +90,31 @@ PREHOOK: query: SELECT '_%_' LIKE '%\_\%\_%', '__' LIKE '%\_\%\_%', '%%_%_' LIKE
 FROM src WHERE src.key = 86
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
-PREHOOK: Output: file:/tmp/root/hive_2011-09-08_09-43-08_304_8824037322418226774/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT '_%_' LIKE '%\_\%\_%', '__' LIKE '%\_\%\_%', '%%_%_' LIKE '%\_\%\_%', '%_%_%' LIKE '%\%\_\%',
   '_%_' LIKE '\%\_%', '%__' LIKE '__\%%', '_%' LIKE '\_\%\_\%%', '_%' LIKE '\_\%_%',
   '%_' LIKE '\%\_', 'ab' LIKE '\%\_', 'ab' LIKE '_a%', 'ab' LIKE 'a','ab' LIKE '','' LIKE ''
 FROM src WHERE src.key = 86
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
-POSTHOOK: Output: file:/tmp/root/hive_2011-09-08_09-43-08_304_8824037322418226774/-mr-10000
+#### A masked pattern was here ####
 true	false	true	true	false	false	false	false	true	false	false	false	false	true
+PREHOOK: query: SELECT '1+2' LIKE '_+_', 
+       '1+2' LIKE '1+_',
+       '112' LIKE '1+_',
+       '|||' LIKE '|_|', 
+       '+++' LIKE '1+_' 
+FROM src LIMIT 1
+PREHOOK: type: QUERY
+PREHOOK: Input: default@src
+#### A masked pattern was here ####
+POSTHOOK: query: SELECT '1+2' LIKE '_+_', 
+       '1+2' LIKE '1+_',
+       '112' LIKE '1+_',
+       '|||' LIKE '|_|', 
+       '+++' LIKE '1+_' 
+FROM src LIMIT 1
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@src
+#### A masked pattern was here ####
+true	true	false	true	false

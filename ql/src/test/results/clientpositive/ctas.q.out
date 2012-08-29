@@ -6,11 +6,11 @@ POSTHOOK: Output: default@nzhang_Tmp
 PREHOOK: query: select * from nzhang_Tmp
 PREHOOK: type: QUERY
 PREHOOK: Input: default@nzhang_tmp
-PREHOOK: Output: file:/tmp/sdong/hive_2011-02-10_01-44-51_322_2848708186205887611/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select * from nzhang_Tmp
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@nzhang_tmp
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_01-44-51_322_2848708186205887611/-mr-10000
+#### A masked pattern was here ####
 PREHOOK: query: explain create table nzhang_CTAS1 as select key k, value from src sort by k, value limit 10
 PREHOOK: type: CREATETABLE_AS_SELECT
 POSTHOOK: query: explain create table nzhang_CTAS1 as select key k, value from src sort by k, value limit 10
@@ -22,7 +22,8 @@ STAGE DEPENDENCIES:
   Stage-1 is a root stage
   Stage-2 depends on stages: Stage-1
   Stage-0 depends on stages: Stage-2
-  Stage-3 depends on stages: Stage-0
+  Stage-4 depends on stages: Stage-0
+  Stage-3 depends on stages: Stage-4
 
 STAGE PLANS:
   Stage: Stage-1
@@ -64,7 +65,7 @@ STAGE PLANS:
   Stage: Stage-2
     Map Reduce
       Alias -> Map Operator Tree:
-        file:/tmp/sdong/hive_2011-02-10_01-44-51_470_2994705028366987051/-mr-10002 
+#### A masked pattern was here ####
             Reduce Output Operator
               key expressions:
                     expr: _col0
@@ -87,14 +88,15 @@ STAGE PLANS:
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  name: default.nzhang_CTAS1
 
   Stage: Stage-0
     Move Operator
       files:
           hdfs directory: true
-          destination: pfile:/data/users/sdong/www/open-source-hive1/build/ql/test/data/warehouse/nzhang_ctas1
+#### A masked pattern was here ####
 
-  Stage: Stage-3
+  Stage: Stage-4
       Create Table Operator:
         Create Table
           columns: k string, value string
@@ -104,6 +106,9 @@ STAGE PLANS:
           output format: org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat
           name: nzhang_CTAS1
           isExternal: false
+
+  Stage: Stage-3
+    Stats-Aggr Operator
 
 
 PREHOOK: query: create table nzhang_CTAS1 as select key k, value from src sort by k, value limit 10
@@ -116,11 +121,11 @@ POSTHOOK: Output: default@nzhang_CTAS1
 PREHOOK: query: select * from nzhang_CTAS1
 PREHOOK: type: QUERY
 PREHOOK: Input: default@nzhang_ctas1
-PREHOOK: Output: file:/tmp/sdong/hive_2011-02-10_01-44-58_596_3850188449580676786/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select * from nzhang_CTAS1
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@nzhang_ctas1
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_01-44-58_596_3850188449580676786/-mr-10000
+#### A masked pattern was here ####
 0	val_0
 0	val_0
 0	val_0
@@ -131,6 +136,40 @@ POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_01-44-58_596_38501884495806767
 103	val_103
 104	val_104
 104	val_104
+PREHOOK: query: describe formatted nzhang_CTAS1
+PREHOOK: type: DESCTABLE
+POSTHOOK: query: describe formatted nzhang_CTAS1
+POSTHOOK: type: DESCTABLE
+# col_name            	data_type           	comment             
+	 	 
+k                   	string              	None                
+value               	string              	None                
+	 	 
+# Detailed Table Information	 	 
+Database:           	default             	 
+#### A masked pattern was here ####
+Protect Mode:       	None                	 
+Retention:          	0                   	 
+#### A masked pattern was here ####
+Table Type:         	MANAGED_TABLE       	 
+Table Parameters:	 	 
+	numFiles            	1                   
+	numPartitions       	0                   
+	numRows             	10                  
+	rawDataSize         	96                  
+	totalSize           	106                 
+#### A masked pattern was here ####
+	 	 
+# Storage Information	 	 
+SerDe Library:      	org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe	 
+InputFormat:        	org.apache.hadoop.mapred.TextInputFormat	 
+OutputFormat:       	org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat	 
+Compressed:         	No                  	 
+Num Buckets:        	-1                  	 
+Bucket Columns:     	[]                  	 
+Sort Columns:       	[]                  	 
+Storage Desc Params:	 	 
+	serialization.format	1                   
 PREHOOK: query: explain create table nzhang_ctas2 as select * from src sort by key, value limit 10
 PREHOOK: type: CREATETABLE_AS_SELECT
 POSTHOOK: query: explain create table nzhang_ctas2 as select * from src sort by key, value limit 10
@@ -142,7 +181,8 @@ STAGE DEPENDENCIES:
   Stage-1 is a root stage
   Stage-2 depends on stages: Stage-1
   Stage-0 depends on stages: Stage-2
-  Stage-3 depends on stages: Stage-0
+  Stage-4 depends on stages: Stage-0
+  Stage-3 depends on stages: Stage-4
 
 STAGE PLANS:
   Stage: Stage-1
@@ -184,7 +224,7 @@ STAGE PLANS:
   Stage: Stage-2
     Map Reduce
       Alias -> Map Operator Tree:
-        file:/tmp/sdong/hive_2011-02-10_01-44-58_860_3982645483317411637/-mr-10002 
+#### A masked pattern was here ####
             Reduce Output Operator
               key expressions:
                     expr: _col0
@@ -207,14 +247,15 @@ STAGE PLANS:
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  name: default.nzhang_ctas2
 
   Stage: Stage-0
     Move Operator
       files:
           hdfs directory: true
-          destination: pfile:/data/users/sdong/www/open-source-hive1/build/ql/test/data/warehouse/nzhang_ctas2
+#### A masked pattern was here ####
 
-  Stage: Stage-3
+  Stage: Stage-4
       Create Table Operator:
         Create Table
           columns: key string, value string
@@ -224,6 +265,9 @@ STAGE PLANS:
           output format: org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat
           name: nzhang_ctas2
           isExternal: false
+
+  Stage: Stage-3
+    Stats-Aggr Operator
 
 
 PREHOOK: query: create table nzhang_ctas2 as select * from src sort by key, value limit 10
@@ -236,11 +280,11 @@ POSTHOOK: Output: default@nzhang_ctas2
 PREHOOK: query: select * from nzhang_ctas2
 PREHOOK: type: QUERY
 PREHOOK: Input: default@nzhang_ctas2
-PREHOOK: Output: file:/tmp/sdong/hive_2011-02-10_01-45-05_578_7349012551226510377/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select * from nzhang_ctas2
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@nzhang_ctas2
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_01-45-05_578_7349012551226510377/-mr-10000
+#### A masked pattern was here ####
 0	val_0
 0	val_0
 0	val_0
@@ -251,6 +295,40 @@ POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_01-45-05_578_73490125512265103
 103	val_103
 104	val_104
 104	val_104
+PREHOOK: query: describe formatted nzhang_CTAS2
+PREHOOK: type: DESCTABLE
+POSTHOOK: query: describe formatted nzhang_CTAS2
+POSTHOOK: type: DESCTABLE
+# col_name            	data_type           	comment             
+	 	 
+key                 	string              	None                
+value               	string              	None                
+	 	 
+# Detailed Table Information	 	 
+Database:           	default             	 
+#### A masked pattern was here ####
+Protect Mode:       	None                	 
+Retention:          	0                   	 
+#### A masked pattern was here ####
+Table Type:         	MANAGED_TABLE       	 
+Table Parameters:	 	 
+	numFiles            	1                   
+	numPartitions       	0                   
+	numRows             	10                  
+	rawDataSize         	96                  
+	totalSize           	106                 
+#### A masked pattern was here ####
+	 	 
+# Storage Information	 	 
+SerDe Library:      	org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe	 
+InputFormat:        	org.apache.hadoop.mapred.TextInputFormat	 
+OutputFormat:       	org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat	 
+Compressed:         	No                  	 
+Num Buckets:        	-1                  	 
+Bucket Columns:     	[]                  	 
+Sort Columns:       	[]                  	 
+Storage Desc Params:	 	 
+	serialization.format	1                   
 PREHOOK: query: explain create table nzhang_ctas3 row format serde "org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe" stored as RCFile as select key/2 half_key, concat(value, "_con") conb  from src sort by half_key, conb limit 10
 PREHOOK: type: CREATETABLE_AS_SELECT
 POSTHOOK: query: explain create table nzhang_ctas3 row format serde "org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe" stored as RCFile as select key/2 half_key, concat(value, "_con") conb  from src sort by half_key, conb limit 10
@@ -262,7 +340,8 @@ STAGE DEPENDENCIES:
   Stage-1 is a root stage
   Stage-2 depends on stages: Stage-1
   Stage-0 depends on stages: Stage-2
-  Stage-3 depends on stages: Stage-0
+  Stage-4 depends on stages: Stage-0
+  Stage-3 depends on stages: Stage-4
 
 STAGE PLANS:
   Stage: Stage-1
@@ -304,7 +383,7 @@ STAGE PLANS:
   Stage: Stage-2
     Map Reduce
       Alias -> Map Operator Tree:
-        file:/tmp/sdong/hive_2011-02-10_01-45-05_893_3271637980302783261/-mr-10002 
+#### A masked pattern was here ####
             Reduce Output Operator
               key expressions:
                     expr: _col0
@@ -327,14 +406,15 @@ STAGE PLANS:
               table:
                   input format: org.apache.hadoop.hive.ql.io.RCFileInputFormat
                   output format: org.apache.hadoop.hive.ql.io.RCFileOutputFormat
+                  name: default.nzhang_ctas3
 
   Stage: Stage-0
     Move Operator
       files:
           hdfs directory: true
-          destination: pfile:/data/users/sdong/www/open-source-hive1/build/ql/test/data/warehouse/nzhang_ctas3
+#### A masked pattern was here ####
 
-  Stage: Stage-3
+  Stage: Stage-4
       Create Table Operator:
         Create Table
           columns: half_key double, conb string
@@ -345,6 +425,9 @@ STAGE PLANS:
           serde name: org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
           name: nzhang_ctas3
           isExternal: false
+
+  Stage: Stage-3
+    Stats-Aggr Operator
 
 
 PREHOOK: query: create table nzhang_ctas3 row format serde "org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe" stored as RCFile as select key/2 half_key, concat(value, "_con") conb  from src sort by half_key, conb limit 10
@@ -357,11 +440,11 @@ POSTHOOK: Output: default@nzhang_ctas3
 PREHOOK: query: select * from nzhang_ctas3
 PREHOOK: type: QUERY
 PREHOOK: Input: default@nzhang_ctas3
-PREHOOK: Output: file:/tmp/sdong/hive_2011-02-10_01-45-12_580_9113217289697940221/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select * from nzhang_ctas3
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@nzhang_ctas3
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_01-45-12_580_9113217289697940221/-mr-10000
+#### A masked pattern was here ####
 0.0	val_0_con
 0.0	val_0_con
 0.0	val_0_con
@@ -372,6 +455,40 @@ POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_01-45-12_580_91132172896979402
 2.5	val_5_con
 4.0	val_8_con
 4.5	val_9_con
+PREHOOK: query: describe formatted nzhang_CTAS3
+PREHOOK: type: DESCTABLE
+POSTHOOK: query: describe formatted nzhang_CTAS3
+POSTHOOK: type: DESCTABLE
+# col_name            	data_type           	comment             
+	 	 
+half_key            	double              	None                
+conb                	string              	None                
+	 	 
+# Detailed Table Information	 	 
+Database:           	default             	 
+#### A masked pattern was here ####
+Protect Mode:       	None                	 
+Retention:          	0                   	 
+#### A masked pattern was here ####
+Table Type:         	MANAGED_TABLE       	 
+Table Parameters:	 	 
+	numFiles            	1                   
+	numPartitions       	0                   
+	numRows             	10                  
+	rawDataSize         	120                 
+	totalSize           	199                 
+#### A masked pattern was here ####
+	 	 
+# Storage Information	 	 
+SerDe Library:      	org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe	 
+InputFormat:        	org.apache.hadoop.hive.ql.io.RCFileInputFormat	 
+OutputFormat:       	org.apache.hadoop.hive.ql.io.RCFileOutputFormat	 
+Compressed:         	No                  	 
+Num Buckets:        	-1                  	 
+Bucket Columns:     	[]                  	 
+Sort Columns:       	[]                  	 
+Storage Desc Params:	 	 
+	serialization.format	1                   
 PREHOOK: query: explain create table if not exists nzhang_ctas3 as select key, value from src sort by key, value limit 2
 PREHOOK: type: CREATETABLE
 POSTHOOK: query: explain create table if not exists nzhang_ctas3 as select key, value from src sort by key, value limit 2
@@ -390,11 +507,11 @@ POSTHOOK: type: CREATETABLE
 PREHOOK: query: select * from nzhang_ctas3
 PREHOOK: type: QUERY
 PREHOOK: Input: default@nzhang_ctas3
-PREHOOK: Output: file:/tmp/sdong/hive_2011-02-10_01-45-12_947_7015621330413441447/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select * from nzhang_ctas3
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@nzhang_ctas3
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_01-45-12_947_7015621330413441447/-mr-10000
+#### A masked pattern was here ####
 0.0	val_0_con
 0.0	val_0_con
 0.0	val_0_con
@@ -405,6 +522,40 @@ POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_01-45-12_947_70156213304134414
 2.5	val_5_con
 4.0	val_8_con
 4.5	val_9_con
+PREHOOK: query: describe formatted nzhang_CTAS3
+PREHOOK: type: DESCTABLE
+POSTHOOK: query: describe formatted nzhang_CTAS3
+POSTHOOK: type: DESCTABLE
+# col_name            	data_type           	comment             
+	 	 
+half_key            	double              	None                
+conb                	string              	None                
+	 	 
+# Detailed Table Information	 	 
+Database:           	default             	 
+#### A masked pattern was here ####
+Protect Mode:       	None                	 
+Retention:          	0                   	 
+#### A masked pattern was here ####
+Table Type:         	MANAGED_TABLE       	 
+Table Parameters:	 	 
+	numFiles            	1                   
+	numPartitions       	0                   
+	numRows             	10                  
+	rawDataSize         	120                 
+	totalSize           	199                 
+#### A masked pattern was here ####
+	 	 
+# Storage Information	 	 
+SerDe Library:      	org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe	 
+InputFormat:        	org.apache.hadoop.hive.ql.io.RCFileInputFormat	 
+OutputFormat:       	org.apache.hadoop.hive.ql.io.RCFileOutputFormat	 
+Compressed:         	No                  	 
+Num Buckets:        	-1                  	 
+Bucket Columns:     	[]                  	 
+Sort Columns:       	[]                  	 
+Storage Desc Params:	 	 
+	serialization.format	1                   
 PREHOOK: query: explain create table nzhang_ctas4 row format delimited fields terminated by ',' stored as textfile as select key, value from src sort by key, value limit 10
 PREHOOK: type: CREATETABLE_AS_SELECT
 POSTHOOK: query: explain create table nzhang_ctas4 row format delimited fields terminated by ',' stored as textfile as select key, value from src sort by key, value limit 10
@@ -416,7 +567,8 @@ STAGE DEPENDENCIES:
   Stage-1 is a root stage
   Stage-2 depends on stages: Stage-1
   Stage-0 depends on stages: Stage-2
-  Stage-3 depends on stages: Stage-0
+  Stage-4 depends on stages: Stage-0
+  Stage-3 depends on stages: Stage-4
 
 STAGE PLANS:
   Stage: Stage-1
@@ -458,7 +610,7 @@ STAGE PLANS:
   Stage: Stage-2
     Map Reduce
       Alias -> Map Operator Tree:
-        file:/tmp/sdong/hive_2011-02-10_01-45-13_334_919564477125108638/-mr-10002 
+#### A masked pattern was here ####
             Reduce Output Operator
               key expressions:
                     expr: _col0
@@ -481,14 +633,15 @@ STAGE PLANS:
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  name: default.nzhang_ctas4
 
   Stage: Stage-0
     Move Operator
       files:
           hdfs directory: true
-          destination: pfile:/data/users/sdong/www/open-source-hive1/build/ql/test/data/warehouse/nzhang_ctas4
+#### A masked pattern was here ####
 
-  Stage: Stage-3
+  Stage: Stage-4
       Create Table Operator:
         Create Table
           columns: key string, value string
@@ -499,6 +652,9 @@ STAGE PLANS:
           output format: org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat
           name: nzhang_ctas4
           isExternal: false
+
+  Stage: Stage-3
+    Stats-Aggr Operator
 
 
 PREHOOK: query: create table nzhang_ctas4 row format delimited fields terminated by ',' stored as textfile as select key, value from src sort by key, value limit 10
@@ -511,11 +667,11 @@ POSTHOOK: Output: default@nzhang_ctas4
 PREHOOK: query: select * from nzhang_ctas4
 PREHOOK: type: QUERY
 PREHOOK: Input: default@nzhang_ctas4
-PREHOOK: Output: file:/tmp/sdong/hive_2011-02-10_01-45-20_050_1736075504443010216/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select * from nzhang_ctas4
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@nzhang_ctas4
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_01-45-20_050_1736075504443010216/-mr-10000
+#### A masked pattern was here ####
 0	val_0
 0	val_0
 0	val_0
@@ -526,6 +682,41 @@ POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_01-45-20_050_17360755044430102
 103	val_103
 104	val_104
 104	val_104
+PREHOOK: query: describe formatted nzhang_CTAS4
+PREHOOK: type: DESCTABLE
+POSTHOOK: query: describe formatted nzhang_CTAS4
+POSTHOOK: type: DESCTABLE
+# col_name            	data_type           	comment             
+	 	 
+key                 	string              	None                
+value               	string              	None                
+	 	 
+# Detailed Table Information	 	 
+Database:           	default             	 
+#### A masked pattern was here ####
+Protect Mode:       	None                	 
+Retention:          	0                   	 
+#### A masked pattern was here ####
+Table Type:         	MANAGED_TABLE       	 
+Table Parameters:	 	 
+	numFiles            	1                   
+	numPartitions       	0                   
+	numRows             	10                  
+	rawDataSize         	96                  
+	totalSize           	106                 
+#### A masked pattern was here ####
+	 	 
+# Storage Information	 	 
+SerDe Library:      	org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe	 
+InputFormat:        	org.apache.hadoop.mapred.TextInputFormat	 
+OutputFormat:       	org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat	 
+Compressed:         	No                  	 
+Num Buckets:        	-1                  	 
+Bucket Columns:     	[]                  	 
+Sort Columns:       	[]                  	 
+Storage Desc Params:	 	 
+	field.delim         	,                   
+	serialization.format	,                   
 PREHOOK: query: explain extended create table nzhang_ctas5 row format delimited fields terminated by ',' lines terminated by '\012' stored as textfile as select key, value from src sort by key, value limit 10
 PREHOOK: type: CREATETABLE_AS_SELECT
 POSTHOOK: query: explain extended create table nzhang_ctas5 row format delimited fields terminated by ',' lines terminated by '\012' stored as textfile as select key, value from src sort by key, value limit 10
@@ -537,7 +728,8 @@ STAGE DEPENDENCIES:
   Stage-1 is a root stage
   Stage-2 depends on stages: Stage-1
   Stage-0 depends on stages: Stage-2
-  Stage-3 depends on stages: Stage-0
+  Stage-4 depends on stages: Stage-0
+  Stage-3 depends on stages: Stage-4
 
 STAGE PLANS:
   Stage: Stage-1
@@ -569,9 +761,9 @@ STAGE PLANS:
                       type: string
       Needs Tagging: false
       Path -> Alias:
-        pfile:/data/users/sdong/www/open-source-hive1/build/ql/test/data/warehouse/src [src]
+#### A masked pattern was here ####
       Path -> Partition:
-        pfile:/data/users/sdong/www/open-source-hive1/build/ql/test/data/warehouse/src 
+#### A masked pattern was here ####
           Partition
             base file name: src
             input format: org.apache.hadoop.mapred.TextInputFormat
@@ -580,14 +772,17 @@ STAGE PLANS:
               bucket_count -1
               columns key,value
               columns.types string:string
-              file.inputformat org.apache.hadoop.mapred.TextInputFormat
-              file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-              location pfile:/data/users/sdong/www/open-source-hive1/build/ql/test/data/warehouse/src
+#### A masked pattern was here ####
               name default.src
+              numFiles 1
+              numPartitions 0
+              numRows 0
+              rawDataSize 0
               serialization.ddl struct src { string key, string value}
               serialization.format 1
               serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-              transient_lastDdlTime 1297328964
+              totalSize 5812
+#### A masked pattern was here ####
             serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
           
               input format: org.apache.hadoop.mapred.TextInputFormat
@@ -596,14 +791,17 @@ STAGE PLANS:
                 bucket_count -1
                 columns key,value
                 columns.types string:string
-                file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                location pfile:/data/users/sdong/www/open-source-hive1/build/ql/test/data/warehouse/src
+#### A masked pattern was here ####
                 name default.src
+                numFiles 1
+                numPartitions 0
+                numRows 0
+                rawDataSize 0
                 serialization.ddl struct src { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                transient_lastDdlTime 1297328964
+                totalSize 5812
+#### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.src
             name: default.src
@@ -613,7 +811,7 @@ STAGE PLANS:
             File Output Operator
               compressed: false
               GlobalTableId: 0
-              directory: file:/tmp/sdong/hive_2011-02-10_01-45-20_305_5281789596105491506/-mr-10002
+#### A masked pattern was here ####
               NumFilesPerFileSink: 1
               table:
                   input format: org.apache.hadoop.mapred.SequenceFileInputFormat
@@ -629,7 +827,7 @@ STAGE PLANS:
   Stage: Stage-2
     Map Reduce
       Alias -> Map Operator Tree:
-        file:/tmp/sdong/hive_2011-02-10_01-45-20_305_5281789596105491506/-mr-10002 
+#### A masked pattern was here ####
             Reduce Output Operator
               key expressions:
                     expr: _col0
@@ -645,9 +843,9 @@ STAGE PLANS:
                     type: string
       Needs Tagging: false
       Path -> Alias:
-        file:/tmp/sdong/hive_2011-02-10_01-45-20_305_5281789596105491506/-mr-10002 [file:/tmp/sdong/hive_2011-02-10_01-45-20_305_5281789596105491506/-mr-10002]
+#### A masked pattern was here ####
       Path -> Partition:
-        file:/tmp/sdong/hive_2011-02-10_01-45-20_305_5281789596105491506/-mr-10002 
+#### A masked pattern was here ####
           Partition
             base file name: -mr-10002
             input format: org.apache.hadoop.mapred.SequenceFileInputFormat
@@ -669,9 +867,9 @@ STAGE PLANS:
             File Output Operator
               compressed: false
               GlobalTableId: 1
-              directory: pfile:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-02-10_01-45-20_305_5281789596105491506/-ext-10001
+#### A masked pattern was here ####
               NumFilesPerFileSink: 1
-              Stats Publishing Key Prefix: pfile:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-02-10_01-45-20_305_5281789596105491506/-ext-10001/
+#### A masked pattern was here ####
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
@@ -681,19 +879,20 @@ STAGE PLANS:
                     field.delim ,
                     line.delim 
 
+                    name default.nzhang_ctas5
                     serialization.format ,
+                  name: default.nzhang_ctas5
               TotalFiles: 1
-              GatherStats: false
+              GatherStats: true
               MultiFileSpray: false
 
   Stage: Stage-0
     Move Operator
       files:
           hdfs directory: true
-          source: pfile:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-02-10_01-45-20_305_5281789596105491506/-ext-10001
-          destination: pfile:/data/users/sdong/www/open-source-hive1/build/ql/test/data/warehouse/nzhang_ctas5
+#### A masked pattern was here ####
 
-  Stage: Stage-3
+  Stage: Stage-4
       Create Table Operator:
         Create Table
           columns: key string, value string
@@ -706,6 +905,10 @@ STAGE PLANS:
           output format: org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat
           name: nzhang_ctas5
           isExternal: false
+
+  Stage: Stage-3
+    Stats-Aggr Operator
+#### A masked pattern was here ####
 
 
 PREHOOK: query: create table nzhang_ctas5 row format delimited fields terminated by ',' lines terminated by '\012' stored as textfile as select key, value from src sort by key, value limit 10

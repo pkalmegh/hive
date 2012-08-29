@@ -28,14 +28,16 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-2 depends on stages: Stage-1, Stage-7, Stage-8
-  Stage-6 depends on stages: Stage-2 , consists of Stage-5, Stage-4
+  Stage-2 depends on stages: Stage-1, Stage-9, Stage-10
+  Stage-8 depends on stages: Stage-2 , consists of Stage-5, Stage-4, Stage-6
   Stage-5
-  Stage-0 depends on stages: Stage-5, Stage-4
+  Stage-0 depends on stages: Stage-5, Stage-4, Stage-7
   Stage-3 depends on stages: Stage-0
   Stage-4
-  Stage-7 is a root stage
-  Stage-8 is a root stage
+  Stage-6
+  Stage-7 depends on stages: Stage-6
+  Stage-9 is a root stage
+  Stage-10 is a root stage
 
 STAGE PLANS:
   Stage: Stage-1
@@ -81,87 +83,90 @@ STAGE PLANS:
   Stage: Stage-2
     Map Reduce
       Alias -> Map Operator Tree:
-        file:/tmp/sdong/hive_2011-02-10_17-48-28_233_2804783435602164161/-mr-10002 
-          Union
-            Select Operator
-              expressions:
-                    expr: _col0
-                    type: string
-                    expr: _col1
-                    type: bigint
-              outputColumnNames: _col0, _col1
+#### A masked pattern was here ####
+          TableScan
+            Union
               Select Operator
                 expressions:
                       expr: _col0
                       type: string
-                      expr: UDFToInteger(_col1)
-                      type: int
+                      expr: _col1
+                      type: bigint
                 outputColumnNames: _col0, _col1
-                File Output Operator
-                  compressed: false
-                  GlobalTableId: 1
-                  table:
-                      input format: org.apache.hadoop.mapred.TextInputFormat
-                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                      name: default.tmptable
-        file:/tmp/sdong/hive_2011-02-10_17-48-28_233_2804783435602164161/-mr-10004 
-          Union
-            Select Operator
-              expressions:
-                    expr: _col0
-                    type: string
-                    expr: _col1
-                    type: bigint
-              outputColumnNames: _col0, _col1
+                Select Operator
+                  expressions:
+                        expr: _col0
+                        type: string
+                        expr: UDFToInteger(_col1)
+                        type: int
+                  outputColumnNames: _col0, _col1
+                  File Output Operator
+                    compressed: false
+                    GlobalTableId: 1
+                    table:
+                        input format: org.apache.hadoop.mapred.TextInputFormat
+                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                        serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                        name: default.tmptable
+#### A masked pattern was here ####
+          TableScan
+            Union
               Select Operator
                 expressions:
                       expr: _col0
                       type: string
-                      expr: UDFToInteger(_col1)
-                      type: int
+                      expr: _col1
+                      type: bigint
                 outputColumnNames: _col0, _col1
-                File Output Operator
-                  compressed: false
-                  GlobalTableId: 1
-                  table:
-                      input format: org.apache.hadoop.mapred.TextInputFormat
-                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                      name: default.tmptable
-        file:/tmp/sdong/hive_2011-02-10_17-48-28_233_2804783435602164161/-mr-10005 
-          Union
-            Select Operator
-              expressions:
-                    expr: _col0
-                    type: string
-                    expr: _col1
-                    type: bigint
-              outputColumnNames: _col0, _col1
+                Select Operator
+                  expressions:
+                        expr: _col0
+                        type: string
+                        expr: UDFToInteger(_col1)
+                        type: int
+                  outputColumnNames: _col0, _col1
+                  File Output Operator
+                    compressed: false
+                    GlobalTableId: 1
+                    table:
+                        input format: org.apache.hadoop.mapred.TextInputFormat
+                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                        serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                        name: default.tmptable
+#### A masked pattern was here ####
+          TableScan
+            Union
               Select Operator
                 expressions:
                       expr: _col0
                       type: string
-                      expr: UDFToInteger(_col1)
-                      type: int
+                      expr: _col1
+                      type: bigint
                 outputColumnNames: _col0, _col1
-                File Output Operator
-                  compressed: false
-                  GlobalTableId: 1
-                  table:
-                      input format: org.apache.hadoop.mapred.TextInputFormat
-                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                      name: default.tmptable
+                Select Operator
+                  expressions:
+                        expr: _col0
+                        type: string
+                        expr: UDFToInteger(_col1)
+                        type: int
+                  outputColumnNames: _col0, _col1
+                  File Output Operator
+                    compressed: false
+                    GlobalTableId: 1
+                    table:
+                        input format: org.apache.hadoop.mapred.TextInputFormat
+                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                        serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                        name: default.tmptable
 
-  Stage: Stage-6
+  Stage: Stage-8
     Conditional Operator
 
   Stage: Stage-5
     Move Operator
       files:
           hdfs directory: true
-          destination: pfile:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-02-10_17-48-28_233_2804783435602164161/-ext-10000
+#### A masked pattern was here ####
 
   Stage: Stage-0
     Move Operator
@@ -179,7 +184,20 @@ STAGE PLANS:
   Stage: Stage-4
     Map Reduce
       Alias -> Map Operator Tree:
-        pfile:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-02-10_17-48-28_233_2804783435602164161/-ext-10003 
+#### A masked pattern was here ####
+            File Output Operator
+              compressed: false
+              GlobalTableId: 0
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.tmptable
+
+  Stage: Stage-6
+    Map Reduce
+      Alias -> Map Operator Tree:
+#### A masked pattern was here ####
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -190,6 +208,12 @@ STAGE PLANS:
                   name: default.tmptable
 
   Stage: Stage-7
+    Move Operator
+      files:
+          hdfs directory: true
+#### A masked pattern was here ####
+
+  Stage: Stage-9
     Map Reduce
       Alias -> Map Operator Tree:
         null-subquery1-subquery2:unionsrc-subquery1-subquery2:s2 
@@ -229,7 +253,7 @@ STAGE PLANS:
                   input format: org.apache.hadoop.mapred.SequenceFileInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
 
-  Stage: Stage-8
+  Stage: Stage-10
     Map Reduce
       Alias -> Map Operator Tree:
         null-subquery2:unionsrc-subquery2:s3 
@@ -293,11 +317,11 @@ POSTHOOK: Lineage: tmptable.value EXPRESSION [(src)s1.null, (src)s2.null, (src)s
 PREHOOK: query: select * from tmptable x sort by x.key
 PREHOOK: type: QUERY
 PREHOOK: Input: default@tmptable
-PREHOOK: Output: file:/tmp/sdong/hive_2011-02-10_17-48-43_132_7439555334116715402/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select * from tmptable x sort by x.key
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@tmptable
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_17-48-43_132_7439555334116715402/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: tmptable.key EXPRESSION []
 POSTHOOK: Lineage: tmptable.value EXPRESSION [(src)s1.null, (src)s2.null, (src)s3.null, ]
 tst1	500

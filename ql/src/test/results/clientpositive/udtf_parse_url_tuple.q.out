@@ -84,9 +84,12 @@ STAGE PLANS:
             alias: a
             Lateral View Forward
               Select Operator
-                SELECT * : (no compute)
+                expressions:
+                      expr: key
+                      type: string
+                outputColumnNames: key
                 Lateral View Join Operator
-                  outputColumnNames: _col0, _col1, _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10
+                  outputColumnNames: _col0, _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10
                   Select Operator
                     expressions:
                           expr: _col0
@@ -163,7 +166,7 @@ STAGE PLANS:
                 UDTF Operator
                   function name: parse_url_tuple
                   Lateral View Join Operator
-                    outputColumnNames: _col0, _col1, _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10
+                    outputColumnNames: _col0, _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10
                     Select Operator
                       expressions:
                             expr: _col0
@@ -231,11 +234,11 @@ STAGE PLANS:
 PREHOOK: query: select a.key, b.* from url_t a lateral view parse_url_tuple(a.fullurl, 'HOST', 'PATH', 'QUERY', 'REF', 'PROTOCOL', 'FILE', 'AUTHORITY', 'USERINFO', 'QUERY:k1') b as ho, pa, qu, re, pr, fi, au, us, qk1 order by a.key
 PREHOOK: type: QUERY
 PREHOOK: Input: default@url_t
-PREHOOK: Output: file:/tmp/sdong/hive_2011-02-10_17-48-08_686_2438339126682195604/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select a.key, b.* from url_t a lateral view parse_url_tuple(a.fullurl, 'HOST', 'PATH', 'QUERY', 'REF', 'PROTOCOL', 'FILE', 'AUTHORITY', 'USERINFO', 'QUERY:k1') b as ho, pa, qu, re, pr, fi, au, us, qk1 order by a.key
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@url_t
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_17-48-08_686_2438339126682195604/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: url_t.fullurl EXPRESSION []
 POSTHOOK: Lineage: url_t.key EXPRESSION []
 1	facebook.com	/path1/p.php	k1=v1&k2=v2	Ref1	http	/path1/p.php?k1=v1&k2=v2	facebook.com	NULL	v1
@@ -337,11 +340,11 @@ STAGE PLANS:
 PREHOOK: query: select parse_url_tuple(a.fullurl, 'HOST', 'PATH', 'QUERY', 'REF', 'PROTOCOL', 'FILE', 'AUTHORITY', 'USERINFO', 'QUERY:k1') as (ho, pa, qu, re, pr, fi, au, us, qk1) from url_t a order by ho, pa, qu
 PREHOOK: type: QUERY
 PREHOOK: Input: default@url_t
-PREHOOK: Output: file:/tmp/sdong/hive_2011-02-10_17-48-12_281_5919341324759760546/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select parse_url_tuple(a.fullurl, 'HOST', 'PATH', 'QUERY', 'REF', 'PROTOCOL', 'FILE', 'AUTHORITY', 'USERINFO', 'QUERY:k1') as (ho, pa, qu, re, pr, fi, au, us, qk1) from url_t a order by ho, pa, qu
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@url_t
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_17-48-12_281_5919341324759760546/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: url_t.fullurl EXPRESSION []
 POSTHOOK: Lineage: url_t.key EXPRESSION []
 NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
@@ -376,9 +379,12 @@ STAGE PLANS:
             alias: a
             Lateral View Forward
               Select Operator
-                SELECT * : (no compute)
+                expressions:
+                      expr: key
+                      type: string
+                outputColumnNames: key
                 Lateral View Join Operator
-                  outputColumnNames: _col0, _col1, _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10, _col11, _col12, _col13
+                  outputColumnNames: _col0, _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10, _col11, _col12, _col13
                   Select Operator
                     expressions:
                           expr: _col0
@@ -449,7 +455,7 @@ STAGE PLANS:
                 UDTF Operator
                   function name: parse_url_tuple
                   Lateral View Join Operator
-                    outputColumnNames: _col0, _col1, _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10, _col11, _col12, _col13
+                    outputColumnNames: _col0, _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10, _col11, _col12, _col13
                     Select Operator
                       expressions:
                             expr: _col0
@@ -505,11 +511,11 @@ STAGE PLANS:
 PREHOOK: query: select a.key, b.ho, b.qu, b.qk1, b.err1, b.err2, b.err3 from url_t a lateral view parse_url_tuple(a.fullurl, 'HOST', 'PATH', 'QUERY', 'REF', 'PROTOCOL', 'FILE', 'AUTHORITY', 'USERINFO', 'QUERY:k1', 'host', 'query', 'QUERY:nonExistCol') b as ho, pa, qu, re, pr, fi, au, us, qk1, err1, err2, err3 order by a.key
 PREHOOK: type: QUERY
 PREHOOK: Input: default@url_t
-PREHOOK: Output: file:/tmp/sdong/hive_2011-02-10_17-48-16_477_4910097906781584970/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select a.key, b.ho, b.qu, b.qk1, b.err1, b.err2, b.err3 from url_t a lateral view parse_url_tuple(a.fullurl, 'HOST', 'PATH', 'QUERY', 'REF', 'PROTOCOL', 'FILE', 'AUTHORITY', 'USERINFO', 'QUERY:k1', 'host', 'query', 'QUERY:nonExistCol') b as ho, pa, qu, re, pr, fi, au, us, qk1, err1, err2, err3 order by a.key
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@url_t
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_17-48-16_477_4910097906781584970/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: url_t.fullurl EXPRESSION []
 POSTHOOK: Lineage: url_t.key EXPRESSION []
 1	facebook.com	k1=v1&k2=v2	v1	NULL	NULL	NULL
@@ -542,9 +548,8 @@ STAGE PLANS:
             alias: a
             Lateral View Forward
               Select Operator
-                SELECT * : (no compute)
                 Lateral View Join Operator
-                  outputColumnNames: _col0, _col1, _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10
+                  outputColumnNames: _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10
                   Filter Operator
                     predicate:
                         expr: _col10 is not null
@@ -601,7 +606,7 @@ STAGE PLANS:
                 UDTF Operator
                   function name: parse_url_tuple
                   Lateral View Join Operator
-                    outputColumnNames: _col0, _col1, _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10
+                    outputColumnNames: _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10
                     Filter Operator
                       predicate:
                           expr: _col10 is not null
@@ -664,11 +669,11 @@ STAGE PLANS:
 PREHOOK: query: select ho, count(*) from url_t a lateral view parse_url_tuple(a.fullurl, 'HOST', 'PATH', 'QUERY', 'REF', 'PROTOCOL', 'FILE', 'AUTHORITY', 'USERINFO', 'QUERY:k1') b as ho, pa, qu, re, pr, fi, au, us, qk1 where qk1 is not null group by ho
 PREHOOK: type: QUERY
 PREHOOK: Input: default@url_t
-PREHOOK: Output: file:/tmp/sdong/hive_2011-02-10_17-48-20_142_8723043944221910244/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select ho, count(*) from url_t a lateral view parse_url_tuple(a.fullurl, 'HOST', 'PATH', 'QUERY', 'REF', 'PROTOCOL', 'FILE', 'AUTHORITY', 'USERINFO', 'QUERY:k1') b as ho, pa, qu, re, pr, fi, au, us, qk1 where qk1 is not null group by ho
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@url_t
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_17-48-20_142_8723043944221910244/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: url_t.fullurl EXPRESSION []
 POSTHOOK: Lineage: url_t.key EXPRESSION []
 facebook.com	1

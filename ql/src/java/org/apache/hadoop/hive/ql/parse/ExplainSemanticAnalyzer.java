@@ -24,6 +24,7 @@ import java.util.List;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.exec.Task;
 import org.apache.hadoop.hive.ql.exec.TaskFactory;
 import org.apache.hadoop.hive.ql.plan.ExplainWork;
@@ -33,6 +34,7 @@ import org.apache.hadoop.hive.ql.plan.ExplainWork;
  *
  */
 public class ExplainSemanticAnalyzer extends BaseSemanticAnalyzer {
+  List<FieldSchema> fieldList;
 
   public ExplainSemanticAnalyzer(HiveConf conf) throws SemanticException {
     super(conf);
@@ -49,8 +51,11 @@ public class ExplainSemanticAnalyzer extends BaseSemanticAnalyzer {
     sem.validate();
 
     boolean extended = false;
-    if (ast.getChildCount() > 1) {
-      extended = true;
+    boolean formatted = false;
+    if (ast.getChildCount() == 2) {
+      int explainOptions = ast.getChild(1).getType();
+      formatted = (explainOptions == HiveParser.KW_FORMATTED);
+      extended = (explainOptions == HiveParser.KW_EXTENDED);	
     }
 
     ctx.setResFile(new Path(ctx.getLocalTmpFileURI()));
@@ -65,7 +70,20 @@ public class ExplainSemanticAnalyzer extends BaseSemanticAnalyzer {
       tasks.add(fetchTask);
     }
 
-    rootTasks.add(TaskFactory.get(new ExplainWork(ctx.getResFile().toString(),
-        tasks, ((ASTNode) ast.getChild(0)).toStringTree(), extended), conf));
+    Task<? extends Serializable> explTask =
+        TaskFactory.get(new ExplainWork(ctx.getResFile().toString(),
+        tasks,
+        ((ASTNode) ast.getChild(0)).toStringTree(),
+        extended,
+        formatted),
+      conf);
+
+    fieldList = explTask.getResultSchema();
+    rootTasks.add(explTask);
+  }
+
+  @Override
+  public List<FieldSchema> getResultSchema() {
+    return fieldList;
   }
 }

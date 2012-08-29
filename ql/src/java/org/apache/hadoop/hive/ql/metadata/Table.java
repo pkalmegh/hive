@@ -42,6 +42,7 @@ import org.apache.hadoop.hive.metastore.api.Index;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.Order;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
+import org.apache.hadoop.hive.metastore.api.SkewedInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.ql.io.HiveFileFormatUtils;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
@@ -138,6 +139,11 @@ public class Table implements Serializable {
       sd.getSerdeInfo().getParameters().put(Constants.SERIALIZATION_FORMAT, "1");
       sd.setInputFormat(SequenceFileInputFormat.class.getName());
       sd.setOutputFormat(HiveSequenceFileOutputFormat.class.getName());
+      SkewedInfo skewInfo = new SkewedInfo();
+      skewInfo.setSkewedColNames(new ArrayList<String>());
+      skewInfo.setSkewedColValues(new ArrayList<List<String>>());
+      skewInfo.setSkewedColValueLocationMaps(new HashMap<List<String>, String>());
+      sd.setSkewedInfo(skewInfo);
     }
 
     org.apache.hadoop.hive.metastore.api.Table t = new org.apache.hadoop.hive.metastore.api.Table();
@@ -164,7 +170,7 @@ public class Table implements Serializable {
           "at least one column must be specified for the table");
     }
     if (!isView()) {
-      if (null == getDeserializer()) {
+      if (null == getDeserializerFromMetaStore()) {
         throw new HiveException("must specify a non-null serDe");
       }
       if (null == getInputFormatClass()) {
@@ -250,15 +256,19 @@ public class Table implements Serializable {
 
   final public Deserializer getDeserializer() {
     if (deserializer == null) {
-      try {
-        deserializer = MetaStoreUtils.getDeserializer(Hive.get().getConf(), tTable);
-      } catch (MetaException e) {
-        throw new RuntimeException(e);
-      } catch (HiveException e) {
-        throw new RuntimeException(e);
-      }
+      deserializer = getDeserializerFromMetaStore();
     }
     return deserializer;
+  }
+
+  private Deserializer getDeserializerFromMetaStore() {
+    try {
+      return MetaStoreUtils.getDeserializer(Hive.get().getConf(), tTable);
+    } catch (MetaException e) {
+      throw new RuntimeException(e);
+    } catch (HiveException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   public HiveStorageHandler getStorageHandler() {
@@ -406,6 +416,43 @@ public class Table implements Serializable {
     return tTable.getTableName();
   }
 
+   /* (non-Javadoc)
+    * @see java.lang.Object#hashCode()
+    */
+   @Override
+   public int hashCode() {
+     final int prime = 31;
+     int result = 1;
+     result = prime * result + ((tTable == null) ? 0 : tTable.hashCode());
+     return result;
+   }
+
+   /* (non-Javadoc)
+    * @see java.lang.Object#equals(java.lang.Object)
+    */
+   @Override
+   public boolean equals(Object obj) {
+     if (this == obj) {
+       return true;
+     }
+     if (obj == null) {
+       return false;
+     }
+     if (getClass() != obj.getClass()) {
+       return false;
+     }
+     Table other = (Table) obj;
+     if (tTable == null) {
+       if (other.tTable != null) {
+         return false;
+       }
+     } else if (!tTable.equals(other.tTable)) {
+       return false;
+     }
+     return true;
+   }
+
+
   public List<FieldSchema> getPartCols() {
     List<FieldSchema> partKeys = tTable.getPartitionKeys();
     if (partKeys == null) {
@@ -467,6 +514,40 @@ public class Table implements Serializable {
     tTable.getSd().setSortCols(sortOrder);
   }
 
+  public void setSkewedValueLocationMap(List<String> valList, String dirName)
+      throws HiveException {
+    Map<List<String>, String> mappings = tTable.getSd().getSkewedInfo()
+        .getSkewedColValueLocationMaps();
+    if (null == mappings) {
+      mappings = new HashMap<List<String>, String>();
+      tTable.getSd().getSkewedInfo().setSkewedColValueLocationMaps(mappings);
+    }
+
+    // Add or update new mapping
+    mappings.put(valList, dirName);
+  }
+
+  public Map<List<String>,String> getSkewedColValueLocationMaps() {
+    return tTable.getSd().getSkewedInfo().getSkewedColValueLocationMaps();
+  }
+
+  public void setSkewedColValues(List<List<String>> skewedValues) throws HiveException {
+    tTable.getSd().getSkewedInfo().setSkewedColValues(skewedValues);
+  }
+
+  public List<List<String>> getSkewedColValues(){
+    return tTable.getSd().getSkewedInfo().getSkewedColValues();
+  }
+
+  public void setSkewedColNames(List<String> skewedColNames) throws HiveException {
+    tTable.getSd().getSkewedInfo().setSkewedColNames(skewedColNames);
+  }
+
+  public List<String> getSkewedColName() {
+    return tTable.getSd().getSkewedInfo().getSkewedColNames();
+  }
+
+
   private boolean isField(String col) {
     for (FieldSchema field : getCols()) {
       if (field.getName().equals(col)) {
@@ -522,8 +603,6 @@ public class Table implements Serializable {
    *
    * @param srcf
    *          Source directory
-   * @param tmpd
-   *          Temporary directory
    */
   protected void replaceFiles(Path srcf) throws HiveException {
     Path tableDest =  new Path(getDataLocation().getPath());
@@ -709,7 +788,7 @@ public class Table implements Serializable {
   public boolean isView() {
     return TableType.VIRTUAL_VIEW.equals(getTableType());
   }
-  
+
   /**
    * @return whether this table is actually an index table
    */
@@ -765,7 +844,12 @@ public class Table implements Serializable {
    */
   public void setProtectMode(ProtectMode protectMode){
     Map<String, String> parameters = tTable.getParameters();
-    parameters.put(ProtectMode.PARAMETER_NAME, protectMode.toString());
+    String pm = protectMode.toString();
+    if (pm != null) {
+      parameters.put(ProtectMode.PARAMETER_NAME, pm);
+    } else {
+      parameters.remove(ProtectMode.PARAMETER_NAME);
+    }
     tTable.setParameters(parameters);
   }
 
@@ -796,7 +880,7 @@ public class Table implements Serializable {
    */
   public boolean canDrop() {
     ProtectMode mode = getProtectMode();
-    return (!mode.noDrop && !mode.offline && !mode.readOnly);
+    return (!mode.noDrop && !mode.offline && !mode.readOnly && !mode.noDropCascade);
   }
 
   /**

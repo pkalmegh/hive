@@ -28,7 +28,9 @@ import java.util.Stack;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Order;
+import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.exec.FunctionRegistry;
 import org.apache.hadoop.hive.ql.exec.MapJoinOperator;
 import org.apache.hadoop.hive.ql.exec.Operator;
@@ -47,7 +49,6 @@ import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.Partition;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.optimizer.ppr.PartitionPruner;
-import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer;
 import org.apache.hadoop.hive.ql.parse.ParseContext;
 import org.apache.hadoop.hive.ql.parse.PrunedPartitionList;
 import org.apache.hadoop.hive.ql.parse.QBJoinTree;
@@ -104,7 +105,7 @@ public class SortedMergeBucketMapJoinOptimizer implements Transform {
   }
 
   class SortedMergeBucketMapjoinProc implements NodeProcessor {
-    ParseContext pGraphContext;
+    private ParseContext pGraphContext;
 
     public SortedMergeBucketMapjoinProc(ParseContext pctx) {
       this.pGraphContext = pctx;
@@ -113,40 +114,68 @@ public class SortedMergeBucketMapJoinOptimizer implements Transform {
     public SortedMergeBucketMapjoinProc() {
     }
 
-    @Override
-    public Object process(Node nd, Stack<Node> stack, NodeProcessorCtx procCtx,
+    // Return true or false based on whether the mapjoin was converted successfully to
+    // a sort-merge map join operator.
+    private boolean convertSMBJoin(Node nd, Stack<Node> stack, NodeProcessorCtx procCtx,
         Object... nodeOutputs) throws SemanticException {
       if (nd instanceof SMBMapJoinOperator) {
-        return null;
+        return false;
       }
       MapJoinOperator mapJoinOp = (MapJoinOperator) nd;
       if (mapJoinOp.getConf().getAliasBucketFileNameMapping() == null
           || mapJoinOp.getConf().getAliasBucketFileNameMapping().size() == 0) {
-        return null;
+        return false;
       }
 
       boolean tableSorted = true;
       QBJoinTree joinCxt = this.pGraphContext.getMapJoinContext()
           .get(mapJoinOp);
       if (joinCxt == null) {
-        return null;
+        return false;
       }
       String[] srcs = joinCxt.getBaseSrc();
       int pos = 0;
+
+      // All the tables/partitions columns should be sorted in the same order
+      // For example, if tables A and B are being joined on columns c1, c2 and c3
+      // which are the sorted and bucketed columns. The join would work, as long
+      // c1, c2 and c3 are sorted in the same order.
+      List<Order> sortColumnsFirstTable = new ArrayList<Order>();
+
       for (String src : srcs) {
         tableSorted = tableSorted
-            && isTableSorted(this.pGraphContext, mapJoinOp, joinCxt, src, pos);
+            && isTableSorted(this.pGraphContext,
+                             mapJoinOp,
+                             joinCxt,
+                             src,
+                             pos,
+                             sortColumnsFirstTable);
         pos++;
       }
       if (!tableSorted) {
         //this is a mapjoin but not suit for a sort merge bucket map join. check outer joins
         MapJoinProcessor.checkMapJoin(((MapJoinOperator) nd).getConf().getPosBigTable(),
             ((MapJoinOperator) nd).getConf().getConds());
-        return null;
+        return false;
       }
       // convert a bucket map join operator to a sorted merge bucket map join
       // operator
       convertToSMBJoin(mapJoinOp, srcs);
+      return true;
+    }
+
+    @Override
+    public Object process(Node nd, Stack<Node> stack, NodeProcessorCtx procCtx,
+        Object... nodeOutputs) throws SemanticException {
+      boolean convert = convertSMBJoin(nd, stack, procCtx, nodeOutputs);
+      // Throw an error if the user asked for sort merge bucketed mapjoin to be enforced
+      // and sort merge bucketed mapjoin cannot be performed
+      if (!convert &&
+        pGraphContext.getConf().getBoolVar(
+          HiveConf.ConfVars.HIVEENFORCESORTMERGEBUCKETMAPJOIN)) {
+        throw new SemanticException(ErrorMsg.SORTMERGE_MAPJOIN_FAILED.getMsg());
+      }
+
       return null;
     }
 
@@ -184,8 +213,27 @@ public class SortedMergeBucketMapJoinOptimizer implements Transform {
       return smbJop;
     }
 
-    private boolean isTableSorted(ParseContext pctx, MapJoinOperator op,
-        QBJoinTree joinTree, String alias, int pos) throws SemanticException {
+    /**
+     * Whether this table is eligible for a sort-merge join.
+     *
+     * @param pctx                  parse context
+     * @param op                    map join operator being considered
+     * @param joinTree              join tree being considered
+     * @param alias                 table alias in the join tree being checked
+     * @param pos                   position of the table
+     * @param sortColumnsFirstTable The names and order of the sorted columns for the first table.
+     *                              It is not initialized when pos = 0.
+     * @return
+     * @throws SemanticException
+     */
+    private boolean isTableSorted(ParseContext pctx,
+      MapJoinOperator op,
+      QBJoinTree joinTree,
+      String alias,
+      int pos,
+      List<Order> sortColumnsFirstTable)
+      throws SemanticException {
+
       Map<String, Operator<? extends Serializable>> topOps = this.pGraphContext
           .getTopOps();
       Map<TableScanOperator, Table> topToTable = this.pGraphContext
@@ -193,6 +241,15 @@ public class SortedMergeBucketMapJoinOptimizer implements Transform {
       TableScanOperator tso = (TableScanOperator) topOps.get(alias);
       if (tso == null) {
         return false;
+      }
+      if (pos != op.getConf().getPosBigTable()) {
+        // currently, a file from a big table can be joined with only 1 file from a small table
+        for (List<String> files :
+            op.getConf().getAliasBucketFileNameMapping().get(alias).values()) {
+          if (files != null && files.size() > 1) {
+            return false;
+          }
+        }
       }
 
       List<ExprNodeDesc> keys = op.getConf().getKeys().get((byte) pos);
@@ -229,38 +286,58 @@ public class SortedMergeBucketMapJoinOptimizer implements Transform {
           LOG.error(org.apache.hadoop.util.StringUtils.stringifyException(e));
           throw new SemanticException(e.getMessage(), e);
         }
-        boolean ret = true;
-        for (Partition p : prunedParts.getConfirmedPartns()) {
-          ret = ret && checkSortColsAndJoinCols(p.getSortCols(), joinCols);
-          if (!ret) {
+        List<Partition> partitions = prunedParts.getNotDeniedPartns();
+        // Populate the names and order of columns for the first partition of the
+        // first table
+        if ((pos == 0) && (partitions != null) && (!partitions.isEmpty())) {
+          Partition firstPartition = partitions.get(0);
+          sortColumnsFirstTable.addAll(firstPartition.getSortCols());
+        }
+
+        for (Partition partition : prunedParts.getNotDeniedPartns()) {
+          if (!checkSortColsAndJoinCols(partition.getSortCols(),
+                                        joinCols,
+                                        sortColumnsFirstTable)) {
             return false;
           }
         }
-        for (Partition p : prunedParts.getUnknownPartns()) {
-          ret = ret && checkSortColsAndJoinCols(p.getSortCols(), joinCols);
-          if (!ret) {
-            return false;
-          }
-        }
-      } else {
-        return checkSortColsAndJoinCols(tbl.getSortCols(), joinCols);
+        return true;
       }
-      return true;
+
+      // Populate the names and order of columns for the first table
+      if (pos == 0) {
+        sortColumnsFirstTable.addAll(tbl.getSortCols());
+      }
+
+      return checkSortColsAndJoinCols(tbl.getSortCols(),
+        joinCols,
+        sortColumnsFirstTable);
     }
 
     private boolean checkSortColsAndJoinCols(List<Order> sortCols,
-        List<String> joinCols) {
-      // require all sort columns are asc, right now only support asc
-      List<String> sortColNames = new ArrayList<String>();
-      for (Order o : sortCols) {
-        if (o.getOrder() != BaseSemanticAnalyzer.HIVE_COLUMN_ORDER_ASC) {
-          return false;
-        }
-        sortColNames.add(o.getCol());
+        List<String> joinCols,
+        List<Order> sortColumnsFirstPartition) {
+
+      if (sortCols == null || sortCols.size() != joinCols.size()) {
+        return false;
       }
 
-      return sortColNames.containsAll(joinCols)
-          && sortColNames.size() == joinCols.size();
+      List<String> sortColNames = new ArrayList<String>();
+
+      // The join columns should contain all the sort columns
+      // The sort columns of all the tables should be in the same order
+      // compare the column names and the order with the first table/partition.
+      for (int pos = 0; pos < sortCols.size(); pos++) {
+        Order o = sortCols.get(pos);
+        if (!o.equals(sortColumnsFirstPartition.get(pos))) {
+          return false;
+        }
+        sortColNames.add(sortColumnsFirstPartition.get(pos).getCol());
+      }
+
+      // The column names and order (ascending/descending) matched
+      // The join columns should contain sort columns
+      return sortColNames.containsAll(joinCols);
     }
   }
 

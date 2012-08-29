@@ -37,11 +37,13 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-5 depends on stages: Stage-1 , consists of Stage-4, Stage-3
+  Stage-7 depends on stages: Stage-1 , consists of Stage-4, Stage-3, Stage-5
   Stage-4
-  Stage-0 depends on stages: Stage-4, Stage-3
+  Stage-0 depends on stages: Stage-4, Stage-3, Stage-6
   Stage-2 depends on stages: Stage-0
   Stage-3
+  Stage-5
+  Stage-6 depends on stages: Stage-5
 
 STAGE PLANS:
   Stage: Stage-1
@@ -77,14 +79,14 @@ STAGE PLANS:
                       serde: org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
                       name: default.rcfile_merge1
 
-  Stage: Stage-5
+  Stage: Stage-7
     Conditional Operator
 
   Stage: Stage-4
     Move Operator
       files:
           hdfs directory: true
-          destination: pfile:/data/users/franklin/hive-block-merge/build/ql/scratchdir/hive_2011-06-09_15-28-54_753_2667401366646166118/-ext-10000
+#### A masked pattern was here ####
 
   Stage: Stage-0
     Move Operator
@@ -105,7 +107,7 @@ STAGE PLANS:
   Stage: Stage-3
     Map Reduce
       Alias -> Map Operator Tree:
-        pfile:/data/users/franklin/hive-block-merge/build/ql/scratchdir/hive_2011-06-09_15-28-54_753_2667401366646166118/-ext-10002 
+#### A masked pattern was here ####
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -114,6 +116,25 @@ STAGE PLANS:
                   output format: org.apache.hadoop.hive.ql.io.RCFileOutputFormat
                   serde: org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
                   name: default.rcfile_merge1
+
+  Stage: Stage-5
+    Map Reduce
+      Alias -> Map Operator Tree:
+#### A masked pattern was here ####
+            File Output Operator
+              compressed: false
+              GlobalTableId: 0
+              table:
+                  input format: org.apache.hadoop.hive.ql.io.RCFileInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.RCFileOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
+                  name: default.rcfile_merge1
+
+  Stage: Stage-6
+    Move Operator
+      files:
+          hdfs directory: true
+#### A masked pattern was here ####
 
 
 PREHOOK: query: INSERT OVERWRITE TABLE rcfile_merge1 PARTITION (ds='1', part)
@@ -637,11 +658,13 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-5 depends on stages: Stage-1 , consists of Stage-4, Stage-3
+  Stage-7 depends on stages: Stage-1 , consists of Stage-4, Stage-3, Stage-5
   Stage-4
-  Stage-0 depends on stages: Stage-4, Stage-3
+  Stage-0 depends on stages: Stage-4, Stage-3, Stage-6
   Stage-2 depends on stages: Stage-0
   Stage-3
+  Stage-5
+  Stage-6 depends on stages: Stage-5
 
 STAGE PLANS:
   Stage: Stage-1
@@ -677,14 +700,14 @@ STAGE PLANS:
                       serde: org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe
                       name: default.rcfile_merge1b
 
-  Stage: Stage-5
+  Stage: Stage-7
     Conditional Operator
 
   Stage: Stage-4
     Move Operator
       files:
           hdfs directory: true
-          destination: pfile:/data/users/franklin/hive-block-merge/build/ql/scratchdir/hive_2011-06-09_15-29-44_330_1943388998865490671/-ext-10000
+#### A masked pattern was here ####
 
   Stage: Stage-0
     Move Operator
@@ -704,6 +727,15 @@ STAGE PLANS:
 
   Stage: Stage-3
     Block level merge
+
+  Stage: Stage-5
+    Block level merge
+
+  Stage: Stage-6
+    Move Operator
+      files:
+          hdfs directory: true
+#### A masked pattern was here ####
 
 
 PREHOOK: query: INSERT OVERWRITE TABLE rcfile_merge1b PARTITION (ds='1', part)
@@ -1317,7 +1349,7 @@ PREHOOK: Input: default@rcfile_merge1@ds=1/part=96
 PREHOOK: Input: default@rcfile_merge1@ds=1/part=97
 PREHOOK: Input: default@rcfile_merge1@ds=1/part=98
 PREHOOK: Input: default@rcfile_merge1@ds=1/part=99
-PREHOOK: Output: file:/tmp/franklin/hive_2011-06-09_15-30-30_023_3526296190457786443/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: -- Verify
 SELECT SUM(HASH(c)) FROM (
     SELECT TRANSFORM(*) USING 'tr \t _' AS (c)
@@ -1423,7 +1455,7 @@ POSTHOOK: Input: default@rcfile_merge1@ds=1/part=96
 POSTHOOK: Input: default@rcfile_merge1@ds=1/part=97
 POSTHOOK: Input: default@rcfile_merge1@ds=1/part=98
 POSTHOOK: Input: default@rcfile_merge1@ds=1/part=99
-POSTHOOK: Output: file:/tmp/franklin/hive_2011-06-09_15-30-30_023_3526296190457786443/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: rcfile_merge1 PARTITION(ds=1,part=0).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: rcfile_merge1 PARTITION(ds=1,part=0).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: rcfile_merge1 PARTITION(ds=1,part=10).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -1925,7 +1957,7 @@ PREHOOK: Input: default@rcfile_merge1b@ds=1/part=96
 PREHOOK: Input: default@rcfile_merge1b@ds=1/part=97
 PREHOOK: Input: default@rcfile_merge1b@ds=1/part=98
 PREHOOK: Input: default@rcfile_merge1b@ds=1/part=99
-PREHOOK: Output: file:/tmp/franklin/hive_2011-06-09_15-30-56_636_8234288185986710243/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT SUM(HASH(c)) FROM (
     SELECT TRANSFORM(*) USING 'tr \t _' AS (c)
     FROM rcfile_merge1b WHERE ds='1'
@@ -2030,7 +2062,7 @@ POSTHOOK: Input: default@rcfile_merge1b@ds=1/part=96
 POSTHOOK: Input: default@rcfile_merge1b@ds=1/part=97
 POSTHOOK: Input: default@rcfile_merge1b@ds=1/part=98
 POSTHOOK: Input: default@rcfile_merge1b@ds=1/part=99
-POSTHOOK: Output: file:/tmp/franklin/hive_2011-06-09_15-30-56_636_8234288185986710243/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: rcfile_merge1 PARTITION(ds=1,part=0).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: rcfile_merge1 PARTITION(ds=1,part=0).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: rcfile_merge1 PARTITION(ds=1,part=10).key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]

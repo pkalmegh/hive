@@ -25,6 +25,7 @@ import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.plan.CreateTableDesc;
 
 /**
@@ -183,8 +184,13 @@ public class QB {
     return isQuery;
   }
 
-  public boolean isSelectStarQuery() {
-    return qbp.isSelectStarQuery() && aliasToSubq.isEmpty() && !isCTAS() && !qbp.isAnalyzeCommand();
+  public boolean isSimpleSelectQuery() {
+    return qbp.isSimpleSelectQuery() && aliasToSubq.isEmpty() && !isCTAS() &&
+        !qbp.isAnalyzeCommand();
+  }
+
+  public boolean hasTableSample(String alias) {
+    return qbp.getTabSample(alias) != null;
   }
 
   public CreateTableDesc getTableDesc() {
@@ -200,5 +206,21 @@ public class QB {
    */
   public boolean isCTAS() {
     return tblDesc != null;
+  }
+
+  /**
+   * Retrieve skewed column name for a table.
+   * @param alias table alias
+   * @return
+   */
+  public List<String> getSkewedColumnNames(String alias) {
+    List<String> skewedColNames = null;
+    if (null != qbm &&
+        null != qbm.getAliasToTable() &&
+            qbm.getAliasToTable().size() > 0) {
+      Table tbl = getMetaData().getTableForAlias(alias);
+      skewedColNames = tbl.getSkewedColName();
+    }
+    return skewedColNames;
   }
 }

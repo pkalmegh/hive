@@ -234,7 +234,7 @@ public class HiveHistory {
       // Create directory
       File f = new File(conf_file_loc);
       if (!f.exists()) {
-        if (!f.mkdir()) {
+        if (!f.mkdirs()) {
           console.printError("Unable to create log directory " + conf_file_loc);
           return;
         }
@@ -352,8 +352,9 @@ public class HiveHistory {
   /**
    * Serialize the task counters and set as a task property.
    *
+   * @param queryId
    * @param taskId
-   * @param rj
+   * @param ctrs
    */
   public void setTaskCounters(String queryId, String taskId, Counters ctrs) {
     String id = queryId + ":" + taskId;

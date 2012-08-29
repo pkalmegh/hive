@@ -48,13 +48,39 @@ POSTHOOK: Input: default@analyze_srcbucket
 POSTHOOK: Output: default@analyze_srcbucket
 POSTHOOK: Lineage: analyze_srcbucket.key SIMPLE [(srcbucket)srcbucket.FieldSchema(name:key, type:int, comment:null), ]
 POSTHOOK: Lineage: analyze_srcbucket.value SIMPLE [(srcbucket)srcbucket.FieldSchema(name:value, type:string, comment:null), ]
-PREHOOK: query: describe extended analyze_srcbucket
+PREHOOK: query: describe formatted analyze_srcbucket
 PREHOOK: type: DESCTABLE
-POSTHOOK: query: describe extended analyze_srcbucket
+POSTHOOK: query: describe formatted analyze_srcbucket
 POSTHOOK: type: DESCTABLE
 POSTHOOK: Lineage: analyze_srcbucket.key SIMPLE [(srcbucket)srcbucket.FieldSchema(name:key, type:int, comment:null), ]
 POSTHOOK: Lineage: analyze_srcbucket.value SIMPLE [(srcbucket)srcbucket.FieldSchema(name:value, type:string, comment:null), ]
-key	int	
-value	string	
+# col_name            	data_type           	comment             
 	 	 
-Detailed Table Information	Table(tableName:analyze_srcbucket, dbName:default, owner:sdong, createTime:1297387411, lastAccessTime:0, retention:0, sd:StorageDescriptor(cols:[FieldSchema(name:key, type:int, comment:null), FieldSchema(name:value, type:string, comment:null)], location:pfile:/data/users/sdong/www/open-source-hive1/build/ql/test/data/warehouse/analyze_srcbucket, inputFormat:org.apache.hadoop.mapred.TextInputFormat, outputFormat:org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat, compressed:false, numBuckets:2, serdeInfo:SerDeInfo(name:null, serializationLib:org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe, parameters:{serialization.format=1}), bucketCols:[key], sortCols:[], parameters:{}), partitionKeys:[], parameters:{numPartitions=0, numFiles=1, transient_lastDdlTime=1297387420, numRows=1000, totalSize=11603}, viewOriginalText:null, viewExpandedText:null, tableType:MANAGED_TABLE)	
+key                 	int                 	None                
+value               	string              	None                
+	 	 
+# Detailed Table Information	 	 
+Database:           	default             	 
+#### A masked pattern was here ####
+Protect Mode:       	None                	 
+Retention:          	0                   	 
+#### A masked pattern was here ####
+Table Type:         	MANAGED_TABLE       	 
+Table Parameters:	 	 
+	numFiles            	1                   
+	numPartitions       	0                   
+	numRows             	1000                
+	rawDataSize         	10603               
+	totalSize           	11603               
+#### A masked pattern was here ####
+	 	 
+# Storage Information	 	 
+SerDe Library:      	org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe	 
+InputFormat:        	org.apache.hadoop.mapred.TextInputFormat	 
+OutputFormat:       	org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat	 
+Compressed:         	No                  	 
+Num Buckets:        	2                   	 
+Bucket Columns:     	[key]               	 
+Sort Columns:       	[]                  	 
+Storage Desc Params:	 	 
+	serialization.format	1                   

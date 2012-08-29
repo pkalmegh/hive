@@ -119,13 +119,19 @@ public class JDBCStatsPublisher implements StatsPublisher {
   @Override
   public boolean publishStat(String fileID, Map<String, String> stats) {
 
+    if (stats.isEmpty()) {
+      // If there are no stats to publish, nothing to do.
+      return true;
+    }
+
     if (conn == null) {
       LOG.error("JDBC connection is null. Cannot publish stats without JDBC connection.");
       return false;
     }
 
     if (!JDBCStatsUtils.isValidStatisticSet(stats.keySet())) {
-      LOG.warn("Warning. Invalid statistic.");
+      LOG.warn("Invalid statistic:" + stats.keySet().toString() + ", supported "
+          + " stats: " + JDBCStatsUtils.getSupportedStatistics());
       return false;
     }
     LOG.info("Stats publishing for key " + fileID);

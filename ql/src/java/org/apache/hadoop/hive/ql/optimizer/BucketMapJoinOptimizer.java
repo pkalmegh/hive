@@ -19,9 +19,11 @@ package org.apache.hadoop.hive.ql.optimizer;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.net.URI;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -36,6 +38,8 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.exec.FunctionRegistry;
 import org.apache.hadoop.hive.ql.exec.MapJoinOperator;
 import org.apache.hadoop.hive.ql.exec.Operator;
@@ -78,7 +82,8 @@ public class BucketMapJoinOptimizer implements Transform {
   public ParseContext transform(ParseContext pctx) throws SemanticException {
 
     Map<Rule, NodeProcessor> opRules = new LinkedHashMap<Rule, NodeProcessor>();
-    BucketMapjoinOptProcCtx bucketMapJoinOptimizeCtx = new BucketMapjoinOptProcCtx();
+    BucketMapjoinOptProcCtx bucketMapJoinOptimizeCtx =
+      new BucketMapjoinOptProcCtx(pctx.getConf());
 
     // process map joins with no reducers pattern
     opRules.put(new RuleRegExp("R1", "MAPJOIN%"), getBucketMapjoinProc(pctx));
@@ -140,20 +145,19 @@ public class BucketMapJoinOptimizer implements Transform {
       this.pGraphContext = pGraphContext;
     }
 
-    @Override
-    public Object process(Node nd, Stack<Node> stack, NodeProcessorCtx procCtx,
+    private boolean convertBucketMapJoin(Node nd, Stack<Node> stack, NodeProcessorCtx procCtx,
         Object... nodeOutputs) throws SemanticException {
-
       MapJoinOperator mapJoinOp = (MapJoinOperator) nd;
       BucketMapjoinOptProcCtx context = (BucketMapjoinOptProcCtx) procCtx;
+      HiveConf conf = context.getConf();
 
       if(context.getListOfRejectedMapjoins().contains(mapJoinOp)) {
-        return null;
+        return false;
       }
 
       QBJoinTree joinCxt = this.pGraphContext.getMapJoinContext().get(mapJoinOp);
       if(joinCxt == null) {
-        return null;
+        return false;
       }
 
       List<String> joinAliases = new ArrayList<String>();
@@ -179,11 +183,11 @@ public class BucketMapJoinOptimizer implements Transform {
       }
 
       MapJoinDesc mjDecs = mapJoinOp.getConf();
-      LinkedHashMap<String, Integer> aliasToBucketNumberMapping = new LinkedHashMap<String, Integer>();
-      LinkedHashMap<String, List<String>> aliasToBucketFileNamesMapping = new LinkedHashMap<String, List<String>>();
-      // right now this code does not work with "a join b on a.key = b.key and
-      // a.ds = b.ds", where ds is a partition column. It only works with joins
-      // with only one partition presents in each join source tables.
+      LinkedHashMap<String, List<Integer>> aliasToPartitionBucketNumberMapping =
+          new LinkedHashMap<String, List<Integer>>();
+      LinkedHashMap<String, List<List<String>>> aliasToPartitionBucketFileNamesMapping =
+          new LinkedHashMap<String, List<List<String>>>();
+
       Map<String, Operator<? extends Serializable>> topOps = this.pGraphContext.getTopOps();
       Map<TableScanOperator, Table> topToTable = this.pGraphContext.getTopToTable();
 
@@ -192,15 +196,16 @@ public class BucketMapJoinOptimizer implements Transform {
       LinkedHashMap<Partition, List<String>> bigTblPartsToBucketFileNames = new LinkedHashMap<Partition, List<String>>();
       LinkedHashMap<Partition, Integer> bigTblPartsToBucketNumber = new LinkedHashMap<Partition, Integer>();
 
+      boolean bigTablePartitioned = true;
       for (int index = 0; index < joinAliases.size(); index++) {
         String alias = joinAliases.get(index);
         TableScanOperator tso = (TableScanOperator) topOps.get(alias);
         if (tso == null) {
-          return null;
+          return false;
         }
         Table tbl = topToTable.get(tso);
         if(tbl.isPartitioned()) {
-          PrunedPartitionList prunedParts = null;
+          PrunedPartitionList prunedParts;
           try {
             prunedParts = pGraphContext.getOpToPartList().get(tso);
             if (prunedParts == null) {
@@ -214,223 +219,208 @@ public class BucketMapJoinOptimizer implements Transform {
             LOG.error(org.apache.hadoop.util.StringUtils.stringifyException(e));
             throw new SemanticException(e.getMessage(), e);
           }
-          int partNumber = prunedParts.getConfirmedPartns().size()
-              + prunedParts.getUnknownPartns().size();
-
-          if (partNumber > 1) {
-            // only allow one partition for small tables
-            if(alias != baseBigAlias) {
-              return null;
+          List<Partition> partitions = prunedParts.getNotDeniedPartns();
+          // construct a mapping of (Partition->bucket file names) and (Partition -> bucket number)
+          if (partitions.isEmpty()) {
+            if (!alias.equals(baseBigAlias)) {
+              aliasToPartitionBucketNumberMapping.put(alias, Arrays.<Integer>asList());
+              aliasToPartitionBucketFileNamesMapping.put(alias, new ArrayList<List<String>>());
             }
-            // here is the big table,and we get more than one partitions.
-            // construct a mapping of (Partition->bucket file names) and
-            // (Partition -> bucket number)
-            Iterator<Partition> iter = prunedParts.getConfirmedPartns()
-                .iterator();
-            while (iter.hasNext()) {
-              Partition p = iter.next();
-              if (!checkBucketColumns(p.getBucketCols(), mjDecs, index)) {
-                return null;
-              }
-              List<String> fileNames = getOnePartitionBucketFileNames(p);
-              bigTblPartsToBucketFileNames.put(p, fileNames);
-              bigTblPartsToBucketNumber.put(p, p.getBucketCount());
-            }
-            iter = prunedParts.getUnknownPartns().iterator();
-            while (iter.hasNext()) {
-              Partition p = iter.next();
-              if (!checkBucketColumns(p.getBucketCols(), mjDecs, index)) {
-                return null;
-              }
-              List<String> fileNames = getOnePartitionBucketFileNames(p);
-              bigTblPartsToBucketFileNames.put(p, fileNames);
-              bigTblPartsToBucketNumber.put(p, p.getBucketCount());
-            }
-            // If there are more than one partition for the big
-            // table,aliasToBucketFileNamesMapping and partsToBucketNumber will
-            // not contain mappings for the big table. Instead, the mappings are
-            // contained in bigTblPartsToBucketFileNames and
-            // bigTblPartsToBucketNumber
-
           } else {
-            Partition part = null;
-            Iterator<Partition> iter = prunedParts.getConfirmedPartns()
-                .iterator();
-            if (iter.hasNext()) {
-              part = iter.next();
-            }
-            if (part == null) {
-              iter = prunedParts.getUnknownPartns().iterator();
-              if (iter.hasNext()) {
-                part = iter.next();
+            List<Integer> buckets = new ArrayList<Integer>();
+            List<List<String>> files = new ArrayList<List<String>>();
+            for (Partition p : partitions) {
+              if (!checkBucketColumns(p.getBucketCols(), mjDecs, index)) {
+                return false;
+              }
+              List<String> fileNames = getOnePartitionBucketFileNames(p.getDataLocation());
+              // The number of files for the table should be same as number of buckets.
+              int bucketCount = p.getBucketCount();
+              if (fileNames.size() != bucketCount) {
+                String msg = "The number of buckets for table " +
+                  tbl.getTableName() + " partition " + p.getName() + " is " +
+                  p.getBucketCount() + ", whereas the number of files is " + fileNames.size();
+                throw new SemanticException(
+                  ErrorMsg.BUCKETED_TABLE_METADATA_INCORRECT.getMsg(msg));
+              }
+              if (alias.equals(baseBigAlias)) {
+                bigTblPartsToBucketFileNames.put(p, fileNames);
+                bigTblPartsToBucketNumber.put(p, bucketCount);
+              } else {
+                files.add(fileNames);
+                buckets.add(bucketCount);
               }
             }
-            assert part != null;
-            Integer num = new Integer(part.getBucketCount());
-            aliasToBucketNumberMapping.put(alias, num);
-            if (!checkBucketColumns(part.getBucketCols(), mjDecs, index)) {
-              return null;
-            }
-            List<String> fileNames = getOnePartitionBucketFileNames(part);
-            aliasToBucketFileNamesMapping.put(alias, fileNames);
-            if (alias == baseBigAlias) {
-              bigTblPartsToBucketFileNames.put(part, fileNames);
-              bigTblPartsToBucketNumber.put(part, num);
+            if (!alias.equals(baseBigAlias)) {
+              aliasToPartitionBucketNumberMapping.put(alias, buckets);
+              aliasToPartitionBucketFileNamesMapping.put(alias, files);
             }
           }
         } else {
           if (!checkBucketColumns(tbl.getBucketCols(), mjDecs, index)) {
-            return null;
+            return false;
           }
+          List<String> fileNames = getOnePartitionBucketFileNames(tbl.getDataLocation());
           Integer num = new Integer(tbl.getNumBuckets());
-          aliasToBucketNumberMapping.put(alias, num);
-          List<String> fileNames = new ArrayList<String>();
-          try {
-            FileSystem fs = FileSystem.get(tbl.getDataLocation(), this.pGraphContext.getConf());
-            FileStatus[] files = fs.listStatus(new Path(tbl.getDataLocation().toString()));
-            if(files != null) {
-              for(FileStatus file : files) {
-                fileNames.add(file.getPath().toString());
-              }
-            }
-          } catch (IOException e) {
-            throw new SemanticException(e);
+          // The number of files for the table should be same as number of buckets.
+          if (fileNames.size() != num) {
+            String msg = "The number of buckets for table " +
+              tbl.getTableName() + " is " + tbl.getNumBuckets() +
+              ", whereas the number of files is " + fileNames.size();
+            throw new SemanticException(
+              ErrorMsg.BUCKETED_TABLE_METADATA_INCORRECT.getMsg(msg));
           }
-          aliasToBucketFileNamesMapping.put(alias, fileNames);
+          if (alias.equals(baseBigAlias)) {
+            bigTblPartsToBucketFileNames.put(null, fileNames);
+            bigTblPartsToBucketNumber.put(null, tbl.getNumBuckets());
+            bigTablePartitioned = false;
+          } else {
+            aliasToPartitionBucketNumberMapping.put(alias, Arrays.asList(num));
+            aliasToPartitionBucketFileNamesMapping.put(alias, Arrays.asList(fileNames));
+          }
         }
       }
 
       // All tables or partitions are bucketed, and their bucket number is
       // stored in 'bucketNumbers', we need to check if the number of buckets in
       // the big table can be divided by no of buckets in small tables.
-      if (bigTblPartsToBucketNumber.size() > 0) {
-        Iterator<Entry<Partition, Integer>> bigTblPartToBucketNumber = bigTblPartsToBucketNumber
-            .entrySet().iterator();
-        while (bigTblPartToBucketNumber.hasNext()) {
-          int bucketNumberInPart = bigTblPartToBucketNumber.next().getValue();
-          if (!checkBucketNumberAgainstBigTable(aliasToBucketNumberMapping,
-              bucketNumberInPart)) {
-            return null;
-          }
-        }
-      } else {
-        int bucketNoInBigTbl = aliasToBucketNumberMapping.get(baseBigAlias).intValue();
-        if (!checkBucketNumberAgainstBigTable(aliasToBucketNumberMapping,
-            bucketNoInBigTbl)) {
-          return null;
+      for (Integer bucketNumber : bigTblPartsToBucketNumber.values()) {
+        if (!checkBucketNumberAgainstBigTable(aliasToPartitionBucketNumberMapping, bucketNumber)) {
+          return false;
         }
       }
 
       MapJoinDesc desc = mapJoinOp.getConf();
 
-      LinkedHashMap<String, LinkedHashMap<String, ArrayList<String>>> aliasBucketFileNameMapping =
-        new LinkedHashMap<String, LinkedHashMap<String, ArrayList<String>>>();
+      Map<String, Map<String, List<String>>> aliasBucketFileNameMapping =
+        new LinkedHashMap<String, Map<String, List<String>>>();
 
       //sort bucket names for the big table
-      if(bigTblPartsToBucketNumber.size() > 0) {
-        Collection<List<String>> bucketNamesAllParts = bigTblPartsToBucketFileNames.values();
-        for(List<String> partBucketNames : bucketNamesAllParts) {
-          Collections.sort(partBucketNames);
-        }
-      } else {
-        Collections.sort(aliasToBucketFileNamesMapping.get(baseBigAlias));
+      for(List<String> partBucketNames : bigTblPartsToBucketFileNames.values()) {
+        Collections.sort(partBucketNames);
       }
 
       // go through all small tables and get the mapping from bucket file name
       // in the big table to bucket file names in small tables.
       for (int j = 0; j < joinAliases.size(); j++) {
         String alias = joinAliases.get(j);
-        if(alias.equals(baseBigAlias)) {
+        if (alias.equals(baseBigAlias)) {
           continue;
         }
-        Collections.sort(aliasToBucketFileNamesMapping.get(alias));
-        LinkedHashMap<String, ArrayList<String>> mapping = new LinkedHashMap<String, ArrayList<String>>();
+        for (List<String> names : aliasToPartitionBucketFileNamesMapping.get(alias)) {
+          Collections.sort(names);
+        }
+        List<Integer> smallTblBucketNums = aliasToPartitionBucketNumberMapping.get(alias);
+        List<List<String>> smallTblFilesList = aliasToPartitionBucketFileNamesMapping.get(alias);
+
+        Map<String, List<String>> mapping = new LinkedHashMap<String, List<String>>();
         aliasBucketFileNameMapping.put(alias, mapping);
 
         // for each bucket file in big table, get the corresponding bucket file
         // name in the small table.
-        if (bigTblPartsToBucketNumber.size() > 0) {
-          //more than 1 partition in the big table, do the mapping for each partition
-          Iterator<Entry<Partition, List<String>>> bigTblPartToBucketNames = bigTblPartsToBucketFileNames
-              .entrySet().iterator();
-          Iterator<Entry<Partition, Integer>> bigTblPartToBucketNum = bigTblPartsToBucketNumber
-              .entrySet().iterator();
-          while (bigTblPartToBucketNames.hasNext()) {
-            assert bigTblPartToBucketNum.hasNext();
-            int bigTblBucketNum = bigTblPartToBucketNum.next().getValue().intValue();
-            List<String> bigTblBucketNameList = bigTblPartToBucketNames.next().getValue();
-            fillMapping(baseBigAlias, aliasToBucketNumberMapping,
-                aliasToBucketFileNamesMapping, alias, mapping, bigTblBucketNum,
-                bigTblBucketNameList, desc.getBucketFileNameMapping());
-          }
-        } else {
-          List<String> bigTblBucketNameList = aliasToBucketFileNamesMapping.get(baseBigAlias);
-          int bigTblBucketNum =  aliasToBucketNumberMapping.get(baseBigAlias);
-          fillMapping(baseBigAlias, aliasToBucketNumberMapping,
-              aliasToBucketFileNamesMapping, alias, mapping, bigTblBucketNum,
-              bigTblBucketNameList, desc.getBucketFileNameMapping());
+        //more than 1 partition in the big table, do the mapping for each partition
+        Iterator<Entry<Partition, List<String>>> bigTblPartToBucketNames =
+            bigTblPartsToBucketFileNames.entrySet().iterator();
+        Iterator<Entry<Partition, Integer>> bigTblPartToBucketNum = bigTblPartsToBucketNumber
+            .entrySet().iterator();
+        while (bigTblPartToBucketNames.hasNext()) {
+          assert bigTblPartToBucketNum.hasNext();
+          int bigTblBucketNum = bigTblPartToBucketNum.next().getValue();
+          List<String> bigTblBucketNameList = bigTblPartToBucketNames.next().getValue();
+          fillMapping(smallTblBucketNums, smallTblFilesList,
+              mapping, bigTblBucketNum, bigTblBucketNameList, desc.getBigTableBucketNumMapping());
         }
       }
       desc.setAliasBucketFileNameMapping(aliasBucketFileNameMapping);
       desc.setBigTableAlias(baseBigAlias);
+      if (bigTablePartitioned) {
+        desc.setBigTablePartSpecToFileMapping(convert(bigTblPartsToBucketFileNames));
+      }
+
+      return true;
+    }
+
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Object process(Node nd, Stack<Node> stack, NodeProcessorCtx procCtx,
+        Object... nodeOutputs) throws SemanticException {
+
+      boolean convert = convertBucketMapJoin(nd, stack, procCtx, nodeOutputs);
+      BucketMapjoinOptProcCtx context = (BucketMapjoinOptProcCtx) procCtx;
+      HiveConf conf = context.getConf();
+
+      // Throw an error if the user asked for bucketed mapjoin to be enforced and
+      // bucketed mapjoin cannot be performed
+      if (!convert && conf.getBoolVar(HiveConf.ConfVars.HIVEENFORCEBUCKETMAPJOIN)) {
+        throw new SemanticException(ErrorMsg.BUCKET_MAPJOIN_NOT_POSSIBLE.getMsg());
+      }
+
       return null;
     }
 
-    private void fillMapping(String baseBigAlias,
-        LinkedHashMap<String, Integer> aliasToBucketNumberMapping,
-        LinkedHashMap<String, List<String>> aliasToBucketFileNamesMapping,
-        String alias, LinkedHashMap<String, ArrayList<String>> mapping,
+    // convert partition to partition spec string
+    private Map<String, List<String>> convert(Map<Partition, List<String>> mapping) {
+      Map<String, List<String>> converted = new HashMap<String, List<String>>();
+      for (Map.Entry<Partition, List<String>> entry : mapping.entrySet()) {
+        converted.put(entry.getKey().getName(), entry.getValue());
+      }
+      return converted;
+    }
+
+    // called for each partition of big table and populates mapping for each file in the partition
+    private void fillMapping(
+        List<Integer> smallTblBucketNums,
+        List<List<String>> smallTblFilesList,
+        Map<String, List<String>> mapping,
         int bigTblBucketNum, List<String> bigTblBucketNameList,
-        LinkedHashMap<String, Integer> bucketFileNameMapping) {
-      for (int index = 0; index < bigTblBucketNameList.size(); index++) {
-        String inputBigTBLBucket = bigTblBucketNameList.get(index);
-        int smallTblBucketNum = aliasToBucketNumberMapping.get(alias);
+        Map<String, Integer> bucketFileNameMapping) {
+
+      for (int bindex = 0; bindex < bigTblBucketNameList.size(); bindex++) {
         ArrayList<String> resultFileNames = new ArrayList<String>();
-        if (bigTblBucketNum >= smallTblBucketNum) {
-          // if the big table has more buckets than the current small table,
-          // use "MOD" to get small table bucket names. For example, if the big
-          // table has 4 buckets and the small table has 2 buckets, then the
-          // mapping should be 0->0, 1->1, 2->0, 3->1.
-          int toAddSmallIndex = index % smallTblBucketNum;
-          if(toAddSmallIndex < aliasToBucketFileNamesMapping.get(alias).size()) {
-            resultFileNames.add(aliasToBucketFileNamesMapping.get(alias).get(toAddSmallIndex));
-          }
-        } else {
-          int jump = smallTblBucketNum / bigTblBucketNum;
-          List<String> bucketNames = aliasToBucketFileNamesMapping.get(alias);
-          for (int i = index; i < aliasToBucketFileNamesMapping.get(alias).size(); i = i + jump) {
-            if(i <= aliasToBucketFileNamesMapping.get(alias).size()) {
-              resultFileNames.add(bucketNames.get(i));
+        for (int sindex = 0 ; sindex < smallTblBucketNums.size(); sindex++) {
+          int smallTblBucketNum = smallTblBucketNums.get(sindex);
+          List<String> smallTblFileNames = smallTblFilesList.get(sindex);
+          if (bigTblBucketNum >= smallTblBucketNum) {
+            // if the big table has more buckets than the current small table,
+            // use "MOD" to get small table bucket names. For example, if the big
+            // table has 4 buckets and the small table has 2 buckets, then the
+            // mapping should be 0->0, 1->1, 2->0, 3->1.
+            int toAddSmallIndex = bindex % smallTblBucketNum;
+            resultFileNames.add(smallTblFileNames.get(toAddSmallIndex));
+          } else {
+            int jump = smallTblBucketNum / bigTblBucketNum;
+            for (int i = bindex; i < smallTblFileNames.size(); i = i + jump) {
+              resultFileNames.add(smallTblFileNames.get(i));
             }
           }
         }
+        String inputBigTBLBucket = bigTblBucketNameList.get(bindex);
         mapping.put(inputBigTBLBucket, resultFileNames);
-        bucketFileNameMapping.put(inputBigTBLBucket, index);
+        bucketFileNameMapping.put(inputBigTBLBucket, bindex);
       }
     }
 
     private boolean checkBucketNumberAgainstBigTable(
-        LinkedHashMap<String, Integer> aliasToBucketNumber,
-        int bucketNumberInPart) {
-      Iterator<Integer> iter = aliasToBucketNumber.values().iterator();
-      while(iter.hasNext()) {
-        int nxt = iter.next().intValue();
-        boolean ok = (nxt >= bucketNumberInPart) ? nxt % bucketNumberInPart == 0
-            : bucketNumberInPart % nxt == 0;
-        if(!ok) {
-          return false;
+        Map<String, List<Integer>> aliasToBucketNumber, int bucketNumberInPart) {
+      for (List<Integer> bucketNums : aliasToBucketNumber.values()) {
+        for (int nxt : bucketNums) {
+          boolean ok = (nxt >= bucketNumberInPart) ? nxt % bucketNumberInPart == 0
+              : bucketNumberInPart % nxt == 0;
+          if (!ok) {
+            return false;
+          }
         }
       }
       return true;
     }
 
-    private List<String> getOnePartitionBucketFileNames(Partition part)
+    private List<String> getOnePartitionBucketFileNames(URI location)
         throws SemanticException {
       List<String> fileNames = new ArrayList<String>();
       try {
-        FileSystem fs = FileSystem.get(part.getDataLocation(), this.pGraphContext.getConf());
-        FileStatus[] files = fs.listStatus(new Path(part.getDataLocation()
-            .toString()));
+        FileSystem fs = FileSystem.get(location, this.pGraphContext.getConf());
+        FileStatus[] files = fs.listStatus(new Path(location.toString()));
         if (files != null) {
           for (FileStatus file : files) {
             fileNames.add(file.getPath().toString());
@@ -481,14 +471,23 @@ public class BucketMapJoinOptimizer implements Transform {
   }
 
   class BucketMapjoinOptProcCtx implements NodeProcessorCtx {
+    private final HiveConf conf;
+
     // we only convert map joins that follows a root table scan in the same
     // mapper. That means there is no reducer between the root table scan and
     // mapjoin.
     Set<MapJoinOperator> listOfRejectedMapjoins = new HashSet<MapJoinOperator>();
 
+    public BucketMapjoinOptProcCtx(HiveConf conf) {
+      this.conf = conf;
+    }
+
+    public HiveConf getConf() {
+      return conf;
+    }
+
     public Set<MapJoinOperator> getListOfRejectedMapjoins() {
       return listOfRejectedMapjoins;
     }
-
   }
 }

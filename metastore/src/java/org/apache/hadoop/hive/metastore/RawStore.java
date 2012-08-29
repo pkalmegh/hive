@@ -139,8 +139,6 @@ public interface RawStore extends Configurable {
    * Gets a list of tables based on a filter string and filter type.
    * @param dbName
    *          The name of the database from which you will retrieve the table names
-   * @param filterType
-   *          The type of filter
    * @param filter
    *          The filter string
    * @param max_tables
@@ -158,7 +156,7 @@ public interface RawStore extends Configurable {
   public abstract List<String> listPartitionNamesByFilter(String db_name,
       String tbl_name, String filter, short max_parts) throws MetaException;
 
-  public abstract void alterPartition(String db_name, String tbl_name,
+  public abstract void alterPartition(String db_name, String tbl_name, List<String> part_vals,
       Partition new_part) throws InvalidObjectException, MetaException;
 
   public abstract boolean addIndex(Index index)
@@ -277,7 +275,7 @@ public interface RawStore extends Configurable {
    */
   public abstract List<String> listPartitionNamesPs(String db_name, String tbl_name,
       List<String> part_vals, short max_parts)
-      throws MetaException;
+      throws MetaException, NoSuchObjectException;
 
   /**
    * Lists partitions that match a given partial specification and sets their auth privileges.
@@ -302,7 +300,7 @@ public interface RawStore extends Configurable {
    */
   public abstract List<Partition> listPartitionsPsWithAuth(String db_name, String tbl_name,
       List<String> part_vals, short max_parts, String userName, List<String> groupNames)
-      throws MetaException, InvalidObjectException;
- 
+      throws MetaException, InvalidObjectException, NoSuchObjectException;
+
  public abstract long cleanupEvents();
 }

@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.hadoop.hive.ql.plan;
 
 import java.io.Serializable;
@@ -45,6 +44,8 @@ public class DDLWork implements Serializable {
   private AlterIndexDesc alterIdxDesc;
   private ShowDatabasesDesc showDatabasesDesc;
   private ShowTablesDesc showTblsDesc;
+  private ShowColumnsDesc showColumnsDesc;
+  private ShowTblPropertiesDesc showTblPropertiesDesc;
   private LockTableDesc lockTblDesc;
   private UnlockTableDesc unlockTblDesc;
   private ShowFunctionsDesc showFuncsDesc;
@@ -53,6 +54,7 @@ public class DDLWork implements Serializable {
   private ShowPartitionsDesc showPartsDesc;
   private DescTableDesc descTblDesc;
   private AddPartitionDesc addPartitionDesc;
+  private RenamePartitionDesc renamePartitionDesc;
   private AlterTableSimpleDesc alterTblSimpleDesc;
   private MsckDesc msckDesc;
   private ShowTableStatusDesc showTblStatusDesc;
@@ -67,7 +69,7 @@ public class DDLWork implements Serializable {
   private GrantRevokeRoleDDL grantRevokeRoleDDL;
 
   boolean needLock = false;
-  
+
   /**
    * ReadEntitites that are passed to the hooks.
    */
@@ -86,7 +88,9 @@ public class DDLWork implements Serializable {
     this.outputs = outputs;
   }
 
-  public DDLWork(CreateIndexDesc createIndex) {
+  public DDLWork(HashSet<ReadEntity> inputs, HashSet<WriteEntity> outputs,
+      CreateIndexDesc createIndex) {
+    this(inputs, outputs);
     this.createIndexDesc = createIndex;
   }
 
@@ -105,8 +109,9 @@ public class DDLWork implements Serializable {
   }
 
   /**
-   * @param dropDatabaseDesc
-   *          Drop Database descriptor
+   * @param inputs
+   * @param outputs
+   * @param descDatabaseDesc Database descriptor
    */
   public DDLWork(HashSet<ReadEntity> inputs, HashSet<WriteEntity> outputs,
       DescDatabaseDesc descDatabaseDesc) {
@@ -239,6 +244,16 @@ public class DDLWork implements Serializable {
   }
 
   /**
+   * @param showColumnsDesc
+   */
+  public DDLWork(HashSet<ReadEntity> inputs, HashSet<WriteEntity> outputs,
+      ShowColumnsDesc showColumnsDesc) {
+    this(inputs, outputs);
+
+    this.showColumnsDesc = showColumnsDesc;
+  }
+
+  /**
    * @param lockTblDesc
    */
   public DDLWork(HashSet<ReadEntity> inputs, HashSet<WriteEntity> outputs,
@@ -310,8 +325,20 @@ public class DDLWork implements Serializable {
   }
 
   /**
-   * @param touchDesc
-   *          information about the table/partitions that we want to touch
+   * @param renamePartitionDesc
+   *          information about the partitions we want to add.
+   */
+  public DDLWork(HashSet<ReadEntity> inputs, HashSet<WriteEntity> outputs,
+      RenamePartitionDesc renamePartitionDesc) {
+    this(inputs, outputs);
+
+    this.renamePartitionDesc = renamePartitionDesc;
+  }
+
+  /**
+   * @param inputs
+   * @param outputs
+   * @param simpleDesc
    */
   public DDLWork(HashSet<ReadEntity> inputs, HashSet<WriteEntity> outputs,
       AlterTableSimpleDesc simpleDesc) {
@@ -336,6 +363,17 @@ public class DDLWork implements Serializable {
     this(inputs, outputs);
 
     this.showTblStatusDesc = showTblStatusDesc;
+  }
+
+  /**
+   * @param showTblPropertiesDesc
+   *          show table properties descriptor
+   */
+  public DDLWork(HashSet<ReadEntity> inputs, HashSet<WriteEntity> outputs,
+      ShowTblPropertiesDesc showTblPropertiesDesc) {
+    this(inputs, outputs);
+
+    this.showTblPropertiesDesc = showTblPropertiesDesc;
   }
 
   public DDLWork(HashSet<ReadEntity> inputs, HashSet<WriteEntity> outputs,
@@ -470,8 +508,8 @@ public class DDLWork implements Serializable {
   }
 
   /**
-   * @param alterTblDesc
-   *          the alterTblDesc to set
+   * @param alterIndexDesc
+   *          the alterIndexDesc to set
    */
   public void setAlterIndexDesc(AlterIndexDesc alterIndexDesc) {
     this.alterIndexDesc = alterIndexDesc;
@@ -571,6 +609,22 @@ public class DDLWork implements Serializable {
    */
   public void setShowTblsDesc(ShowTablesDesc showTblsDesc) {
     this.showTblsDesc = showTblsDesc;
+  }
+
+  /**
+   * @return the showColumnsDesc
+   */
+  @Explain(displayName = "Show Columns Operator")
+  public ShowColumnsDesc getShowColumnsDesc() {
+    return showColumnsDesc;
+  }
+
+  /**
+   * @param showColumnsDesc
+   *          the showColumnsDesc to set
+   */
+  public void setShowColumnsDesc(ShowColumnsDesc showColumnsDesc) {
+    this.showColumnsDesc = showColumnsDesc;
   }
 
   /**
@@ -713,6 +767,21 @@ public class DDLWork implements Serializable {
   }
 
   /**
+   * @return information about the partitions we want to rename.
+   */
+  public RenamePartitionDesc getRenamePartitionDesc() {
+    return renamePartitionDesc;
+  }
+
+  /**
+   * @param renamePartitionDesc
+   *          information about the partitions we want to rename.
+   */
+  public void setRenamePartitionDesc(RenamePartitionDesc renamePartitionDesc) {
+    this.renamePartitionDesc = renamePartitionDesc;
+  }
+
+  /**
    * @return information about the table/partitions we want to alter.
    */
   public AlterTableSimpleDesc getAlterTblSimpleDesc() {
@@ -755,6 +824,14 @@ public class DDLWork implements Serializable {
    */
   public void setShowTblStatusDesc(ShowTableStatusDesc showTblStatusDesc) {
     this.showTblStatusDesc = showTblStatusDesc;
+  }
+
+  public ShowTblPropertiesDesc getShowTblPropertiesDesc() {
+    return showTblPropertiesDesc;
+  }
+
+  public void setShowTblPropertiesDesc(ShowTblPropertiesDesc showTblPropertiesDesc) {
+    this.showTblPropertiesDesc = showTblPropertiesDesc;
   }
 
   public CreateViewDesc getCreateVwDesc() {
@@ -806,7 +883,7 @@ public class DDLWork implements Serializable {
   public void setRoleDDLDesc(RoleDDLDesc roleDDLDesc) {
     this.roleDDLDesc = roleDDLDesc;
   }
-  
+
   /**
    * @return grant desc
    */
@@ -820,7 +897,7 @@ public class DDLWork implements Serializable {
   public void setGrantDesc(GrantDesc grantDesc) {
     this.grantDesc = grantDesc;
   }
-  
+
   /**
    * @return show grant desc
    */
@@ -842,10 +919,7 @@ public class DDLWork implements Serializable {
   public void setRevokeDesc(RevokeDesc revokeDesc) {
     this.revokeDesc = revokeDesc;
   }
-  
-  /**
-   * @return
-   */
+
   public GrantRevokeRoleDDL getGrantRevokeRoleDDL() {
     return grantRevokeRoleDDL;
   }
@@ -856,7 +930,7 @@ public class DDLWork implements Serializable {
   public void setGrantRevokeRoleDDL(GrantRevokeRoleDDL grantRevokeRoleDDL) {
     this.grantRevokeRoleDDL = grantRevokeRoleDDL;
   }
-  
+
   public void setAlterDatabaseDesc(AlterDatabaseDesc alterDbDesc) {
     this.alterDbDesc = alterDbDesc;
   }
@@ -864,7 +938,7 @@ public class DDLWork implements Serializable {
   public AlterDatabaseDesc getAlterDatabaseDesc() {
     return this.alterDbDesc;
   }
-  
+
   /**
    * @return descriptor for merging files
    */

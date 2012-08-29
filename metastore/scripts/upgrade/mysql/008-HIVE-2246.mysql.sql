@@ -7,10 +7,12 @@ DROP PROCEDURE IF EXISTS CREATE_SDS $$
 DROP PROCEDURE IF EXISTS CREATE_TABLES $$
 DROP PROCEDURE IF EXISTS MIGRATE_TABLES $$
 DROP PROCEDURE IF EXISTS MIGRATE_PARTITIONS $$
+DROP PROCEDURE IF EXISTS MIGRATE_IDXS $$
 DROP PROCEDURE IF EXISTS MIGRATE $$
 DROP PROCEDURE IF EXISTS PRE_MIGRATE $$
-DROP PROCEDURE IF EXISTS RENAME_TMP_COLUMNS $$
+DROP PROCEDURE IF EXISTS RENAME_OLD_COLUMNS $$
 DROP PROCEDURE IF EXISTS CREATE_TABLE_SDS $$
+DROP PROCEDURE IF EXISTS POST_MIGRATE $$
 
 /* Call this procedure to revert all changes by this script */
 CREATE PROCEDURE REVERT()
@@ -20,10 +22,14 @@ CREATE PROCEDURE REVERT()
     ;
     ALTER TABLE SDS
       DROP COLUMN CD_ID
-    ; 
+    ;
     DROP TABLE IF EXISTS COLUMNS_V2;
     DROP TABLE IF EXISTS TABLE_SDS;
     DROP TABLE IF EXISTS CDS;
+    ALTER TABLE COLUMNS_OLD 
+      ADD CONSTRAINT `COLUMNS_FK1` FOREIGN KEY (`SD_ID`) REFERENCES `SDS`(`SD_ID`)
+    ;
+    RENAME TABLE COLUMNS_OLD TO COLUMNS;
 
   END $$
 
@@ -31,7 +37,7 @@ CREATE PROCEDURE REVERT()
  *  - add the column CD_ID
  *  - add a foreign key on CD_ID
  *  - create an index on CD_ID
- */ 
+ */
 CREATE PROCEDURE ALTER_SDS()
   BEGIN
     ALTER TABLE SDS
@@ -44,7 +50,7 @@ CREATE PROCEDURE ALTER_SDS()
       FOREIGN KEY (`CD_ID`) REFERENCES `CDS` (`CD_ID`)
     ;
     SELECT 'Created a FK Constraint on CD_ID in SDS';
-    CREATE INDEX `SDS_N50` ON SDS 
+    CREATE INDEX `SDS_N50` ON SDS
       (CD_ID)
     ;
     SELECT 'Added an index on CD_ID in SDS';
@@ -68,7 +74,7 @@ CREATE PROCEDURE CREATE_TABLES()
 
     CREATE TABLE IF NOT EXISTS `COLUMNS_V2` (
       `CD_ID` bigint(20) NOT NULL,
-      `COMMENT` varchar(256) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL,
+      `COMMENT` varchar(4000) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL,
       `COLUMN_NAME` varchar(128) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL,
       `TYPE_NAME` varchar(4000) DEFAULT NULL,
       `INTEGER_IDX` int(11) NOT NULL,
@@ -81,7 +87,7 @@ CREATE PROCEDURE CREATE_TABLES()
 
 /*
  * Procedures called before migration happens
- */ 
+ */
 CREATE PROCEDURE PRE_MIGRATE()
   BEGIN
     call CREATE_TABLES();
@@ -97,25 +103,25 @@ CREATE PROCEDURE PRE_MIGRATE()
  * Add entries into CDS.
  * Populate the CD_ID field in SDS for tables
  * Add entires to COLUMNS_V2 based on this table's sd's columns
- */ 
+ */
 CREATE PROCEDURE MIGRATE_TABLES()
   BEGIN
     /* In the migration, there is a 1:1 mapping between CD_ID and SD_ID
-     * for tables. For speed, just let CD_ID = SD_ID for tables 
+     * for tables. For speed, just let CD_ID = SD_ID for tables
      */
     INSERT INTO CDS (CD_ID)
     SELECT SD_ID FROM TABLE_SDS;
     SELECT 'Inserted into CDS';
-    
+
     UPDATE SDS
       SET CD_ID = SD_ID
-    WHERE SD_ID in 
+    WHERE SD_ID in
     (select SD_ID from TABLE_SDS);
     SELECT 'Updated CD_ID in SDS';
 
     INSERT INTO COLUMNS_V2
       (CD_ID, COMMENT, COLUMN_NAME, TYPE_NAME, INTEGER_IDX)
-    SELECT 
+    SELECT
       c.SD_ID, c.COMMENT, c.COLUMN_NAME, c.TYPE_NAME, c.INTEGER_IDX
     FROM
       COLUMNS c
@@ -137,10 +143,43 @@ CREATE PROCEDURE MIGRATE_PARTITIONS()
     JOIN PARTITIONS p on p.SD_ID = sd.SD_ID
     JOIN TBLS t on t.TBL_ID = p.TBL_ID
     SET sd.CD_ID = t.SD_ID
-    where p.SD_ID is not null
-    ;
+    where p.SD_ID is not null;
     SELECT 'Updated CD_IDs in SDS for partitions';
-      
+  END $$
+
+/*
+ * Migrate the IDXS table
+ * Add entries into CDS.
+ * Populate the CD_ID field in SDS for tables
+ */
+CREATE PROCEDURE MIGRATE_IDXS()
+  BEGIN
+    /* In the migration, there is a 1:1 mapping between CD_ID and SD_ID
+     * for indexes. For speed, just let CD_ID = SD_ID for indexes
+     */
+    INSERT INTO CDS (CD_ID)
+    SELECT SD_ID FROM IDXS
+    WHERE SD_ID IS NOT NULL;
+    SELECT 'Inserted into CDS for IDXS';
+
+    UPDATE SDS
+      SET CD_ID = SD_ID
+    WHERE SD_ID in
+    (SELECT i.SD_ID FROM IDXS i WHERE i.SD_ID IS NOT NULL);
+    SELECT 'Updated CD_ID in SDS for IDXS';
+
+    INSERT INTO COLUMNS_V2
+      (CD_ID, COMMENT, COLUMN_NAME, TYPE_NAME, INTEGER_IDX)
+    SELECT
+      c.SD_ID, c.COMMENT, c.COLUMN_NAME, c.TYPE_NAME, c.INTEGER_IDX
+    FROM
+      COLUMNS c
+    JOIN
+      IDXS i
+    ON
+      i.SD_ID = c.SD_ID
+    ;
+    SELECT 'Inserted table columns into COLUMNS_V2';
   END $$
 
 /*
@@ -153,7 +192,7 @@ CREATE PROCEDURE CREATE_TABLE_SDS()
       PRIMARY KEY (`SD_ID`)
     ) ENGINE=InnoDB DEFAULT CHARSET=latin1
     ;
-    INSERT INTO TABLE_SDS 
+    INSERT INTO TABLE_SDS
       (SD_ID)
     SELECT
       t.SD_ID
@@ -161,34 +200,31 @@ CREATE PROCEDURE CREATE_TABLE_SDS()
       TBLS t
     WHERE
       t.SD_ID IS NOT NULL
-    ORDER BY 
+    ORDER BY
       t.SD_ID
     ;
  END $$
 
 /*
- * A currently unused function to igrate the COLUMNS_V2 table
- * to have the name COLUMNS
+ * Rename the old columns table, so old clients do not
+ * read from the unused COLUMNS table.
+ * After you are sure migration is successful, you can drop
+ * the table COLUMNS_OLD
  */
-CREATE PROCEDURE RENAME_TMP_COLUMNS()
+CREATE PROCEDURE RENAME_OLD_COLUMNS()
   BEGIN
-    /*DROP TABLE `COLUMNS`;*/
-    RENAME TABLE `COLUMNS_V2` TO `COLUMNS`;
-    SELECT 'Renamed COLUMNS_V2 to COLUMNS';
-    ALTER TABLE `COLUMNS`
-      DROP FOREIGN KEY `COLUMNS_V2_FK1`;
-    SELECT 'Dropped FK on Columns';
-    DROP INDEX `COLUMNS_V2_N49` ON COLUMNS;
-    SELECT 'Dropped Index on Columns';
-    CREATE INDEX `COLUMNS_N49` ON COLUMNS
-      (CD_ID)
-    ;
-    SELECT 'Added index on Columns';
-    ALTER TABLE COLUMNS_
-    ADD CONSTRAINT `COLUMNS_FK1`
-      FOREIGN KEY (`CD_ID`) REFERENCES `CDS` (`CD_ID`)
-    ;
-    SELECT 'Added FK on Columns';
+    RENAME TABLE `COLUMNS` TO `COLUMNS_OLD`;
+    ALTER TABLE COLUMNS_OLD 
+      DROP FOREIGN KEY `COLUMNS_FK1`;
+  END $$
+
+/*
+ * calls procedures that happen after migration
+ */
+CREATE PROCEDURE POST_MIGRATE()
+  BEGIN
+    call RENAME_OLD_COLUMNS();
+    SELECT 'Renamed columns to old columns';
   END $$
 
 /*
@@ -202,8 +238,12 @@ CREATE PROCEDURE MIGRATE()
     SELECT 'Completed migrating tables';
     call MIGRATE_PARTITIONS();
     SELECT 'Completed migrating partitions';
-    /* Migrate indexes? */
+    call MIGRATE_IDXS();
+    SELECT 'Completed migrating idxs';
+    call POST_MIGRATE();
+    SELECT 'Completed post migrate';
   END $$
+
 
 DELIMITER ;
 

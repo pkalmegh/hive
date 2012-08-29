@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
 
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.TableScanOperator;
 import org.apache.hadoop.hive.ql.exec.Task;
@@ -32,12 +33,13 @@ import org.apache.hadoop.hive.ql.lib.Node;
 import org.apache.hadoop.hive.ql.lib.NodeProcessor;
 import org.apache.hadoop.hive.ql.lib.NodeProcessorCtx;
 import org.apache.hadoop.hive.ql.metadata.Partition;
+import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.optimizer.GenMRProcContext.GenMapRedCtx;
+import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer.tableSpec;
 import org.apache.hadoop.hive.ql.parse.ParseContext;
 import org.apache.hadoop.hive.ql.parse.PrunedPartitionList;
 import org.apache.hadoop.hive.ql.parse.QBParseInfo;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
-import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer.tableSpec;
 import org.apache.hadoop.hive.ql.plan.MapredWork;
 import org.apache.hadoop.hive.ql.plan.StatsWork;
 /**
@@ -85,9 +87,13 @@ public class GenMRTableScan1 implements NodeProcessor {
 
           StatsWork statsWork = new StatsWork(parseCtx.getQB().getParseInfo().getTableSpec());
           statsWork.setAggKey(op.getConf().getStatsAggPrefix());
+          statsWork.setStatsReliable(
+            parseCtx.getConf().getBoolVar(HiveConf.ConfVars.HIVE_STATS_RELIABLE));
           Task<StatsWork> statsTask = TaskFactory.get(statsWork, parseCtx.getConf());
           currTask.addDependentTask(statsTask);
-          ctx.getRootTasks().add(currTask);
+          if (!ctx.getRootTasks().contains(currTask)) {
+            ctx.getRootTasks().add(currTask);
+          }
           currWork.setGatheringStats(true);
           // NOTE: here we should use the new partition predicate pushdown API to get a list of pruned list,
           // and pass it to setTaskPlan as the last parameter
@@ -101,7 +107,9 @@ public class GenMRTableScan1 implements NodeProcessor {
             confirmedPartns.addAll(tblSpec.partitions);
           }
           if (confirmedPartns.size() > 0) {
-            PrunedPartitionList partList = new PrunedPartitionList(confirmedPartns, new HashSet<Partition>(), null);
+            Table source = parseCtx.getQB().getMetaData().getTableForAlias(alias);
+            PrunedPartitionList partList = new PrunedPartitionList(source, confirmedPartns,
+                new HashSet<Partition>(), null);
             GenMapRedUtils.setTaskPlan(currAliasId, currTopOp, currWork, false, ctx, partList);
           } else { // non-partitioned table
             GenMapRedUtils.setTaskPlan(currAliasId, currTopOp, currWork, false, ctx);

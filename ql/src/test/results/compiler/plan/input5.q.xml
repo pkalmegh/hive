@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?> 
-<java version="1.6.0_07" class="java.beans.XMLDecoder"> 
+#### A masked pattern was here #### 
  <object id="MapRedTask0" class="org.apache.hadoop.hive.ql.exec.MapRedTask"> 
   <void property="childTasks"> 
    <object class="java.util.ArrayList"> 
@@ -10,7 +10,7 @@
         <void method="add"> 
          <object id="StatsTask0" class="org.apache.hadoop.hive.ql.exec.StatsTask"> 
           <void property="id"> 
-           <string>Stage-4</string> 
+           <string>Stage-5</string> 
           </void> 
           <void property="parentTasks"> 
            <object class="java.util.ArrayList"> 
@@ -22,7 +22,7 @@
           <void property="work"> 
            <object class="org.apache.hadoop.hive.ql.plan.StatsWork"> 
             <void property="aggKey"> 
-             <string>pfile:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-04-28_23-54-35_122_1680964419574262957/-ext-10000/</string> 
+             #### A masked pattern was here #### 
             </void> 
            </object> 
           </void> 
@@ -38,7 +38,7 @@
        </object> 
       </void> 
       <void property="id"> 
-       <string>Stage-2</string> 
+       <string>Stage-3</string> 
       </void> 
       <void property="parentTasks"> 
        <object class="java.util.ArrayList"> 
@@ -58,7 +58,7 @@
            <boolean>true</boolean> 
           </void> 
           <void property="sourceDir"> 
-           <string>pfile:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-04-28_23-54-35_122_1680964419574262957/-ext-10000</string> 
+           #### A masked pattern was here #### 
           </void> 
           <void property="table"> 
            <object id="TableDesc0" class="org.apache.hadoop.hive.ql.plan.TableDesc"> 
@@ -111,11 +111,11 @@
               </void> 
               <void method="put"> 
                <string>location</string> 
-               <string>pfile:/data/users/sdong/www/open-source-hive1/build/ql/test/data/warehouse/dest1</string> 
+               #### A masked pattern was here #### 
               </void> 
               <void method="put"> 
                <string>transient_lastDdlTime</string> 
-               <string>1304060074</string> 
+               #### A masked pattern was here #### 
               </void> 
              </object> 
             </void> 
@@ -125,7 +125,7 @@
            </object> 
           </void> 
           <void property="tmpDir"> 
-           <string>pfile:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-04-28_23-54-35_122_1680964419574262957/-ext-10001</string> 
+           #### A masked pattern was here #### 
           </void> 
          </object> 
         </void> 
@@ -136,7 +136,7 @@
    </object> 
   </void> 
   <void property="id"> 
-   <string>Stage-3</string> 
+   <string>Stage-4</string> 
   </void> 
   <void property="work"> 
    <object class="org.apache.hadoop.hive.ql.plan.MapredWork"> 
@@ -163,6 +163,10 @@
           <string>default.src_thrift</string> 
          </void> 
          <void method="put"> 
+          <string>numFiles</string> 
+          <string>1</string> 
+         </void> 
+         <void method="put"> 
           <string>columns.types</string> 
           <string></string> 
          </void> 
@@ -177,6 +181,18 @@
          <void method="put"> 
           <string>serialization.format</string> 
           <string>org.apache.thrift.protocol.TBinaryProtocol</string> 
+         </void> 
+         <void method="put"> 
+          <string>rawDataSize</string> 
+          <string>0</string> 
+         </void> 
+         <void method="put"> 
+          <string>numRows</string> 
+          <string>0</string> 
+         </void> 
+         <void method="put"> 
+          <string>numPartitions</string> 
+          <string>0</string> 
          </void> 
          <void method="put"> 
           <string>serialization.class</string> 
@@ -195,16 +211,20 @@
           <string>org.apache.hadoop.mapred.SequenceFileInputFormat</string> 
          </void> 
          <void method="put"> 
+          <string>totalSize</string> 
+          <string>1606</string> 
+         </void> 
+         <void method="put"> 
           <string>file.outputformat</string> 
           <string>org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat</string> 
          </void> 
          <void method="put"> 
           <string>location</string> 
-          <string>pfile:/data/users/sdong/www/open-source-hive1/build/ql/test/data/warehouse/src_thrift</string> 
+          #### A masked pattern was here #### 
          </void> 
          <void method="put"> 
           <string>transient_lastDdlTime</string> 
-          <string>1304060074</string> 
+          #### A masked pattern was here #### 
          </void> 
         </object> 
        </void> 
@@ -229,6 +249,10 @@
             <string>default.src_thrift</string> 
            </void> 
            <void method="put"> 
+            <string>numFiles</string> 
+            <string>1</string> 
+           </void> 
+           <void method="put"> 
             <string>columns.types</string> 
             <string></string> 
            </void> 
@@ -243,6 +267,18 @@
            <void method="put"> 
             <string>serialization.format</string> 
             <string>org.apache.thrift.protocol.TBinaryProtocol</string> 
+           </void> 
+           <void method="put"> 
+            <string>rawDataSize</string> 
+            <string>0</string> 
+           </void> 
+           <void method="put"> 
+            <string>numRows</string> 
+            <string>0</string> 
+           </void> 
+           <void method="put"> 
+            <string>numPartitions</string> 
+            <string>0</string> 
            </void> 
            <void method="put"> 
             <string>serialization.class</string> 
@@ -261,16 +297,20 @@
             <string>org.apache.hadoop.mapred.SequenceFileInputFormat</string> 
            </void> 
            <void method="put"> 
+            <string>totalSize</string> 
+            <string>1606</string> 
+           </void> 
+           <void method="put"> 
             <string>file.outputformat</string> 
             <string>org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat</string> 
            </void> 
            <void method="put"> 
             <string>location</string> 
-            <string>pfile:/data/users/sdong/www/open-source-hive1/build/ql/test/data/warehouse/src_thrift</string> 
+            #### A masked pattern was here #### 
            </void> 
            <void method="put"> 
             <string>transient_lastDdlTime</string> 
-            <string>1304060074</string> 
+            #### A masked pattern was here #### 
            </void> 
           </object> 
          </void> 
@@ -1014,7 +1054,7 @@
     <void property="pathToAliases"> 
      <object class="java.util.LinkedHashMap"> 
       <void method="put"> 
-       <string>pfile:/data/users/sdong/www/open-source-hive1/build/ql/test/data/warehouse/src_thrift</string> 
+       #### A masked pattern was here #### 
        <object class="java.util.ArrayList"> 
         <void method="add"> 
          <string>tmap:src_thrift</string> 
@@ -1026,7 +1066,7 @@
     <void property="pathToPartitionInfo"> 
      <object class="java.util.LinkedHashMap"> 
       <void method="put"> 
-       <string>pfile:/data/users/sdong/www/open-source-hive1/build/ql/test/data/warehouse/src_thrift</string> 
+       #### A masked pattern was here #### 
        <object class="org.apache.hadoop.hive.ql.plan.PartitionDesc"> 
         <void property="baseFileName"> 
          <string>src_thrift</string> 
@@ -1050,6 +1090,10 @@
            <string>default.src_thrift</string> 
           </void> 
           <void method="put"> 
+           <string>numFiles</string> 
+           <string>1</string> 
+          </void> 
+          <void method="put"> 
            <string>columns.types</string> 
            <string></string> 
           </void> 
@@ -1064,6 +1108,18 @@
           <void method="put"> 
            <string>serialization.format</string> 
            <string>org.apache.thrift.protocol.TBinaryProtocol</string> 
+          </void> 
+          <void method="put"> 
+           <string>rawDataSize</string> 
+           <string>0</string> 
+          </void> 
+          <void method="put"> 
+           <string>numRows</string> 
+           <string>0</string> 
+          </void> 
+          <void method="put"> 
+           <string>numPartitions</string> 
+           <string>0</string> 
           </void> 
           <void method="put"> 
            <string>serialization.class</string> 
@@ -1082,16 +1138,20 @@
            <string>org.apache.hadoop.mapred.SequenceFileInputFormat</string> 
           </void> 
           <void method="put"> 
+           <string>totalSize</string> 
+           <string>1606</string> 
+          </void> 
+          <void method="put"> 
            <string>file.outputformat</string> 
            <string>org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat</string> 
           </void> 
           <void method="put"> 
            <string>location</string> 
-           <string>pfile:/data/users/sdong/www/open-source-hive1/build/ql/test/data/warehouse/src_thrift</string> 
+           #### A masked pattern was here #### 
           </void> 
           <void method="put"> 
            <string>transient_lastDdlTime</string> 
-           <string>1304060074</string> 
+           #### A masked pattern was here #### 
           </void> 
          </object> 
         </void> 
@@ -1116,6 +1176,10 @@
              <string>default.src_thrift</string> 
             </void> 
             <void method="put"> 
+             <string>numFiles</string> 
+             <string>1</string> 
+            </void> 
+            <void method="put"> 
              <string>columns.types</string> 
              <string></string> 
             </void> 
@@ -1130,6 +1194,18 @@
             <void method="put"> 
              <string>serialization.format</string> 
              <string>org.apache.thrift.protocol.TBinaryProtocol</string> 
+            </void> 
+            <void method="put"> 
+             <string>rawDataSize</string> 
+             <string>0</string> 
+            </void> 
+            <void method="put"> 
+             <string>numRows</string> 
+             <string>0</string> 
+            </void> 
+            <void method="put"> 
+             <string>numPartitions</string> 
+             <string>0</string> 
             </void> 
             <void method="put"> 
              <string>serialization.class</string> 
@@ -1148,16 +1224,20 @@
              <string>org.apache.hadoop.mapred.SequenceFileInputFormat</string> 
             </void> 
             <void method="put"> 
+             <string>totalSize</string> 
+             <string>1606</string> 
+            </void> 
+            <void method="put"> 
              <string>file.outputformat</string> 
              <string>org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat</string> 
             </void> 
             <void method="put"> 
              <string>location</string> 
-             <string>pfile:/data/users/sdong/www/open-source-hive1/build/ql/test/data/warehouse/src_thrift</string> 
+             #### A masked pattern was here #### 
             </void> 
             <void method="put"> 
              <string>transient_lastDdlTime</string> 
-             <string>1304060074</string> 
+             #### A masked pattern was here #### 
             </void> 
            </object> 
           </void> 
@@ -1186,7 +1266,7 @@
                  <int>1</int> 
                 </void> 
                 <void property="dirName"> 
-                 <string>pfile:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-04-28_23-54-35_122_1680964419574262957/-ext-10000</string> 
+                 #### A masked pattern was here #### 
                 </void> 
                 <void property="gatherStats"> 
                  <boolean>true</boolean> 
@@ -1195,7 +1275,7 @@
                  <int>1</int> 
                 </void> 
                 <void property="statsAggPrefix"> 
-                 <string>pfile:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-04-28_23-54-35_122_1680964419574262957/-ext-10000/</string> 
+                 #### A masked pattern was here #### 
                 </void> 
                 <void property="tableInfo"> 
                  <object idref="TableDesc0"/> 

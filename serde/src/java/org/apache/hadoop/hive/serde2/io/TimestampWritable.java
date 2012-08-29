@@ -166,7 +166,7 @@ public class TimestampWritable implements WritableComparable<TimestampWritable> 
       return timestamp.getNanos();
     }
 
-    return TimestampWritable.getNanos(currentBytes, offset+4);
+    return hasDecimal() ? TimestampWritable.getNanos(currentBytes, offset+4) : 0;
   }
 
   /**
@@ -183,7 +183,7 @@ public class TimestampWritable implements WritableComparable<TimestampWritable> 
    */
   private int getDecimalLength() {
     checkBytes();
-    return WritableUtils.decodeVIntSize(currentBytes[offset+4]);
+    return hasDecimal() ? WritableUtils.decodeVIntSize(currentBytes[offset+4]) : 0;
   }
 
   public Timestamp getTimestamp() {
@@ -354,7 +354,7 @@ public class TimestampWritable implements WritableComparable<TimestampWritable> 
    * Gets seconds stored as integer at bytes[offset]
    * @param bytes
    * @param offset
-   * @return
+   * @return the number of seconds
    */
   public static int getSeconds(byte[] bytes, int offset) {
     return NO_DECIMAL_MASK & bytesToInt(bytes, offset);
@@ -393,7 +393,7 @@ public class TimestampWritable implements WritableComparable<TimestampWritable> 
     long millis = t.getTime();
     int nanos = t.getNanos();
 
-    boolean hasDecimal = setNanosBytes(nanos, b, offset+4);
+    boolean hasDecimal = nanos != 0 && setNanosBytes(nanos, b, offset+4);
     setSecondsBytes(millis, b, offset, hasDecimal);
   }
 
@@ -445,7 +445,7 @@ public class TimestampWritable implements WritableComparable<TimestampWritable> 
   /**
    * Interprets a float as a unix timestamp and returns a Timestamp object
    * @param f
-   * @return
+   * @return the equivalent Timestamp object
    */
   public static Timestamp floatToTimestamp(float f) {
     return doubleToTimestamp((double) f);
@@ -471,14 +471,21 @@ public class TimestampWritable implements WritableComparable<TimestampWritable> 
   }
 
   public static void setTimestamp(Timestamp t, byte[] bytes, int offset) {
+    boolean hasDecimal = hasDecimal(bytes[offset]);
     t.setTime(((long) TimestampWritable.getSeconds(bytes, offset)) * 1000);
-    t.setNanos(TimestampWritable.getNanos(bytes, offset+4));
+    if (hasDecimal) {
+      t.setNanos(TimestampWritable.getNanos(bytes, offset+4));
+    }
   }
 
   public static Timestamp createTimestamp(byte[] bytes, int offset) {
     Timestamp t = new Timestamp(0);
     TimestampWritable.setTimestamp(t, bytes, offset);
     return t;
+  }
+
+  public boolean hasDecimal() {
+    return hasDecimal(currentBytes[offset]);
   }
 
   /**

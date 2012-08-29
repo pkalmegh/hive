@@ -29,28 +29,6 @@
 
   <import file="../build-common.xml"/>
 
-  <path id="test.classpath">
-    <pathelement location="${build.dir.hive}/ql/test/classes" />
-    <pathelement location="${test.build.classes}" />
-    <pathelement location="" />
-    <pathelement location="${hadoop.conf.dir}"/>
-    <pathelement location="${test.src.data.dir}/conf"/>
-    <pathelement location="${hive.conf.dir}"/>
-    <pathelement location="${hive.root}/cli/lib/jline-0.9.94.jar"/>
-    <pathelement location="${hadoop.oldstyle-name.test.jar}"/>
-    <pathelement location="${hadoop.newstyle-name.test.jar}"/>
-    <pathelement location="${jetty.test.jar}"/>
-    <pathelement location="${servlet.test.jar}"/>
-    <pathelement location="${jasper.test.jar}"/>
-    <pathelement location="${jasperc.test.jar}"/>
-    <pathelement location="${jsp.test.jar}"/>
-    <pathelement location="${common.jar}"/>
-    <fileset dir="${hive.root}" includes="testlibs/*.jar"/>
-    <fileset dir="${hadoop.root}/lib" includes="*.jar"/>
-    <fileset dir="${hadoop.root}/lib/jsp-2.1" includes="*.jar"/>
-    <path refid="classpath"/>
-  </path>
-
   <target name="test-jar" depends="compile-test, jar">
     <echo message="Project: ${ant.project.name}"/>
     <delete file="${test.build.dir}/test-udfs.jar"/>
@@ -63,7 +41,7 @@
   <target name="gen-test" depends="test-conditions, test-init" >
     <echo message="Project: ${ant.project.name}"/>
     <taskdef name="qtestgen" classname="org.apache.hadoop.hive.ant.QTestGenTask"
-             classpath="${build.dir.hive}/anttasks/hive-anttasks-${version}.jar:${hive.root}/lib/velocity-1.5.jar:${hive.root}/lib/commons-collections-3.2.1.jar:${hive.root}/lib/commons-lang-2.4.jar"/>
+             classpath="${build.dir.hive}/anttasks/hive-anttasks-${version}.jar:${build.ivy.lib.dir}/default/velocity-${velocity.version}.jar:${build.ivy.lib.dir}/default/commons-collections-${commons-collections.version}.jar:${build.ivy.lib.dir}/default/commons-lang-${commons-lang.version}.jar"/>
     
     <mkdir dir="${test.build.src}/org/apache/hadoop/hive/cli"/>
     <mkdir dir="${test.log.dir}/hbase-handler"/>
@@ -71,21 +49,30 @@
 
     <qtestgen outputDirectory="${test.build.src}/org/apache/hadoop/hive/cli" 
               templatePath="${ql.hbase.test.template.dir}" template="TestHBaseCliDriver.vm" 
-              queryDirectory="${hbase-handler.test.query.dir}" 
+              queryDirectory="${hbase-handler.test.query.dir}/positive" 
               queryFile="${qfile}"
               runDisabled="${run_disabled}"
               clusterMode="${clustermode}"
-              resultsDirectory="${hbase-handler.test.results.dir}" className="TestHBaseCliDriver"
+              resultsDirectory="${hbase-handler.test.results.dir}/positive" className="TestHBaseCliDriver"
               logFile="${test.log.dir}/testhbaseclidrivergen.log"
               logDirectory="${test.log.dir}/hbase-handler"/>
     <qtestgen outputDirectory="${test.build.src}/org/apache/hadoop/hive/cli" 
               templatePath="${ql.hbase.test.template.dir}" template="TestHBaseCliDriver.vm" 
-              queryDirectory="${hbase-handler.test.query.dir}" 
+              queryDirectory="${hbase-handler.test.query.dir}/positive" 
               queryFile="hbase_bulk.m"
               runDisabled="${run_disabled}"
               clusterMode="miniMR"
-              resultsDirectory="${hbase-handler.test.results.dir}" className="TestHBaseMinimrCliDriver"
+              resultsDirectory="${hbase-handler.test.results.dir}/positive" className="TestHBaseMinimrCliDriver"
               logFile="${test.log.dir}/testhbaseminimrclidrivergen.log"
+              logDirectory="${test.log.dir}/hbase-handler"/>
+  <qtestgen outputDirectory="${test.build.src}/org/apache/hadoop/hive/cli"
+              templatePath="${ql.hbase.test.template.dir}" template="TestHBaseNegativeCliDriver.vm"
+              queryDirectory="${hbase-handler.test.query.dir}/negative"
+              queryFile="${qfile}"
+              runDisabled="${run_disabled}"
+              clusterMode="${clustermode}"
+              resultsDirectory="${hbase-handler.test.results.dir}/negative" className="TestHBaseNegativeCliDriver"
+              logFile="${test.log.dir}/testhbasenegativeclidrivergen.log"
               logDirectory="${test.log.dir}/hbase-handler"/>
   </target>
 

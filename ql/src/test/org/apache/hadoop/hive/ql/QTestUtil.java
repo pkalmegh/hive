@@ -21,12 +21,15 @@ package org.apache.hadoop.hive.ql;
 import static org.apache.hadoop.hive.metastore.MetaStoreUtils.DEFAULT_DATABASE_NAME;
 
 import java.io.BufferedInputStream;
-import java.io.DataInputStream;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.FileWriter;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
@@ -50,6 +53,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.zookeeper.MiniZooKeeperCluster;
 import org.apache.hadoop.hive.cli.CliDriver;
 import org.apache.hadoop.hive.cli.CliSessionState;
+import org.apache.hadoop.hive.common.io.CachingPrintStream;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.hive.metastore.api.Index;
@@ -76,6 +80,7 @@ import org.apache.hadoop.mapred.MiniMRCluster;
 import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.mapred.TextInputFormat;
+import org.apache.hadoop.util.Shell;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.zookeeper.ZooKeeper;
 
@@ -88,10 +93,6 @@ public class QTestUtil {
   private static final Log LOG = LogFactory.getLog("QTestUtil");
 
   private String testWarehouse;
-  private final String tmpdir= System.getProperty("test.tmp.dir") ;
-  private final Path tmppath = new Path(tmpdir);
-
-
   private final String testFiles;
   protected final String outDir;
   protected final String logDir;
@@ -203,17 +204,62 @@ public class QTestUtil {
   }
 
   public void initConf() throws Exception {
+
+    if (Shell.WINDOWS) {
+      convertPathsFromWindowsToHdfs();
+    }
+
     if (miniMr) {
       assert dfs != null;
       assert mr != null;
       // set fs.default.name to the uri of mini-dfs
-      conf.setVar(HiveConf.ConfVars.HADOOPFS, dfs.getFileSystem().getUri().toString());
+      String dfsUriString = getHdfsUriString(dfs.getFileSystem().getUri().toString());
+      conf.setVar(HiveConf.ConfVars.HADOOPFS, dfsUriString);
       // hive.metastore.warehouse.dir needs to be set relative to the mini-dfs
       conf.setVar(HiveConf.ConfVars.METASTOREWAREHOUSE,
-                  (new Path(dfs.getFileSystem().getUri().toString(),
+                  (new Path(dfsUriString,
                             "/build/ql/test/data/warehouse/")).toString());
       conf.setVar(HiveConf.ConfVars.HADOOPJT, "localhost:" + mr.getJobTrackerPort());
     }
+  }
+
+  private void convertPathsFromWindowsToHdfs() {
+    // Following local paths are used as HDFS paths in unit tests.
+    // It works well in Unix as the path notation in Unix and HDFS is more or less same.
+    // But when it comes to Windows, drive letter separator ':' & backslash '\" are invalid
+    // characters in HDFS so we need to converts these local paths to HDFS paths before using them
+    // in unit tests.
+
+    // hive.exec.scratchdir needs to be set relative to the mini-dfs
+    String orgWarehouseDir = conf.getVar(HiveConf.ConfVars.METASTOREWAREHOUSE);
+    conf.setVar(HiveConf.ConfVars.METASTOREWAREHOUSE, getHdfsUriString(orgWarehouseDir));
+
+    String orgTestTempDir = System.getProperty("test.tmp.dir");
+    System.setProperty("test.tmp.dir", getHdfsUriString(orgTestTempDir));
+
+    String orgTestDataDir = System.getProperty("test.src.data.dir");
+    System.setProperty("test.src.data.dir", getHdfsUriString(orgTestDataDir));
+
+    String orgScratchDir = conf.getVar(HiveConf.ConfVars.SCRATCHDIR);
+    conf.setVar(HiveConf.ConfVars.SCRATCHDIR, getHdfsUriString(orgScratchDir));
+
+    if (miniMr) {
+      String orgAuxJarFolder = conf.getAuxJars();
+      conf.setAuxJars(getHdfsUriString("file://" + orgAuxJarFolder));
+    }
+  }
+
+  private String getHdfsUriString(String uriStr) {
+    assert uriStr != null;
+    if(Shell.WINDOWS) {
+      // If the URI conversion is from Windows to HDFS then replace the '\' with '/'
+      // and remove the windows single drive letter & colon from absolute path.
+      return uriStr.replace('\\', '/')
+        .replaceFirst("/[c-zC-Z]:", "/")
+        .replaceFirst("^[c-zC-Z]:", "");
+    }
+
+    return uriStr;
   }
 
   public QTestUtil(String outDir, String logDir, boolean miniMr, String hadoopVer)
@@ -229,13 +275,18 @@ public class QTestUtil {
     if (miniMr) {
       dfs = ShimLoader.getHadoopShims().getMiniDfs(conf, 4, true, null);
       FileSystem fs = dfs.getFileSystem();
-      mr = new MiniMRCluster(4, fs.getUri().toString(), 1);
+      mr = new MiniMRCluster(4, getHdfsUriString(fs.getUri().toString()), 1);
     }
 
     initConf();
 
-    testFiles = conf.get("test.data.files").replace('\\', '/')
-        .replace("c:", "");
+    // Use the current directory if it is not specified
+    String dataDir = conf.get("test.data.files");
+    if (dataDir == null) {
+      dataDir = new File(".").getAbsolutePath() + "/data/files";
+    }
+
+    testFiles = dataDir;
 
     String ow = System.getProperty("test.output.overwrite");
     if ((ow != null) && ow.equalsIgnoreCase("true")) {
@@ -270,51 +321,69 @@ public class QTestUtil {
   }
 
   public void addFile(File qf) throws Exception {
-
     FileInputStream fis = new FileInputStream(qf);
     BufferedInputStream bis = new BufferedInputStream(fis);
-    DataInputStream dis = new DataInputStream(bis);
+    BufferedReader br = new BufferedReader(new InputStreamReader(bis, "UTF8"));
     StringBuilder qsb = new StringBuilder();
 
     // Look for a hint to not run a test on some Hadoop versions
-    Pattern pattern = Pattern.compile("-- EXCLUDE_HADOOP_MAJOR_VERSIONS(.*)");
+    Pattern pattern = Pattern.compile("-- (EX|IN)CLUDE_HADOOP_MAJOR_VERSIONS\\((.*)\\)");
 
+    boolean excludeQuery = false;
+    boolean includeQuery = false;
+    Set<String> versionSet = new HashSet<String>();
+    String hadoopVer = ShimLoader.getMajorVersion();
+    String line;
 
     // Read the entire query
-    boolean excludeQuery = false;
-    String hadoopVer = ShimLoader.getMajorVersion();
-    while (dis.available() != 0) {
-      String line = dis.readLine();
+    while ((line = br.readLine()) != null) {
 
-      // While we are reading the lines, detect whether this query wants to be
-      // excluded from running because the Hadoop version is incorrect
+      // Each qfile may include at most one INCLUDE or EXCLUDE directive.
+      //
+      // If a qfile contains an INCLUDE directive, and hadoopVer does
+      // not appear in the list of versions to include, then the qfile
+      // is skipped.
+      //
+      // If a qfile contains an EXCLUDE directive, and hadoopVer is
+      // listed in the list of versions to EXCLUDE, then the qfile is
+      // skipped.
+      //
+      // Otherwise, the qfile is included.
       Matcher matcher = pattern.matcher(line);
       if (matcher.find()) {
-        String group = matcher.group();
-        int start = group.indexOf('(');
-        int end = group.indexOf(')');
-        assert end > start;
-        // versions might be something like '0.17, 0.19'
-        String versions = group.substring(start+1, end);
+        if (excludeQuery || includeQuery) {
+          String message = "QTestUtil: qfile " + qf.getName()
+            + " contains more than one reference to (EX|IN)CLUDE_HADOOP_MAJOR_VERSIONS";
+          throw new UnsupportedOperationException(message);
+        }
 
-        Set<String> excludedVersionSet = new HashSet<String>();
+        String prefix = matcher.group(1);
+        if ("EX".equals(prefix)) {
+          excludeQuery = true;
+        } else {
+          includeQuery = true;
+        }
+
+        String versions = matcher.group(2);
         for (String s : versions.split("\\,")) {
           s = s.trim();
-          excludedVersionSet.add(s);
-        }
-        if (excludedVersionSet.contains(hadoopVer)) {
-          excludeQuery = true;
+          versionSet.add(s);
         }
       }
       qsb.append(line + "\n");
     }
     qMap.put(qf.getName(), qsb.toString());
-    if(excludeQuery) {
-      System.out.println("Due to the Hadoop Version ("+ hadoopVer + "), " +
-          "adding query " + qf.getName() + " to the set of tests to skip");
+
+    if (excludeQuery && versionSet.contains(hadoopVer)) {
+      System.out.println("QTestUtil: " + qf.getName()
+        + " EXCLUDE list contains Hadoop Version " + hadoopVer + ". Skipping...");
       qSkipSet.add(qf.getName());
-     }
-    dis.close();
+    } else if (includeQuery && !versionSet.contains(hadoopVer)) {
+      System.out.println("QTestUtil: " + qf.getName()
+        + " INCLUDE list does not contain Hadoop Version " + hadoopVer + ". Skipping...");
+      qSkipSet.add(qf.getName());
+    }
+    br.close();
   }
 
   /**
@@ -355,7 +424,7 @@ public class QTestUtil {
         db.dropDatabase(dbName);
       }
     }
-    db.setCurrentDatabase(DEFAULT_DATABASE_NAME);
+    Hive.get().setCurrentDatabase(DEFAULT_DATABASE_NAME);
 
     List<String> roleNames = db.getAllRoleNames();
       for (String roleName : roleNames) {
@@ -380,9 +449,14 @@ public class QTestUtil {
     // delete any contents in the warehouse dir
     Path p = new Path(testWarehouse);
     FileSystem fs = p.getFileSystem(conf);
-    FileStatus [] ls = fs.listStatus(p);
-    for (int i=0; (ls != null) && (i<ls.length); i++) {
-      fs.delete(ls[i].getPath(), true);
+
+    try {
+      FileStatus [] ls = fs.listStatus(p);
+      for (int i=0; (ls != null) && (i<ls.length); i++) {
+        fs.delete(ls[i].getPath(), true);
+      }
+    } catch (FileNotFoundException e) {
+      // Best effort
     }
 
     FunctionRegistry.unregisterTemporaryUDF("test_udaf");
@@ -438,7 +512,7 @@ public class QTestUtil {
         // db.createPartition(srcpart, part_spec);
         fpath = new Path(testFiles, "kv1.txt");
         // db.loadPartition(fpath, srcpart.getName(), part_spec, true);
-        runLoadCmd("LOAD DATA LOCAL INPATH '" + fpath.toString()
+        runLoadCmd("LOAD DATA LOCAL INPATH '" + fpath.toUri().getPath()
             + "' OVERWRITE INTO TABLE srcpart PARTITION (ds='" + ds + "',hr='"
             + hr + "')");
       }
@@ -450,7 +524,7 @@ public class QTestUtil {
     // IgnoreKeyTextOutputFormat.class, 2, bucketCols);
     for (String fname : new String[] {"srcbucket0.txt", "srcbucket1.txt"}) {
       fpath = new Path(testFiles, fname);
-      runLoadCmd("LOAD DATA LOCAL INPATH '" + fpath.toString()
+      runLoadCmd("LOAD DATA LOCAL INPATH '" + fpath.toUri().getPath()
           + "' INTO TABLE srcbucket");
     }
 
@@ -461,7 +535,7 @@ public class QTestUtil {
     for (String fname : new String[] {"srcbucket20.txt", "srcbucket21.txt",
         "srcbucket22.txt", "srcbucket23.txt"}) {
       fpath = new Path(testFiles, fname);
-      runLoadCmd("LOAD DATA LOCAL INPATH '" + fpath.toString()
+      runLoadCmd("LOAD DATA LOCAL INPATH '" + fpath.toUri().getPath()
           + "' INTO TABLE srcbucket2");
     }
 
@@ -489,25 +563,25 @@ public class QTestUtil {
 
     // load the input data into the src table
     fpath = new Path(testFiles, "kv1.txt");
-    runLoadCmd("LOAD DATA LOCAL INPATH '" + fpath.toString() + "' INTO TABLE src");
+    runLoadCmd("LOAD DATA LOCAL INPATH '" + fpath.toUri().getPath() + "' INTO TABLE src");
 
     // load the input data into the src table
     fpath = new Path(testFiles, "kv3.txt");
-    runLoadCmd("LOAD DATA LOCAL INPATH '" + fpath.toString() + "' INTO TABLE src1");
+    runLoadCmd("LOAD DATA LOCAL INPATH '" + fpath.toUri().getPath() + "' INTO TABLE src1");
 
     // load the input data into the src_sequencefile table
     fpath = new Path(testFiles, "kv1.seq");
-    runLoadCmd("LOAD DATA LOCAL INPATH '" + fpath.toString()
+    runLoadCmd("LOAD DATA LOCAL INPATH '" + fpath.toUri().getPath()
         + "' INTO TABLE src_sequencefile");
 
     // load the input data into the src_thrift table
     fpath = new Path(testFiles, "complex.seq");
-    runLoadCmd("LOAD DATA LOCAL INPATH '" + fpath.toString()
+    runLoadCmd("LOAD DATA LOCAL INPATH '" + fpath.toUri().getPath()
         + "' INTO TABLE src_thrift");
 
     // load the json data into the src_json table
     fpath = new Path(testFiles, "json.txt");
-    runLoadCmd("LOAD DATA LOCAL INPATH '" + fpath.toString()
+    runLoadCmd("LOAD DATA LOCAL INPATH '" + fpath.toUri().getPath()
         + "' INTO TABLE src_json");
     conf.setBoolean("hive.test.init.phase", false);
   }
@@ -581,7 +655,7 @@ public class QTestUtil {
     outf = new File(outf, qf.getName().concat(".out"));
     FileOutputStream fo = new FileOutputStream(outf);
     ss.out = new PrintStream(fo, true, "UTF-8");
-    ss.err = ss.out;
+    ss.err = new CachingPrintStream(fo, true, "UTF-8");
     ss.setIsSilent(true);
     SessionState oldSs = SessionState.get();
     if (oldSs != null && oldSs.out != null && oldSs.out != System.out) {
@@ -681,26 +755,9 @@ public class QTestUtil {
     outfd.write(e.getMessage());
     outfd.close();
 
-    String cmdLine = "diff " + outf.getPath() + " " + expf;
-    System.out.println(cmdLine);
-
-    Process executor = Runtime.getRuntime().exec(cmdLine);
-
-    StreamPrinter outPrinter = new StreamPrinter(
-        executor.getInputStream(), null, SessionState.getConsole().getChildOutStream());
-    StreamPrinter errPrinter = new StreamPrinter(
-        executor.getErrorStream(), null, SessionState.getConsole().getChildErrStream());
-
-    outPrinter.start();
-    errPrinter.start();
-
-    int exitVal = executor.waitFor();
-
+    int exitVal = executeDiffCommand(outf.getPath(), expf, false);
     if (exitVal != 0 && overWrite) {
-      System.out.println("Overwriting results");
-      cmdLine = "cp " + outf.getPath() + " " + expf;
-      executor = Runtime.getRuntime().exec(cmdLine);
-      exitVal = executor.waitFor();
+      exitVal = overwriteResults(outf.getPath(), expf);
     }
 
     return exitVal;
@@ -720,26 +777,10 @@ public class QTestUtil {
       outfd.write(tree.toStringTree());
       outfd.close();
 
-      String cmdLine = "diff " + outf.getPath() + " " + expf;
-      System.out.println(cmdLine);
-
-      Process executor = Runtime.getRuntime().exec(cmdLine);
-
-      StreamPrinter outPrinter = new StreamPrinter(
-          executor.getInputStream(), null, SessionState.getConsole().getChildOutStream());
-      StreamPrinter errPrinter = new StreamPrinter(
-          executor.getErrorStream(), null, SessionState.getConsole().getChildErrStream());
-
-      outPrinter.start();
-      errPrinter.start();
-
-      int exitVal = executor.waitFor();
+      int exitVal = executeDiffCommand(outf.getPath(), expf, false);
 
       if (exitVal != 0 && overWrite) {
-        System.out.println("Overwriting results");
-        cmdLine = "cp " + outf.getPath() + " " + expf;
-        executor = Runtime.getRuntime().exec(cmdLine);
-        exitVal = executor.waitFor();
+        exitVal = overwriteResults(outf.getPath(), expf);
       }
 
       return exitVal;
@@ -763,38 +804,20 @@ public class QTestUtil {
         Utilities.serializeTasks(plan, ofs);
       }
 
-      String[] cmdArray = new String[6];
-      cmdArray[0] = "diff";
-      cmdArray[1] = "-b";
-      cmdArray[2] = "-I";
-      cmdArray[3] = "\\(\\(<java version=\".*\" class=\"java.beans.XMLDecoder\">\\)"
-          + "\\|\\(<string>.*/tmp/.*</string>\\)"
-          + "\\|\\(<string>file:.*</string>\\)"
-          + "\\|\\(<string>pfile:.*</string>\\)"
-          + "\\|\\(<string>[0-9]\\{10\\}</string>\\)"
-          + "\\|\\(<string>/.*/warehouse/.*</string>\\)\\)";
-      cmdArray[4] = outf.getPath();
-      cmdArray[5] = planFile;
-      System.out.println(cmdArray[0] + " " + cmdArray[1] + " " + cmdArray[2]
-          + "\'" + cmdArray[3] + "\'" + " " + cmdArray[4] + " " + cmdArray[5]);
+      String[] patterns = new String[] {
+          "<java version=\".*\" class=\"java.beans.XMLDecoder\">",
+          "<string>.*/tmp/.*</string>",
+          "<string>file:.*</string>",
+          "<string>pfile:.*</string>",
+          "<string>[0-9]{10}</string>",
+          "<string>/.*/warehouse/.*</string>"
+      };
+      maskPatterns(patterns, outf.getPath());
 
-      Process executor = Runtime.getRuntime().exec(cmdArray);
-
-      StreamPrinter outPrinter = new StreamPrinter(
-          executor.getInputStream(), null, SessionState.getConsole().getChildOutStream());
-      StreamPrinter errPrinter = new StreamPrinter(
-          executor.getErrorStream(), null, SessionState.getConsole().getChildErrStream());
-
-      outPrinter.start();
-      errPrinter.start();
-
-      int exitVal = executor.waitFor();
+      int exitVal = executeDiffCommand(outf.getPath(), planFile, true);
 
       if (exitVal != 0 && overWrite) {
-        System.out.println("Overwriting results");
-        String cmdLine = "cp " + outf.getPath() + " " + planFile;
-        executor = Runtime.getRuntime().exec(cmdLine);
-        exitVal = executor.waitFor();
+        exitVal = overwriteResults(outf.getPath(), planFile);
       }
 
       return exitVal;
@@ -803,86 +826,6 @@ public class QTestUtil {
     }
 
   }
-
-
-  /* This seems unused. Comment out first in case it is used somewhere.
-  public int checkResults(String tname) throws Exception {
-    Path warehousePath = new Path(FileSystem.get(conf).getUri().getPath());
-    warehousePath = new Path(warehousePath, (new URI(testWarehouse)).getPath());
-
-    Path localPath = new Path(FileSystem.getLocal(conf).getUri().getPath());
-    localPath = new Path(localPath, logDir);
-    localPath = new Path(localPath, "warehouse_local_copy");
-    System.out.println("warehousePath = " + warehousePath.toString()
-        + " localPath = " + localPath.toString());
-
-    if (FileSystem.getLocal(conf).exists(localPath)) {
-      FileSystem.getLocal(conf).delete(localPath, true);
-    }
-
-    copyDirectoryToLocal(warehousePath, localPath);
-    normalizeNames(new File(localPath.toUri().getPath()));
-
-    String[] cmdArray;
-    if (overWrite == false) {
-      cmdArray = new String[6];
-      cmdArray[0] = "diff";
-      cmdArray[1] = "-r";
-      cmdArray[2] = "--exclude=tmp";
-      cmdArray[3] = "--exclude=.svn";
-      cmdArray[4] = localPath.toUri().getPath();
-      cmdArray[5] = (new File(outDir, tname)).getPath() + "/warehouse";
-      System.out.println(cmdArray[0] + " " + cmdArray[1] + " " + cmdArray[2]
-          + " " + cmdArray[3] + " " + cmdArray[4] + " " + cmdArray[5]);
-    } else {
-      System.out.println("overwritting");
-      // Remove any existing output
-      String[] cmdArray1 = new String[5];
-      cmdArray1[0] = "rm";
-      cmdArray1[1] = "-rf";
-      cmdArray1[2] = (new File(outDir, tname)).getPath();
-      System.out
-          .println(cmdArray1[0] + " " + cmdArray1[1] + " " + cmdArray1[2]);
-
-      Process executor = Runtime.getRuntime().exec(cmdArray1);
-
-      StreamPrinter outPrinter = new StreamPrinter(
-          executor.getInputStream(), null, SessionState.getConsole().getChildOutStream());
-      StreamPrinter errPrinter = new StreamPrinter(
-          executor.getErrorStream(), null, SessionState.getConsole().getChildErrStream());
-
-      outPrinter.start();
-      errPrinter.start();
-      int exitVal = executor.waitFor();
-      if (exitVal != 0) {
-        return exitVal;
-      }
-
-      // Capture code
-      cmdArray = new String[5];
-      cmdArray[0] = "cp";
-      cmdArray[1] = "-r";
-      cmdArray[2] = localPath.toUri().getPath();
-      cmdArray[3] = (new File(outDir, tname)).getPath();
-      System.out.println(cmdArray[0] + " " + cmdArray[1] + " " + cmdArray[2]
-          + " " + cmdArray[3]);
-    }
-
-    Process executor = Runtime.getRuntime().exec(cmdArray);
-
-    StreamPrinter outPrinter = new StreamPrinter(
-        executor.getInputStream(), null, SessionState.getConsole().getChildOutStream());
-    StreamPrinter errPrinter = new StreamPrinter(
-        executor.getErrorStream(), null, SessionState.getConsole().getChildErrStream());
-
-    outPrinter.start();
-    errPrinter.start();
-
-    int exitVal = executor.waitFor();
-
-    return exitVal;
-  }
-  */
 
   /**
    * Given the current configurations (e.g., hadoop version and execution mode), return
@@ -919,43 +862,137 @@ public class QTestUtil {
    return ret;
   }
 
+  private void maskPatterns(String[] patterns, String fname) throws Exception {
+    String maskPattern = "#### A masked pattern was here ####";
+
+    String line;
+    BufferedReader in;
+    BufferedWriter out;
+
+    in = new BufferedReader(new FileReader(fname));
+    out = new BufferedWriter(new FileWriter(fname + ".orig"));
+    while (null != (line = in.readLine())) {
+      out.write(line);
+      out.write('\n');
+    }
+    in.close();
+    out.close();
+
+    in = new BufferedReader(new FileReader(fname + ".orig"));
+    out = new BufferedWriter(new FileWriter(fname));
+
+    boolean lastWasMasked = false;
+    while (null != (line = in.readLine())) {
+      for (String pattern : patterns) {
+        line = line.replaceAll(pattern, maskPattern);
+      }
+
+      if (line.equals(maskPattern)) {
+        // We're folding multiple masked lines into one.
+        if (!lastWasMasked) {
+          out.write(line);
+          out.write("\n");
+          lastWasMasked = true;
+        }
+      } else {
+        out.write(line);
+        out.write("\n");
+        lastWasMasked = false;
+      }
+    }
+
+    in.close();
+    out.close();
+  }
+
   public int checkCliDriverResults(String tname) throws Exception {
     String[] cmdArray;
+    String[] patterns;
     assert(qMap.containsKey(tname));
 
     String outFileName = outPath(outDir, tname + ".out");
 
-    cmdArray = new String[] {
-        "diff", "-a",
-        "-I", "file:",
-        "-I", "pfile:",
-        "-I", "hdfs:",
-        "-I", "/tmp/",
-        "-I", "invalidscheme:",
-        "-I", "lastUpdateTime",
-        "-I", "lastAccessTime",
-        "-I", "[Oo]wner",
-        "-I", "CreateTime",
-        "-I", "LastAccessTime",
-        "-I", "Location",
-        "-I", "LOCATION '",
-        "-I", "transient_lastDdlTime",
-        "-I", "last_modified_",
-        "-I", "java.lang.RuntimeException",
-        "-I", "at org",
-        "-I", "at sun",
-        "-I", "at java",
-        "-I", "at junit",
-        "-I", "Caused by:",
-        "-I", "LOCK_QUERYID:",
-        "-I", "LOCK_TIME:",
-        "-I", "grantTime",
-        "-I", "[.][.][.] [0-9]* more",
-        "-I", "job_[0-9]*_[0-9]*",
-        "-I", "USING 'java -cp",
-        (new File(logDir, tname + ".out")).getPath(),
-        outFileName };
+    patterns = new String[] {
+        ".*file:.*",
+        ".*pfile:.*",
+        ".*hdfs:.*",
+        ".*/tmp/.*",
+        ".*invalidscheme:.*",
+        ".*lastUpdateTime.*",
+        ".*lastAccessTime.*",
+        ".*lastModifiedTime.*",
+        ".*[Oo]wner.*",
+        ".*CreateTime.*",
+        ".*LastAccessTime.*",
+        ".*Location.*",
+        ".*LOCATION '.*",
+        ".*transient_lastDdlTime.*",
+        ".*last_modified_.*",
+        ".*java.lang.RuntimeException.*",
+        ".*at org.*",
+        ".*at sun.*",
+        ".*at java.*",
+        ".*at junit.*",
+        ".*Caused by:.*",
+        ".*LOCK_QUERYID:.*",
+        ".*LOCK_TIME:.*",
+        ".*grantTime.*",
+        ".*[.][.][.] [0-9]* more.*",
+        ".*job_[0-9]*_[0-9]*.*",
+        ".*USING 'java -cp.*",
+        "^Deleted.*",
+    };
+    maskPatterns(patterns, (new File(logDir, tname + ".out")).getPath());
+    int exitVal = executeDiffCommand((new File(logDir, tname + ".out")).getPath(),
+                    outFileName, false);
 
+    if (exitVal != 0 && overWrite) {
+      exitVal = overwriteResults((new File(logDir, tname + ".out")).getPath(), outFileName);
+    }
+
+    return exitVal;
+  }
+
+  private static int overwriteResults(String inFileName, String outFileName) throws Exception {
+    // This method can be replaced with Files.copy(source, target, REPLACE_EXISTING)
+    // once Hive uses JAVA 7.
+    System.out.println("Overwriting results");
+    String[] cmdArray = new String[] {
+        "cp",
+        Shell.WINDOWS ? getQuotedString(inFileName) : inFileName,
+        Shell.WINDOWS ? getQuotedString(outFileName) : outFileName
+    };
+    Process executor = Runtime.getRuntime().exec(cmdArray);
+    return executor.waitFor();
+  }
+
+  private static int executeDiffCommand(String inFileName,
+      String outFileName,
+      boolean ignoreWhiteSpace) throws Exception {
+    ArrayList<String> diffCommandArgs = new ArrayList<String>();
+    diffCommandArgs.add("diff");
+
+    // Text file comparison
+    diffCommandArgs.add("-a");
+
+    // Ignore changes in the amount of white space
+    if (ignoreWhiteSpace || Shell.WINDOWS) {
+      diffCommandArgs.add("-b");
+    }
+
+    // Files created on Windows machines have different line endings
+    // than files created on Unix/Linux. Windows uses carriage return and line feed
+    // ("\r\n") as a line ending, whereas Unix uses just line feed ("\n").
+    // Also StringBuilder.toString(), Stream to String conversions adds extra
+    // spaces at the end of the line.
+    if (Shell.WINDOWS) {
+      diffCommandArgs.add("--strip-trailing-cr"); // Strip trailing carriage return on input
+      diffCommandArgs.add("-B"); // Ignore changes whose lines are all blank
+    }
+    // Add files to compare to the arguments list
+    diffCommandArgs.add(Shell.WINDOWS ? getQuotedString(inFileName) : inFileName);
+    diffCommandArgs.add(Shell.WINDOWS ? getQuotedString(outFileName) : outFileName);
+    String[] cmdArray =(String [])diffCommandArgs.toArray(new String [diffCommandArgs.size ()]);
     System.out.println(org.apache.commons.lang.StringUtils.join(cmdArray, ' '));
 
     Process executor = Runtime.getRuntime().exec(cmdArray);
@@ -968,19 +1005,11 @@ public class QTestUtil {
     outPrinter.start();
     errPrinter.start();
 
-    int exitVal = executor.waitFor();
+    return executor.waitFor();
+  }
 
-    if (exitVal != 0 && overWrite) {
-      System.out.println("Overwriting results");
-      cmdArray = new String[3];
-      cmdArray[0] = "cp";
-      cmdArray[1] = (new File(logDir, tname + ".out")).getPath();
-      cmdArray[2] = outFileName;
-      executor = Runtime.getRuntime().exec(cmdArray);
-      exitVal = executor.waitFor();
-    }
-
-    return exitVal;
+  private static String getQuotedString(String str){
+    return String.format("\"%s\"", str);
   }
 
   public ASTNode parseQuery(String tname) throws Exception {

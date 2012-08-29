@@ -41,7 +41,6 @@ public class TestMarkPartitionRemote extends TestMarkPartition{
     Thread t = new Thread(new RunMS());
     t.setDaemon(true);
     t.start();
-    hiveConf.set("hive.metastore.local", "false");
     hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:29111");
     hiveConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTRETRIES, 3);
     Thread.sleep(30000);

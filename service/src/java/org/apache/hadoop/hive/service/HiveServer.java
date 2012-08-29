@@ -49,8 +49,8 @@ import org.apache.hadoop.hive.ql.processors.CommandProcessor;
 import org.apache.hadoop.hive.ql.processors.CommandProcessorFactory;
 import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse;
 import org.apache.hadoop.hive.ql.session.SessionState;
+import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.mapred.ClusterStatus;
-import org.apache.hadoop.mapred.JobTracker;
 import org.apache.thrift.TException;
 import org.apache.thrift.TProcessor;
 import org.apache.thrift.TProcessorFactory;
@@ -152,11 +152,11 @@ public class HiveServer extends ThriftHive {
           session.in = null;
           session.out = new PrintStream(System.out, true, "UTF-8");
           session.err = new PrintStream(System.err, true, "UTF-8");
-      	  } catch (UnsupportedEncodingException ee) {
-      	    ee.printStackTrace();
-      	    session.out = null;
-      	    session.err = null;
-      	  }
+        } catch (UnsupportedEncodingException ee) {
+          ee.printStackTrace();
+          session.out = null;
+          session.err = null;
+        }
       }
     }
 
@@ -241,21 +241,7 @@ public class HiveServer extends ThriftHive {
         drv.init();
 
         ClusterStatus cs = drv.getClusterStatus();
-        JobTracker.State jbs = cs.getJobTrackerState();
-
-        // Convert the ClusterStatus to its Thrift equivalent: HiveClusterStatus
-        JobTrackerState state;
-        switch (jbs) {
-        case INITIALIZING:
-          state = JobTrackerState.INITIALIZING;
-          break;
-        case RUNNING:
-          state = JobTrackerState.RUNNING;
-          break;
-        default:
-          String errorMsg = "Unrecognized JobTracker state: " + jbs.toString();
-          throw new Exception(errorMsg);
-        }
+        JobTrackerState state = JobTrackerState.valueOf(ShimLoader.getHadoopShims().getJobTrackerState(cs).name());
 
         hcs = new HiveClusterStatus(cs.getTaskTrackers(), cs.getMapTasks(), cs
             .getReduceTasks(), cs.getMaxMapTasks(), cs.getMaxReduceTasks(),
@@ -559,11 +545,14 @@ public class HiveServer extends ThriftHive {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public TProcessor getProcessor(TTransport trans) {
       try {
-        Iface handler = new HiveServerHandler(conf);
+        Iface handler = new HiveServerHandler(new HiveConf(conf));
         return new ThriftHive.Processor(handler);
       } catch (Exception e) {
+        HiveServerHandler.LOG.warn("Failed to get processor by exception " + e, e);
+        trans.close();
         throw new RuntimeException(e);
       }
     }
@@ -649,7 +638,7 @@ public class HiveServer extends ThriftHive {
       }
     }
   }
-  
+
   public static void main(String[] args) {
     try {
       HiveServerCli cli = new HiveServerCli();
@@ -686,7 +675,7 @@ public class HiveServer extends ThriftHive {
         .protocolFactory(new TBinaryProtocol.Factory())
         .minWorkerThreads(cli.minWorkerThreads)
         .maxWorkerThreads(cli.maxWorkerThreads);
-      
+
       TServer server = new TThreadPoolServer(sargs);
 
       String msg = "Starting hive server on port " + cli.port

@@ -12,6 +12,7 @@ POSTHOOK: type: SHOWFUNCTIONS
 /
 <
 <=
+<=>
 <>
 =
 ==
@@ -25,12 +26,11 @@ array
 array_contains
 ascii
 asin
+assert_true
 atan
 avg
-bigint
+between
 bin
-binary
-boolean
 case
 ceil
 ceiling
@@ -53,7 +53,6 @@ day
 dayofmonth
 degrees
 div
-double
 e
 elt
 ewah_bitmap
@@ -64,8 +63,8 @@ exp
 explode
 field
 find_in_set
-float
 floor
+format_number
 from_unixtime
 from_utc_timestamp
 get_json_object
@@ -75,11 +74,13 @@ histogram_numeric
 hour
 if
 in
+in_file
 index
+inline
 instr
-int
 isnotnull
 isnull
+java_method
 json_tuple
 lcase
 length
@@ -113,6 +114,7 @@ pmod
 positive
 pow
 power
+printf
 radians
 rand
 reflect
@@ -130,28 +132,28 @@ sentences
 sign
 sin
 size
-smallint
+sort_array
 space
 split
 sqrt
+stack
 std
 stddev
 stddev_pop
 stddev_samp
 str_to_map
-string
 struct
 substr
 substring
 sum
 tan
-timestamp
-tinyint
 to_date
 to_utc_timestamp
+translate
 trim
 ucase
 unhex
+union_map
 unix_timestamp
 upper
 var_pop
@@ -194,12 +196,14 @@ PREHOOK: query: SHOW FUNCTIONS '.*e$'
 PREHOOK: type: SHOWFUNCTIONS
 POSTHOOK: query: SHOW FUNCTIONS '.*e$'
 POSTHOOK: type: SHOWFUNCTIONS
+assert_true
 case
 coalesce
-double
 e
 explode
 from_unixtime
+in_file
+inline
 json_tuple
 lcase
 like
@@ -215,6 +219,7 @@ rlike
 size
 space
 to_date
+translate
 ucase
 variance
 xpath_double

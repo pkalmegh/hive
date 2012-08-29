@@ -8,6 +8,7 @@ PREHOOK: type: DESCFUNCTION
 POSTHOOK: query: DESCRIBE FUNCTION EXTENDED reflect
 POSTHOOK: type: DESCFUNCTION
 reflect(class,method[,arg1[,arg2..]]) calls method with reflection
+Synonyms: java_method
 Use this UDF to call Java methods by matching the argument signature
 
 PREHOOK: query: EXPLAIN EXTENDED
@@ -66,9 +67,9 @@ STAGE PLANS:
                 File Output Operator
                   compressed: false
                   GlobalTableId: 0
-                  directory: file:/tmp/amarsri/hive_2011-07-29_03-07-30_904_4909919395426298063/-ext-10001
+#### A masked pattern was here ####
                   NumFilesPerFileSink: 1
-                  Stats Publishing Key Prefix: file:/tmp/amarsri/hive_2011-07-29_03-07-30_904_4909919395426298063/-ext-10001/
+#### A masked pattern was here ####
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
@@ -82,9 +83,9 @@ STAGE PLANS:
                   MultiFileSpray: false
       Needs Tagging: false
       Path -> Alias:
-        pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src [src]
+#### A masked pattern was here ####
       Path -> Partition:
-        pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src 
+#### A masked pattern was here ####
           Partition
             base file name: src
             input format: org.apache.hadoop.mapred.TextInputFormat
@@ -93,14 +94,17 @@ STAGE PLANS:
               bucket_count -1
               columns key,value
               columns.types string:string
-              file.inputformat org.apache.hadoop.mapred.TextInputFormat
-              file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-              location pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src
+#### A masked pattern was here ####
               name default.src
+              numFiles 1
+              numPartitions 0
+              numRows 0
+              rawDataSize 0
               serialization.ddl struct src { string key, string value}
               serialization.format 1
               serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-              transient_lastDdlTime 1311925582
+              totalSize 5812
+#### A masked pattern was here ####
             serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
           
               input format: org.apache.hadoop.mapred.TextInputFormat
@@ -109,14 +113,17 @@ STAGE PLANS:
                 bucket_count -1
                 columns key,value
                 columns.types string:string
-                file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                location pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/src
+#### A masked pattern was here ####
                 name default.src
+                numFiles 1
+                numPartitions 0
+                numRows 0
+                rawDataSize 0
                 serialization.ddl struct src { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                transient_lastDdlTime 1311925582
+                totalSize 5812
+#### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.src
             name: default.src
@@ -136,7 +143,7 @@ PREHOOK: query: SELECT reflect("java.lang.String", "valueOf", 1),
 FROM src LIMIT 1
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
-PREHOOK: Output: file:/tmp/amarsri/hive_2011-07-29_03-07-30_943_7325147834615203404/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT reflect("java.lang.String", "valueOf", 1),
        reflect("java.lang.String", "isEmpty"),
        reflect("java.lang.Math", "max", 2, 3),
@@ -147,5 +154,5 @@ POSTHOOK: query: SELECT reflect("java.lang.String", "valueOf", 1),
 FROM src LIMIT 1
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
-POSTHOOK: Output: file:/tmp/amarsri/hive_2011-07-29_03-07-30_943_7325147834615203404/-mr-10000
+#### A masked pattern was here ####
 1	true	3	2	3	2.7182818284590455	1.0

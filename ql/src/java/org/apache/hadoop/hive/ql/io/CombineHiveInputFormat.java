@@ -20,7 +20,6 @@ package org.apache.hadoop.hive.ql.io;
 
 import java.io.DataInput;
 import java.io.DataOutput;
-import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -32,8 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -46,9 +43,9 @@ import org.apache.hadoop.hive.ql.exec.Utilities;
 import org.apache.hadoop.hive.ql.parse.SplitSample;
 import org.apache.hadoop.hive.ql.plan.PartitionDesc;
 import org.apache.hadoop.hive.ql.plan.TableDesc;
-import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.hive.shims.HadoopShims.CombineFileInputFormatShim;
 import org.apache.hadoop.hive.shims.HadoopShims.InputSplitShim;
+import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.io.compress.CompressionCodecFactory;
@@ -59,7 +56,6 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextInputFormat;
-import org.apache.hadoop.util.StringUtils;
 
 
 /**
@@ -439,14 +435,16 @@ public class CombineHiveInputFormat<K extends WritableComparable, V extends Writ
     List<InputSplitShim> retLists = new ArrayList<InputSplitShim>();
     Map<String, ArrayList<InputSplitShim>> aliasToSplitList = new HashMap<String, ArrayList<InputSplitShim>>();
     Map<String, ArrayList<String>> pathToAliases = mrwork.getPathToAliases();
+    Map<String, ArrayList<String>> pathToAliasesNoScheme = removeScheme(pathToAliases);
 
     // Populate list of exclusive splits for every sampled alias
     //
     for (InputSplitShim split : splits) {
       String alias = null;
       for (Path path : split.getPaths()) {
+        boolean schemeless = path.toUri().getScheme() == null;
         List<String> l = HiveFileFormatUtils.doGetAliasesFromPath(
-            pathToAliases, path);
+            schemeless ? pathToAliasesNoScheme : pathToAliases, path);
         // a path for a split unqualified the split from being sampled if:
         // 1. it serves more than one alias
         // 2. the alias it serves is not sampled
@@ -502,6 +500,15 @@ public class CombineHiveInputFormat<K extends WritableComparable, V extends Writ
     }
 
     return retLists;
+  }
+
+  Map<String, ArrayList<String>> removeScheme(Map<String, ArrayList<String>> pathToAliases) {
+    Map<String, ArrayList<String>> result = new HashMap<String, ArrayList<String>>();
+    for (Map.Entry <String, ArrayList<String>> entry : pathToAliases.entrySet()) {
+      String newKey = new Path(entry.getKey()).toUri().getPath();
+      result.put(newKey, entry.getValue());
+    }
+    return result;
   }
 
   /**

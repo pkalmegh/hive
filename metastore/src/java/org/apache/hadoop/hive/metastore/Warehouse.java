@@ -63,6 +63,7 @@ public class Warehouse {
 
   private MetaStoreFS fsHandler = null;
   private boolean storageAuthCheck = false;
+  private boolean inheritPerms = false;
 
   public Warehouse(Configuration conf) throws MetaException {
     this.conf = conf;
@@ -74,6 +75,8 @@ public class Warehouse {
     fsHandler = getMetaStoreFsHandler(conf);
     storageAuthCheck = HiveConf.getBoolVar(conf,
         HiveConf.ConfVars.METASTORE_AUTHORIZATION_STORAGE_AUTH_CHECKS);
+    inheritPerms = HiveConf.getBoolVar(conf,
+        HiveConf.ConfVars.HIVE_WAREHOUSE_SUBDIR_INHERIT_PERMS);
   }
 
   private MetaStoreFS getMetaStoreFsHandler(Configuration conf)
@@ -171,7 +174,20 @@ public class Warehouse {
     try {
       fs = getFs(f);
       LOG.debug("Creating directory if it doesn't exist: " + f);
-      return (fs.mkdirs(f) || fs.getFileStatus(f).isDir());
+      //Check if the directory already exists. We want to change the permission
+      //to that of the parent directory only for newly created directories.
+      if (this.inheritPerms) {
+        try {
+          return fs.getFileStatus(f).isDir();
+        } catch (FileNotFoundException ignore) {
+        }
+      }
+      boolean success = fs.mkdirs(f);
+      if (this.inheritPerms && success) {
+        // Set the permission of parent directory.
+        fs.setPermission(f, fs.getFileStatus(f.getParent()).getPermission());
+      }
+      return success;
     } catch (IOException e) {
       closeFs(fs);
       MetaStoreUtils.logAndThrowMetaException(e);
@@ -279,7 +295,7 @@ public class Warehouse {
    * Makes a partition name from a specification
    * @param spec
    * @param addTrailingSeperator if true, adds a trailing separator e.g. 'ds=1/'
-   * @return
+   * @return partition name
    * @throws MetaException
    */
   public static String makePartName(Map<String, String> spec,

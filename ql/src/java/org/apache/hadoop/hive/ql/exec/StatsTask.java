@@ -216,16 +216,30 @@ public class StatsTask extends Task<StatsWork> implements Serializable {
   public int execute(DriverContext driverContext) {
 
     LOG.info("Executing stats task");
-    // Make sure that it is either an ANALYZE command or an INSERT OVERWRITE command
-    assert (work.getLoadTableDesc() != null && work.getTableSpecs() == null || work
-        .getLoadTableDesc() == null && work.getTableSpecs() != null);
+    // Make sure that it is either an ANALYZE, INSERT OVERWRITE or CTAS command
+    short workComponentsPresent = 0;
+    if (work.getLoadTableDesc() != null) {
+      workComponentsPresent++;
+    }
+    if (work.getTableSpecs() != null) {
+      workComponentsPresent++;
+    }
+    if (work.getLoadFileDesc() != null) {
+      workComponentsPresent++;
+    }
+
+    assert (workComponentsPresent == 1);
+
     String tableName = "";
     try {
       if (work.getLoadTableDesc() != null) {
         tableName = work.getLoadTableDesc().getTable().getTableName();
-      } else {
+      } else if (work.getTableSpecs() != null){
         tableName = work.getTableSpecs().tableName;
+      } else {
+        tableName = work.getLoadFileDesc().getDestinationCreateTable();
       }
+
       table = db.getTable(tableName);
 
     } catch (HiveException e) {
@@ -255,6 +269,7 @@ public class StatsTask extends Task<StatsWork> implements Serializable {
   private int aggregateStats() {
 
     StatsAggregator statsAggregator = null;
+    int ret = 0;
 
     try {
       // Stats setup:
@@ -310,9 +325,18 @@ public class StatsTask extends Task<StatsWork> implements Serializable {
 
         // In case of a non-partitioned table, the key for stats temporary store is "rootDir"
         if (statsAggregator != null) {
-          updateStats(collectableStats, tblStats, statsAggregator, parameters, 
+          updateStats(collectableStats, tblStats, statsAggregator, parameters,
               work.getAggKey(), atomic);
           statsAggregator.cleanUp(work.getAggKey());
+        }
+        // The collectable stats for the aggregator needs to be cleared.
+        // For eg. if a file is being loaded, the old number of rows are not valid
+        else if (work.isClearAggregatorStats()) {
+          for (String statType : collectableStats) {
+            if (parameters.containsKey(statType)) {
+              tblStats.setStat(statType, 0L);
+            }
+          }
         }
       } else {
         // Partitioned table:
@@ -349,11 +373,20 @@ public class StatsTask extends Task<StatsWork> implements Serializable {
           LOG.info("Stats aggregator : " + partitionID);
 
           if (statsAggregator != null) {
-            updateStats(collectableStats, newPartStats, statsAggregator, 
+            updateStats(collectableStats, newPartStats, statsAggregator,
                 parameters, partitionID, atomic);
           } else {
             for (String statType : collectableStats) {
-              newPartStats.setStat(statType, currentValues.get(statType));
+              // The collectable stats for the aggregator needs to be cleared.
+              // For eg. if a file is being loaded, the old number of rows are not valid
+              if (work.isClearAggregatorStats()) {
+                if (parameters.containsKey(statType)) {
+                  newPartStats.setStat(statType, 0L);
+                }
+              }
+              else {
+                newPartStats.setStat(statType, currentValues.get(statType));
+              }
             }
           }
 
@@ -415,17 +448,22 @@ public class StatsTask extends Task<StatsWork> implements Serializable {
       console.printInfo("Table " + tableFullName + " stats: [" + tblStats.toString() + ']');
 
     } catch (Exception e) {
-      // return 0 since StatsTask should not fail the whole job
       console.printInfo("[Warning] could not update stats.",
           "Failed with exception " + e.getMessage() + "\n"
               + StringUtils.stringifyException(e));
+
+      // Fail the query if the stats are supposed to be reliable
+      if (work.isStatsReliable()) {
+        ret = 1;
+      }
     } finally {
       if (statsAggregator != null) {
         statsAggregator.closeConnection();
       }
     }
-    // StatsTask always return 0 so that the whole job won't fail
-    return 0;
+    // The return value of 0 indicates success,
+    // anything else indicates failure
+    return ret;
   }
 
   private boolean existStats(Map<String, String> parameters) {
@@ -447,7 +485,7 @@ public class StatsTask extends Task<StatsWork> implements Serializable {
       if (value != null) {
         longValue = Long.parseLong(value);
 
-        if (work.getLoadTableDesc() != null && 
+        if (work.getLoadTableDesc() != null &&
             !work.getLoadTableDesc().getReplace()) {
           String originalValue = parameters.get(statType);
           if (originalValue != null) {
@@ -472,6 +510,9 @@ public class StatsTask extends Task<StatsWork> implements Serializable {
    * @throws HiveException
    */
   private List<Partition> getPartitionsList() throws HiveException {
+    if (work.getLoadFileDesc() != null) {
+      return null; //we are in CTAS, so we know there are no partitions
+    }
 
     List<Partition> list = new ArrayList<Partition>();
 

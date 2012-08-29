@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?> 
-<java version="1.6.0_01" class="java.beans.XMLDecoder"> 
+#### A masked pattern was here #### 
  <object class="org.apache.hadoop.hive.ql.exec.MapRedTask"> 
   <void property="id"> 
-   <string>Stage-3</string> 
+   <string>Stage-4</string> 
   </void> 
   <void property="work"> 
    <object class="org.apache.hadoop.hive.ql.plan.MapredWork"> 
@@ -38,6 +38,10 @@
           <string>default.srcpart</string> 
          </void> 
          <void method="put"> 
+          <string>numFiles</string> 
+          <string>4</string> 
+         </void> 
+         <void method="put"> 
           <string>columns.types</string> 
           <string>string:string</string> 
          </void> 
@@ -52,6 +56,18 @@
          <void method="put"> 
           <string>columns</string> 
           <string>key,value</string> 
+         </void> 
+         <void method="put"> 
+          <string>rawDataSize</string> 
+          <string>0</string> 
+         </void> 
+         <void method="put"> 
+          <string>numRows</string> 
+          <string>0</string> 
+         </void> 
+         <void method="put"> 
+          <string>numPartitions</string> 
+          <string>4</string> 
          </void> 
          <void method="put"> 
           <string>partition_columns</string> 
@@ -70,16 +86,20 @@
           <string>org.apache.hadoop.mapred.TextInputFormat</string> 
          </void> 
          <void method="put"> 
+          <string>totalSize</string> 
+          <string>23248</string> 
+         </void> 
+         <void method="put"> 
           <string>file.outputformat</string> 
           <string>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</string> 
          </void> 
          <void method="put"> 
           <string>location</string> 
-          <string>pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/srcpart/ds=2008-04-08/hr=12</string> 
+          #### A masked pattern was here #### 
          </void> 
          <void method="put"> 
           <string>transient_lastDdlTime</string> 
-          <string>1311936635</string> 
+          #### A masked pattern was here #### 
          </void> 
         </object> 
        </void> 
@@ -104,6 +124,10 @@
             <string>default.srcpart</string> 
            </void> 
            <void method="put"> 
+            <string>numFiles</string> 
+            <string>4</string> 
+           </void> 
+           <void method="put"> 
             <string>columns.types</string> 
             <string>string:string</string> 
            </void> 
@@ -118,6 +142,18 @@
            <void method="put"> 
             <string>columns</string> 
             <string>key,value</string> 
+           </void> 
+           <void method="put"> 
+            <string>rawDataSize</string> 
+            <string>0</string> 
+           </void> 
+           <void method="put"> 
+            <string>numRows</string> 
+            <string>0</string> 
+           </void> 
+           <void method="put"> 
+            <string>numPartitions</string> 
+            <string>4</string> 
            </void> 
            <void method="put"> 
             <string>partition_columns</string> 
@@ -136,16 +172,20 @@
             <string>org.apache.hadoop.mapred.TextInputFormat</string> 
            </void> 
            <void method="put"> 
+            <string>totalSize</string> 
+            <string>23248</string> 
+           </void> 
+           <void method="put"> 
             <string>file.outputformat</string> 
             <string>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</string> 
            </void> 
            <void method="put"> 
             <string>location</string> 
-            <string>pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/srcpart</string> 
+            #### A masked pattern was here #### 
            </void> 
            <void method="put"> 
             <string>transient_lastDdlTime</string> 
-            <string>1311936635</string> 
+            #### A masked pattern was here #### 
            </void> 
           </object> 
          </void> 
@@ -177,13 +217,13 @@
                     <void property="conf"> 
                      <object class="org.apache.hadoop.hive.ql.plan.FileSinkDesc"> 
                       <void property="dirName"> 
-                       <string>file:/tmp/amarsri/hive_2011-07-29_03-50-38_444_1027580750179467489/-ext-10001</string> 
+                       #### A masked pattern was here #### 
                       </void> 
                       <void property="numFiles"> 
                        <int>1</int> 
                       </void> 
                       <void property="statsAggPrefix"> 
-                       <string>file:/tmp/amarsri/hive_2011-07-29_03-50-38_444_1027580750179467489/-ext-10001/</string> 
+                       #### A masked pattern was here #### 
                       </void> 
                       <void property="tableInfo"> 
                        <object class="org.apache.hadoop.hive.ql.plan.TableDesc"> 
@@ -545,12 +585,12 @@
                     <void property="typeInfo"> 
                      <object class="org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo"> 
                       <void property="typeName"> 
-                       <string>int</string> 
+                       <string>double</string> 
                       </void> 
                      </object> 
                     </void> 
                     <void property="value"> 
-                     <int>100</int> 
+                     <double>100.0</double> 
                     </void> 
                    </object> 
                   </void> 
@@ -752,7 +792,7 @@
     <void property="pathToAliases"> 
      <object class="java.util.LinkedHashMap"> 
       <void method="put"> 
-       <string>pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/srcpart/ds=2008-04-08/hr=12</string> 
+       #### A masked pattern was here #### 
        <object class="java.util.ArrayList"> 
         <void method="add"> 
          <string>srcpart</string> 
@@ -764,7 +804,7 @@
     <void property="pathToPartitionInfo"> 
      <object class="java.util.LinkedHashMap"> 
       <void method="put"> 
-       <string>pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/srcpart/ds=2008-04-08/hr=12</string> 
+       #### A masked pattern was here #### 
        <object class="org.apache.hadoop.hive.ql.plan.PartitionDesc"> 
         <void property="baseFileName"> 
          <string>hr=12</string> 
@@ -797,6 +837,10 @@
            <string>default.srcpart</string> 
           </void> 
           <void method="put"> 
+           <string>numFiles</string> 
+           <string>1</string> 
+          </void> 
+          <void method="put"> 
            <string>columns.types</string> 
            <string>string:string</string> 
           </void> 
@@ -811,6 +855,18 @@
           <void method="put"> 
            <string>columns</string> 
            <string>key,value</string> 
+          </void> 
+          <void method="put"> 
+           <string>rawDataSize</string> 
+           <string>0</string> 
+          </void> 
+          <void method="put"> 
+           <string>numRows</string> 
+           <string>0</string> 
+          </void> 
+          <void method="put"> 
+           <string>numPartitions</string> 
+           <string>4</string> 
           </void> 
           <void method="put"> 
            <string>partition_columns</string> 
@@ -829,16 +885,20 @@
            <string>org.apache.hadoop.mapred.TextInputFormat</string> 
           </void> 
           <void method="put"> 
+           <string>totalSize</string> 
+           <string>5812</string> 
+          </void> 
+          <void method="put"> 
            <string>file.outputformat</string> 
            <string>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</string> 
           </void> 
           <void method="put"> 
            <string>location</string> 
-           <string>pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/srcpart/ds=2008-04-08/hr=12</string> 
+           #### A masked pattern was here #### 
           </void> 
           <void method="put"> 
            <string>transient_lastDdlTime</string> 
-           <string>1311936635</string> 
+           #### A masked pattern was here #### 
           </void> 
          </object> 
         </void> 
@@ -863,6 +923,10 @@
              <string>default.srcpart</string> 
             </void> 
             <void method="put"> 
+             <string>numFiles</string> 
+             <string>4</string> 
+            </void> 
+            <void method="put"> 
              <string>columns.types</string> 
              <string>string:string</string> 
             </void> 
@@ -877,6 +941,18 @@
             <void method="put"> 
              <string>columns</string> 
              <string>key,value</string> 
+            </void> 
+            <void method="put"> 
+             <string>rawDataSize</string> 
+             <string>0</string> 
+            </void> 
+            <void method="put"> 
+             <string>numRows</string> 
+             <string>0</string> 
+            </void> 
+            <void method="put"> 
+             <string>numPartitions</string> 
+             <string>4</string> 
             </void> 
             <void method="put"> 
              <string>partition_columns</string> 
@@ -895,16 +971,20 @@
              <string>org.apache.hadoop.mapred.TextInputFormat</string> 
             </void> 
             <void method="put"> 
+             <string>totalSize</string> 
+             <string>23248</string> 
+            </void> 
+            <void method="put"> 
              <string>file.outputformat</string> 
              <string>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</string> 
             </void> 
             <void method="put"> 
              <string>location</string> 
-             <string>pfile:/home/amarsri/workspace/hive/build/ql/test/data/warehouse/srcpart</string> 
+             #### A masked pattern was here #### 
             </void> 
             <void method="put"> 
              <string>transient_lastDdlTime</string> 
-             <string>1311936635</string> 
+             #### A masked pattern was here #### 
             </void> 
            </object> 
           </void> 

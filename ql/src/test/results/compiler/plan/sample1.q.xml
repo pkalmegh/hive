@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?> 
-<java version="1.6.0_13" class="java.beans.XMLDecoder"> 
+#### A masked pattern was here #### 
  <object class="org.apache.hadoop.hive.ql.exec.MapRedTask"> 
   <void property="id"> 
-   <string>Stage-3</string> 
+   <string>Stage-4</string> 
   </void> 
   <void property="work"> 
    <object class="org.apache.hadoop.hive.ql.plan.MapredWork"> 
@@ -38,6 +38,10 @@
           <string>default.srcpart</string> 
          </void> 
          <void method="put"> 
+          <string>numFiles</string> 
+          <string>4</string> 
+         </void> 
+         <void method="put"> 
           <string>columns.types</string> 
           <string>string:string</string> 
          </void> 
@@ -52,6 +56,18 @@
          <void method="put"> 
           <string>columns</string> 
           <string>key,value</string> 
+         </void> 
+         <void method="put"> 
+          <string>rawDataSize</string> 
+          <string>0</string> 
+         </void> 
+         <void method="put"> 
+          <string>numRows</string> 
+          <string>0</string> 
+         </void> 
+         <void method="put"> 
+          <string>numPartitions</string> 
+          <string>4</string> 
          </void> 
          <void method="put"> 
           <string>partition_columns</string> 
@@ -70,16 +86,20 @@
           <string>org.apache.hadoop.mapred.TextInputFormat</string> 
          </void> 
          <void method="put"> 
+          <string>totalSize</string> 
+          <string>23248</string> 
+         </void> 
+         <void method="put"> 
           <string>file.outputformat</string> 
           <string>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</string> 
          </void> 
          <void method="put"> 
           <string>location</string> 
-          <string>pfile:/home/opensrc/13thsep/workspace/build/ql/test/data/warehouse/srcpart/ds=2008-04-08/hr=11</string> 
+          #### A masked pattern was here #### 
          </void> 
          <void method="put"> 
           <string>transient_lastDdlTime</string> 
-          <string>1315938872</string> 
+          #### A masked pattern was here #### 
          </void> 
         </object> 
        </void> 
@@ -104,6 +124,10 @@
             <string>default.srcpart</string> 
            </void> 
            <void method="put"> 
+            <string>numFiles</string> 
+            <string>4</string> 
+           </void> 
+           <void method="put"> 
             <string>columns.types</string> 
             <string>string:string</string> 
            </void> 
@@ -118,6 +142,18 @@
            <void method="put"> 
             <string>columns</string> 
             <string>key,value</string> 
+           </void> 
+           <void method="put"> 
+            <string>rawDataSize</string> 
+            <string>0</string> 
+           </void> 
+           <void method="put"> 
+            <string>numRows</string> 
+            <string>0</string> 
+           </void> 
+           <void method="put"> 
+            <string>numPartitions</string> 
+            <string>4</string> 
            </void> 
            <void method="put"> 
             <string>partition_columns</string> 
@@ -136,16 +172,20 @@
             <string>org.apache.hadoop.mapred.TextInputFormat</string> 
            </void> 
            <void method="put"> 
+            <string>totalSize</string> 
+            <string>23248</string> 
+           </void> 
+           <void method="put"> 
             <string>file.outputformat</string> 
             <string>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</string> 
            </void> 
            <void method="put"> 
             <string>location</string> 
-            <string>pfile:/home/opensrc/13thsep/workspace/build/ql/test/data/warehouse/srcpart</string> 
+            #### A masked pattern was here #### 
            </void> 
            <void method="put"> 
             <string>transient_lastDdlTime</string> 
-            <string>1315938872</string> 
+            #### A masked pattern was here #### 
            </void> 
           </object> 
          </void> 
@@ -177,13 +217,13 @@
                     <void property="conf"> 
                      <object class="org.apache.hadoop.hive.ql.plan.FileSinkDesc"> 
                       <void property="dirName"> 
-                       <string>file:/tmp/root/hive_2011-09-13_11-34-39_726_1332640981409729109/-ext-10001</string> 
+                       #### A masked pattern was here #### 
                       </void> 
                       <void property="numFiles"> 
                        <int>1</int> 
                       </void> 
                       <void property="statsAggPrefix"> 
-                       <string>file:/tmp/root/hive_2011-09-13_11-34-39_726_1332640981409729109/-ext-10001/</string> 
+                       #### A masked pattern was here #### 
                       </void> 
                       <void property="tableInfo"> 
                        <object class="org.apache.hadoop.hive.ql.plan.TableDesc"> 
@@ -873,7 +913,7 @@
     <void property="pathToAliases"> 
      <object class="java.util.LinkedHashMap"> 
       <void method="put"> 
-       <string>pfile:/home/opensrc/13thsep/workspace/build/ql/test/data/warehouse/srcpart/ds=2008-04-08/hr=11</string> 
+       #### A masked pattern was here #### 
        <object class="java.util.ArrayList"> 
         <void method="add"> 
          <string>s</string> 
@@ -885,7 +925,7 @@
     <void property="pathToPartitionInfo"> 
      <object class="java.util.LinkedHashMap"> 
       <void method="put"> 
-       <string>pfile:/home/opensrc/13thsep/workspace/build/ql/test/data/warehouse/srcpart/ds=2008-04-08/hr=11</string> 
+       #### A masked pattern was here #### 
        <object class="org.apache.hadoop.hive.ql.plan.PartitionDesc"> 
         <void property="baseFileName"> 
          <string>hr=11</string> 
@@ -918,6 +958,10 @@
            <string>default.srcpart</string> 
           </void> 
           <void method="put"> 
+           <string>numFiles</string> 
+           <string>1</string> 
+          </void> 
+          <void method="put"> 
            <string>columns.types</string> 
            <string>string:string</string> 
           </void> 
@@ -932,6 +976,18 @@
           <void method="put"> 
            <string>columns</string> 
            <string>key,value</string> 
+          </void> 
+          <void method="put"> 
+           <string>rawDataSize</string> 
+           <string>0</string> 
+          </void> 
+          <void method="put"> 
+           <string>numRows</string> 
+           <string>0</string> 
+          </void> 
+          <void method="put"> 
+           <string>numPartitions</string> 
+           <string>4</string> 
           </void> 
           <void method="put"> 
            <string>partition_columns</string> 
@@ -950,16 +1006,20 @@
            <string>org.apache.hadoop.mapred.TextInputFormat</string> 
           </void> 
           <void method="put"> 
+           <string>totalSize</string> 
+           <string>5812</string> 
+          </void> 
+          <void method="put"> 
            <string>file.outputformat</string> 
            <string>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</string> 
           </void> 
           <void method="put"> 
            <string>location</string> 
-           <string>pfile:/home/opensrc/13thsep/workspace/build/ql/test/data/warehouse/srcpart/ds=2008-04-08/hr=11</string> 
+           #### A masked pattern was here #### 
           </void> 
           <void method="put"> 
            <string>transient_lastDdlTime</string> 
-           <string>1315938872</string> 
+           #### A masked pattern was here #### 
           </void> 
          </object> 
         </void> 
@@ -984,6 +1044,10 @@
              <string>default.srcpart</string> 
             </void> 
             <void method="put"> 
+             <string>numFiles</string> 
+             <string>4</string> 
+            </void> 
+            <void method="put"> 
              <string>columns.types</string> 
              <string>string:string</string> 
             </void> 
@@ -998,6 +1062,18 @@
             <void method="put"> 
              <string>columns</string> 
              <string>key,value</string> 
+            </void> 
+            <void method="put"> 
+             <string>rawDataSize</string> 
+             <string>0</string> 
+            </void> 
+            <void method="put"> 
+             <string>numRows</string> 
+             <string>0</string> 
+            </void> 
+            <void method="put"> 
+             <string>numPartitions</string> 
+             <string>4</string> 
             </void> 
             <void method="put"> 
              <string>partition_columns</string> 
@@ -1016,16 +1092,20 @@
              <string>org.apache.hadoop.mapred.TextInputFormat</string> 
             </void> 
             <void method="put"> 
+             <string>totalSize</string> 
+             <string>23248</string> 
+            </void> 
+            <void method="put"> 
              <string>file.outputformat</string> 
              <string>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</string> 
             </void> 
             <void method="put"> 
              <string>location</string> 
-             <string>pfile:/home/opensrc/13thsep/workspace/build/ql/test/data/warehouse/srcpart</string> 
+             #### A masked pattern was here #### 
             </void> 
             <void method="put"> 
              <string>transient_lastDdlTime</string> 
-             <string>1315938872</string> 
+             #### A masked pattern was here #### 
             </void> 
            </object> 
           </void> 

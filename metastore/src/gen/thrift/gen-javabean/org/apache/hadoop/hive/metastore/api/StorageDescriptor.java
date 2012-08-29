@@ -5,6 +5,7 @@
  */
 package org.apache.hadoop.hive.metastore.api;
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -33,6 +34,7 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
   private static final org.apache.thrift.protocol.TField BUCKET_COLS_FIELD_DESC = new org.apache.thrift.protocol.TField("bucketCols", org.apache.thrift.protocol.TType.LIST, (short)8);
   private static final org.apache.thrift.protocol.TField SORT_COLS_FIELD_DESC = new org.apache.thrift.protocol.TField("sortCols", org.apache.thrift.protocol.TType.LIST, (short)9);
   private static final org.apache.thrift.protocol.TField PARAMETERS_FIELD_DESC = new org.apache.thrift.protocol.TField("parameters", org.apache.thrift.protocol.TType.MAP, (short)10);
+  private static final org.apache.thrift.protocol.TField SKEWED_INFO_FIELD_DESC = new org.apache.thrift.protocol.TField("skewedInfo", org.apache.thrift.protocol.TType.STRUCT, (short)11);
 
   private List<FieldSchema> cols; // required
   private String location; // required
@@ -44,6 +46,7 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
   private List<String> bucketCols; // required
   private List<Order> sortCols; // required
   private Map<String,String> parameters; // required
+  private SkewedInfo skewedInfo; // required
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -56,7 +59,8 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
     SERDE_INFO((short)7, "serdeInfo"),
     BUCKET_COLS((short)8, "bucketCols"),
     SORT_COLS((short)9, "sortCols"),
-    PARAMETERS((short)10, "parameters");
+    PARAMETERS((short)10, "parameters"),
+    SKEWED_INFO((short)11, "skewedInfo");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -91,6 +95,8 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
           return SORT_COLS;
         case 10: // PARAMETERS
           return PARAMETERS;
+        case 11: // SKEWED_INFO
+          return SKEWED_INFO;
         default:
           return null;
       }
@@ -163,6 +169,8 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
         new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
             new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING), 
             new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING))));
+    tmpMap.put(_Fields.SKEWED_INFO, new org.apache.thrift.meta_data.FieldMetaData("skewedInfo", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, SkewedInfo.class)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(StorageDescriptor.class, metaDataMap);
   }
@@ -253,6 +261,9 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
       }
       this.parameters = __this__parameters;
     }
+    if (other.isSetSkewedInfo()) {
+      this.skewedInfo = new SkewedInfo(other.skewedInfo);
+    }
   }
 
   public StorageDescriptor deepCopy() {
@@ -273,6 +284,7 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
     this.bucketCols = null;
     this.sortCols = null;
     this.parameters = null;
+    this.skewedInfo = null;
   }
 
   public int getColsSize() {
@@ -559,6 +571,29 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
     }
   }
 
+  public SkewedInfo getSkewedInfo() {
+    return this.skewedInfo;
+  }
+
+  public void setSkewedInfo(SkewedInfo skewedInfo) {
+    this.skewedInfo = skewedInfo;
+  }
+
+  public void unsetSkewedInfo() {
+    this.skewedInfo = null;
+  }
+
+  /** Returns true if field skewedInfo is set (has been assigned a value) and false otherwise */
+  public boolean isSetSkewedInfo() {
+    return this.skewedInfo != null;
+  }
+
+  public void setSkewedInfoIsSet(boolean value) {
+    if (!value) {
+      this.skewedInfo = null;
+    }
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case COLS:
@@ -641,6 +676,14 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
       }
       break;
 
+    case SKEWED_INFO:
+      if (value == null) {
+        unsetSkewedInfo();
+      } else {
+        setSkewedInfo((SkewedInfo)value);
+      }
+      break;
+
     }
   }
 
@@ -676,6 +719,9 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
     case PARAMETERS:
       return getParameters();
 
+    case SKEWED_INFO:
+      return getSkewedInfo();
+
     }
     throw new IllegalStateException();
   }
@@ -707,6 +753,8 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
       return isSetSortCols();
     case PARAMETERS:
       return isSetParameters();
+    case SKEWED_INFO:
+      return isSetSkewedInfo();
     }
     throw new IllegalStateException();
   }
@@ -814,12 +862,78 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
         return false;
     }
 
+    boolean this_present_skewedInfo = true && this.isSetSkewedInfo();
+    boolean that_present_skewedInfo = true && that.isSetSkewedInfo();
+    if (this_present_skewedInfo || that_present_skewedInfo) {
+      if (!(this_present_skewedInfo && that_present_skewedInfo))
+        return false;
+      if (!this.skewedInfo.equals(that.skewedInfo))
+        return false;
+    }
+
     return true;
   }
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_cols = true && (isSetCols());
+    builder.append(present_cols);
+    if (present_cols)
+      builder.append(cols);
+
+    boolean present_location = true && (isSetLocation());
+    builder.append(present_location);
+    if (present_location)
+      builder.append(location);
+
+    boolean present_inputFormat = true && (isSetInputFormat());
+    builder.append(present_inputFormat);
+    if (present_inputFormat)
+      builder.append(inputFormat);
+
+    boolean present_outputFormat = true && (isSetOutputFormat());
+    builder.append(present_outputFormat);
+    if (present_outputFormat)
+      builder.append(outputFormat);
+
+    boolean present_compressed = true;
+    builder.append(present_compressed);
+    if (present_compressed)
+      builder.append(compressed);
+
+    boolean present_numBuckets = true;
+    builder.append(present_numBuckets);
+    if (present_numBuckets)
+      builder.append(numBuckets);
+
+    boolean present_serdeInfo = true && (isSetSerdeInfo());
+    builder.append(present_serdeInfo);
+    if (present_serdeInfo)
+      builder.append(serdeInfo);
+
+    boolean present_bucketCols = true && (isSetBucketCols());
+    builder.append(present_bucketCols);
+    if (present_bucketCols)
+      builder.append(bucketCols);
+
+    boolean present_sortCols = true && (isSetSortCols());
+    builder.append(present_sortCols);
+    if (present_sortCols)
+      builder.append(sortCols);
+
+    boolean present_parameters = true && (isSetParameters());
+    builder.append(present_parameters);
+    if (present_parameters)
+      builder.append(parameters);
+
+    boolean present_skewedInfo = true && (isSetSkewedInfo());
+    builder.append(present_skewedInfo);
+    if (present_skewedInfo)
+      builder.append(skewedInfo);
+
+    return builder.toHashCode();
   }
 
   public int compareTo(StorageDescriptor other) {
@@ -930,6 +1044,16 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetSkewedInfo()).compareTo(typedOther.isSetSkewedInfo());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetSkewedInfo()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.skewedInfo, typedOther.skewedInfo);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -950,14 +1074,14 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
         case 1: // COLS
           if (field.type == org.apache.thrift.protocol.TType.LIST) {
             {
-              org.apache.thrift.protocol.TList _list49 = iprot.readListBegin();
-              this.cols = new ArrayList<FieldSchema>(_list49.size);
-              for (int _i50 = 0; _i50 < _list49.size; ++_i50)
+              org.apache.thrift.protocol.TList _list70 = iprot.readListBegin();
+              this.cols = new ArrayList<FieldSchema>(_list70.size);
+              for (int _i71 = 0; _i71 < _list70.size; ++_i71)
               {
-                FieldSchema _elem51; // required
-                _elem51 = new FieldSchema();
-                _elem51.read(iprot);
-                this.cols.add(_elem51);
+                FieldSchema _elem72; // required
+                _elem72 = new FieldSchema();
+                _elem72.read(iprot);
+                this.cols.add(_elem72);
               }
               iprot.readListEnd();
             }
@@ -1013,13 +1137,13 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
         case 8: // BUCKET_COLS
           if (field.type == org.apache.thrift.protocol.TType.LIST) {
             {
-              org.apache.thrift.protocol.TList _list52 = iprot.readListBegin();
-              this.bucketCols = new ArrayList<String>(_list52.size);
-              for (int _i53 = 0; _i53 < _list52.size; ++_i53)
+              org.apache.thrift.protocol.TList _list73 = iprot.readListBegin();
+              this.bucketCols = new ArrayList<String>(_list73.size);
+              for (int _i74 = 0; _i74 < _list73.size; ++_i74)
               {
-                String _elem54; // required
-                _elem54 = iprot.readString();
-                this.bucketCols.add(_elem54);
+                String _elem75; // required
+                _elem75 = iprot.readString();
+                this.bucketCols.add(_elem75);
               }
               iprot.readListEnd();
             }
@@ -1030,14 +1154,14 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
         case 9: // SORT_COLS
           if (field.type == org.apache.thrift.protocol.TType.LIST) {
             {
-              org.apache.thrift.protocol.TList _list55 = iprot.readListBegin();
-              this.sortCols = new ArrayList<Order>(_list55.size);
-              for (int _i56 = 0; _i56 < _list55.size; ++_i56)
+              org.apache.thrift.protocol.TList _list76 = iprot.readListBegin();
+              this.sortCols = new ArrayList<Order>(_list76.size);
+              for (int _i77 = 0; _i77 < _list76.size; ++_i77)
               {
-                Order _elem57; // required
-                _elem57 = new Order();
-                _elem57.read(iprot);
-                this.sortCols.add(_elem57);
+                Order _elem78; // required
+                _elem78 = new Order();
+                _elem78.read(iprot);
+                this.sortCols.add(_elem78);
               }
               iprot.readListEnd();
             }
@@ -1048,18 +1172,26 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
         case 10: // PARAMETERS
           if (field.type == org.apache.thrift.protocol.TType.MAP) {
             {
-              org.apache.thrift.protocol.TMap _map58 = iprot.readMapBegin();
-              this.parameters = new HashMap<String,String>(2*_map58.size);
-              for (int _i59 = 0; _i59 < _map58.size; ++_i59)
+              org.apache.thrift.protocol.TMap _map79 = iprot.readMapBegin();
+              this.parameters = new HashMap<String,String>(2*_map79.size);
+              for (int _i80 = 0; _i80 < _map79.size; ++_i80)
               {
-                String _key60; // required
-                String _val61; // required
-                _key60 = iprot.readString();
-                _val61 = iprot.readString();
-                this.parameters.put(_key60, _val61);
+                String _key81; // required
+                String _val82; // required
+                _key81 = iprot.readString();
+                _val82 = iprot.readString();
+                this.parameters.put(_key81, _val82);
               }
               iprot.readMapEnd();
             }
+          } else { 
+            org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 11: // SKEWED_INFO
+          if (field.type == org.apache.thrift.protocol.TType.STRUCT) {
+            this.skewedInfo = new SkewedInfo();
+            this.skewedInfo.read(iprot);
           } else { 
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
@@ -1081,9 +1213,9 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
       oprot.writeFieldBegin(COLS_FIELD_DESC);
       {
         oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.cols.size()));
-        for (FieldSchema _iter62 : this.cols)
+        for (FieldSchema _iter83 : this.cols)
         {
-          _iter62.write(oprot);
+          _iter83.write(oprot);
         }
         oprot.writeListEnd();
       }
@@ -1119,9 +1251,9 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
       oprot.writeFieldBegin(BUCKET_COLS_FIELD_DESC);
       {
         oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, this.bucketCols.size()));
-        for (String _iter63 : this.bucketCols)
+        for (String _iter84 : this.bucketCols)
         {
-          oprot.writeString(_iter63);
+          oprot.writeString(_iter84);
         }
         oprot.writeListEnd();
       }
@@ -1131,9 +1263,9 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
       oprot.writeFieldBegin(SORT_COLS_FIELD_DESC);
       {
         oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, this.sortCols.size()));
-        for (Order _iter64 : this.sortCols)
+        for (Order _iter85 : this.sortCols)
         {
-          _iter64.write(oprot);
+          _iter85.write(oprot);
         }
         oprot.writeListEnd();
       }
@@ -1143,14 +1275,21 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
       oprot.writeFieldBegin(PARAMETERS_FIELD_DESC);
       {
         oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, this.parameters.size()));
-        for (Map.Entry<String, String> _iter65 : this.parameters.entrySet())
+        for (Map.Entry<String, String> _iter86 : this.parameters.entrySet())
         {
-          oprot.writeString(_iter65.getKey());
-          oprot.writeString(_iter65.getValue());
+          oprot.writeString(_iter86.getKey());
+          oprot.writeString(_iter86.getValue());
         }
         oprot.writeMapEnd();
       }
       oprot.writeFieldEnd();
+    }
+    if (this.skewedInfo != null) {
+      if (isSetSkewedInfo()) {
+        oprot.writeFieldBegin(SKEWED_INFO_FIELD_DESC);
+        this.skewedInfo.write(oprot);
+        oprot.writeFieldEnd();
+      }
     }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
@@ -1232,6 +1371,16 @@ public class StorageDescriptor implements org.apache.thrift.TBase<StorageDescrip
       sb.append(this.parameters);
     }
     first = false;
+    if (isSetSkewedInfo()) {
+      if (!first) sb.append(", ");
+      sb.append("skewedInfo:");
+      if (this.skewedInfo == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.skewedInfo);
+      }
+      first = false;
+    }
     sb.append(")");
     return sb.toString();
   }

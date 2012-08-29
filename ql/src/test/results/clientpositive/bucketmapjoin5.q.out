@@ -132,16 +132,18 @@ ABSTRACT SYNTAX TREE:
   (TOK_QUERY (TOK_FROM (TOK_JOIN (TOK_TABREF (TOK_TABNAME srcbucket_mapjoin) a) (TOK_TABREF (TOK_TABNAME srcbucket_mapjoin_part) b) (= (. (TOK_TABLE_OR_COL a) key) (. (TOK_TABLE_OR_COL b) key)))) (TOK_INSERT (TOK_DESTINATION (TOK_TAB (TOK_TABNAME bucketmapjoin_tmp_result))) (TOK_SELECT (TOK_HINTLIST (TOK_HINT TOK_MAPJOIN (TOK_HINTARGLIST a))) (TOK_SELEXPR (. (TOK_TABLE_OR_COL a) key)) (TOK_SELEXPR (. (TOK_TABLE_OR_COL a) value)) (TOK_SELEXPR (. (TOK_TABLE_OR_COL b) value)))))
 
 STAGE DEPENDENCIES:
-  Stage-7 is a root stage
-  Stage-1 depends on stages: Stage-7
-  Stage-5 depends on stages: Stage-1 , consists of Stage-4, Stage-3
+  Stage-9 is a root stage
+  Stage-1 depends on stages: Stage-9
+  Stage-7 depends on stages: Stage-1 , consists of Stage-4, Stage-3, Stage-5
   Stage-4
-  Stage-0 depends on stages: Stage-4, Stage-3
+  Stage-0 depends on stages: Stage-4, Stage-3, Stage-6
   Stage-2 depends on stages: Stage-0
   Stage-3
+  Stage-5
+  Stage-6 depends on stages: Stage-5
 
 STAGE PLANS:
-  Stage: Stage-7
+  Stage: Stage-9
     Map Reduce Local Work
       Alias -> Map Local Tables:
         a 
@@ -163,18 +165,11 @@ STAGE PLANS:
               Position of Big Table: 1
       Bucket Mapjoin Context:
           Alias Bucket Base File Name Mapping:
-            a {srcbucket20.txt=[srcbucket20.txt], srcbucket21.txt=[srcbucket21.txt], srcbucket22.txt=[srcbucket20.txt], srcbucket23.txt=[srcbucket21.txt], ds=2008-04-09/srcbucket20.txt=[srcbucket20.txt], ds=2008-04-09/srcbucket21.txt=[srcbucket21.txt], ds=2008-04-09/srcbucket22.txt=[srcbucket20.txt], ds=2008-04-09/srcbucket23.txt=[srcbucket21.txt]}
+            a {ds=2008-04-08/srcbucket20.txt=[srcbucket20.txt], ds=2008-04-08/srcbucket21.txt=[srcbucket21.txt], ds=2008-04-08/srcbucket22.txt=[srcbucket20.txt], ds=2008-04-08/srcbucket23.txt=[srcbucket21.txt], ds=2008-04-09/srcbucket20.txt=[srcbucket20.txt], ds=2008-04-09/srcbucket21.txt=[srcbucket21.txt], ds=2008-04-09/srcbucket22.txt=[srcbucket20.txt], ds=2008-04-09/srcbucket23.txt=[srcbucket21.txt]}
           Alias Bucket File Name Mapping:
-            a {pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-08/srcbucket20.txt=[pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin/srcbucket20.txt], pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-08/srcbucket21.txt=[pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin/srcbucket21.txt], pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-08/srcbucket22.txt=[pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin/srcbucket20.txt], pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-08/srcbucket23.txt=[pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin/srcbucket21.txt], pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-09/srcbucket20.txt=[pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin/srcbucket20.txt], pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-09/srcbucket21.txt=[pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin/srcbucket21.txt], pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-09/srcbucket22.txt=[pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin/srcbucket20.txt], pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-09/srcbucket23.txt=[pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin/srcbucket21.txt]}
+#### A masked pattern was here ####
           Alias Bucket Output File Name Mapping:
-            pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-08/srcbucket20.txt 0
-            pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-08/srcbucket21.txt 1
-            pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-08/srcbucket22.txt 2
-            pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-08/srcbucket23.txt 3
-            pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-09/srcbucket20.txt 0
-            pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-09/srcbucket21.txt 1
-            pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-09/srcbucket22.txt 2
-            pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-09/srcbucket23.txt 3
+#### A masked pattern was here ####
 
   Stage: Stage-1
     Map Reduce
@@ -216,9 +211,9 @@ STAGE PLANS:
                   File Output Operator
                     compressed: false
                     GlobalTableId: 1
-                    directory: pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-48-46_995_1754546199202542015/-ext-10002
+#### A masked pattern was here ####
                     NumFilesPerFileSink: 1
-                    Stats Publishing Key Prefix: pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-48-46_995_1754546199202542015/-ext-10000/
+#### A masked pattern was here ####
                     table:
                         input format: org.apache.hadoop.mapred.TextInputFormat
                         output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
@@ -226,14 +221,12 @@ STAGE PLANS:
                           bucket_count -1
                           columns key,value1,value2
                           columns.types string:string:string
-                          file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                          file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                          location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/bucketmapjoin_tmp_result
+#### A masked pattern was here ####
                           name default.bucketmapjoin_tmp_result
                           serialization.ddl struct bucketmapjoin_tmp_result { string key, string value1, string value2}
                           serialization.format 1
                           serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                          transient_lastDdlTime 1306979326
+#### A masked pattern was here ####
                         serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                         name: default.bucketmapjoin_tmp_result
                     TotalFiles: 1
@@ -243,10 +236,9 @@ STAGE PLANS:
         Map Reduce Local Work
       Needs Tagging: false
       Path -> Alias:
-        pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-08 [b]
-        pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-09 [b]
+#### A masked pattern was here ####
       Path -> Partition:
-        pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-08 
+#### A masked pattern was here ####
           Partition
             base file name: ds=2008-04-08
             input format: org.apache.hadoop.mapred.TextInputFormat
@@ -258,15 +250,18 @@ STAGE PLANS:
               bucket_field_name key
               columns key,value
               columns.types int:string
-              file.inputformat org.apache.hadoop.mapred.TextInputFormat
-              file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-              location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-08
+#### A masked pattern was here ####
               name default.srcbucket_mapjoin_part
+              numFiles 4
+              numPartitions 2
+              numRows 0
               partition_columns ds
+              rawDataSize 0
               serialization.ddl struct srcbucket_mapjoin_part { i32 key, string value}
               serialization.format 1
               serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-              transient_lastDdlTime 1306979320
+              totalSize 5812
+#### A masked pattern was here ####
             serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
           
               input format: org.apache.hadoop.mapred.TextInputFormat
@@ -276,19 +271,22 @@ STAGE PLANS:
                 bucket_field_name key
                 columns key,value
                 columns.types int:string
-                file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part
+#### A masked pattern was here ####
                 name default.srcbucket_mapjoin_part
+                numFiles 8
+                numPartitions 2
+                numRows 0
                 partition_columns ds
+                rawDataSize 0
                 serialization.ddl struct srcbucket_mapjoin_part { i32 key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                transient_lastDdlTime 1306979317
+                totalSize 11624
+#### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.srcbucket_mapjoin_part
             name: default.srcbucket_mapjoin_part
-        pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-09 
+#### A masked pattern was here ####
           Partition
             base file name: ds=2008-04-09
             input format: org.apache.hadoop.mapred.TextInputFormat
@@ -300,15 +298,18 @@ STAGE PLANS:
               bucket_field_name key
               columns key,value
               columns.types int:string
-              file.inputformat org.apache.hadoop.mapred.TextInputFormat
-              file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-              location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part/ds=2008-04-09
+#### A masked pattern was here ####
               name default.srcbucket_mapjoin_part
+              numFiles 4
+              numPartitions 2
+              numRows 0
               partition_columns ds
+              rawDataSize 0
               serialization.ddl struct srcbucket_mapjoin_part { i32 key, string value}
               serialization.format 1
               serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-              transient_lastDdlTime 1306979323
+              totalSize 5812
+#### A masked pattern was here ####
             serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
           
               input format: org.apache.hadoop.mapred.TextInputFormat
@@ -318,34 +319,36 @@ STAGE PLANS:
                 bucket_field_name key
                 columns key,value
                 columns.types int:string
-                file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part
+#### A masked pattern was here ####
                 name default.srcbucket_mapjoin_part
+                numFiles 8
+                numPartitions 2
+                numRows 0
                 partition_columns ds
+                rawDataSize 0
                 serialization.ddl struct srcbucket_mapjoin_part { i32 key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                transient_lastDdlTime 1306979317
+                totalSize 11624
+#### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.srcbucket_mapjoin_part
             name: default.srcbucket_mapjoin_part
 
-  Stage: Stage-5
+  Stage: Stage-7
     Conditional Operator
 
   Stage: Stage-4
     Move Operator
       files:
           hdfs directory: true
-          source: pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-48-46_995_1754546199202542015/-ext-10002
-          destination: pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-48-46_995_1754546199202542015/-ext-10000
+#### A masked pattern was here ####
 
   Stage: Stage-0
     Move Operator
       tables:
           replace: true
-          source: pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-48-46_995_1754546199202542015/-ext-10000
+#### A masked pattern was here ####
           table:
               input format: org.apache.hadoop.mapred.TextInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
@@ -353,30 +356,28 @@ STAGE PLANS:
                 bucket_count -1
                 columns key,value1,value2
                 columns.types string:string:string
-                file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/bucketmapjoin_tmp_result
+#### A masked pattern was here ####
                 name default.bucketmapjoin_tmp_result
                 serialization.ddl struct bucketmapjoin_tmp_result { string key, string value1, string value2}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                transient_lastDdlTime 1306979326
+#### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.bucketmapjoin_tmp_result
-          tmp directory: pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-48-46_995_1754546199202542015/-ext-10001
+#### A masked pattern was here ####
 
   Stage: Stage-2
     Stats-Aggr Operator
-      Stats Aggregation Key Prefix: pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-48-46_995_1754546199202542015/-ext-10000/
+#### A masked pattern was here ####
 
   Stage: Stage-3
     Map Reduce
       Alias -> Map Operator Tree:
-        pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-48-46_995_1754546199202542015/-ext-10002 
+#### A masked pattern was here ####
             File Output Operator
               compressed: false
               GlobalTableId: 0
-              directory: pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-48-46_995_1754546199202542015/-ext-10000
+#### A masked pattern was here ####
               NumFilesPerFileSink: 1
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
@@ -385,14 +386,12 @@ STAGE PLANS:
                     bucket_count -1
                     columns key,value1,value2
                     columns.types string:string:string
-                    file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                    file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/bucketmapjoin_tmp_result
+#### A masked pattern was here ####
                     name default.bucketmapjoin_tmp_result
                     serialization.ddl struct bucketmapjoin_tmp_result { string key, string value1, string value2}
                     serialization.format 1
                     serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    transient_lastDdlTime 1306979326
+#### A masked pattern was here ####
                   serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                   name: default.bucketmapjoin_tmp_result
               TotalFiles: 1
@@ -400,9 +399,9 @@ STAGE PLANS:
               MultiFileSpray: false
       Needs Tagging: false
       Path -> Alias:
-        pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-48-46_995_1754546199202542015/-ext-10002 [pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-48-46_995_1754546199202542015/-ext-10002]
+#### A masked pattern was here ####
       Path -> Partition:
-        pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-48-46_995_1754546199202542015/-ext-10002 
+#### A masked pattern was here ####
           Partition
             base file name: -ext-10002
             input format: org.apache.hadoop.mapred.TextInputFormat
@@ -411,14 +410,12 @@ STAGE PLANS:
               bucket_count -1
               columns key,value1,value2
               columns.types string:string:string
-              file.inputformat org.apache.hadoop.mapred.TextInputFormat
-              file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-              location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/bucketmapjoin_tmp_result
+#### A masked pattern was here ####
               name default.bucketmapjoin_tmp_result
               serialization.ddl struct bucketmapjoin_tmp_result { string key, string value1, string value2}
               serialization.format 1
               serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-              transient_lastDdlTime 1306979326
+#### A masked pattern was here ####
             serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
           
               input format: org.apache.hadoop.mapred.TextInputFormat
@@ -427,17 +424,85 @@ STAGE PLANS:
                 bucket_count -1
                 columns key,value1,value2
                 columns.types string:string:string
-                file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/bucketmapjoin_tmp_result
+#### A masked pattern was here ####
                 name default.bucketmapjoin_tmp_result
                 serialization.ddl struct bucketmapjoin_tmp_result { string key, string value1, string value2}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                transient_lastDdlTime 1306979326
+#### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.bucketmapjoin_tmp_result
             name: default.bucketmapjoin_tmp_result
+
+  Stage: Stage-5
+    Map Reduce
+      Alias -> Map Operator Tree:
+#### A masked pattern was here ####
+            File Output Operator
+              compressed: false
+              GlobalTableId: 0
+#### A masked pattern was here ####
+              NumFilesPerFileSink: 1
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  properties:
+                    bucket_count -1
+                    columns key,value1,value2
+                    columns.types string:string:string
+#### A masked pattern was here ####
+                    name default.bucketmapjoin_tmp_result
+                    serialization.ddl struct bucketmapjoin_tmp_result { string key, string value1, string value2}
+                    serialization.format 1
+                    serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+#### A masked pattern was here ####
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.bucketmapjoin_tmp_result
+              TotalFiles: 1
+              GatherStats: false
+              MultiFileSpray: false
+      Needs Tagging: false
+      Path -> Alias:
+#### A masked pattern was here ####
+      Path -> Partition:
+#### A masked pattern was here ####
+          Partition
+            base file name: -ext-10002
+            input format: org.apache.hadoop.mapred.TextInputFormat
+            output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+            properties:
+              bucket_count -1
+              columns key,value1,value2
+              columns.types string:string:string
+#### A masked pattern was here ####
+              name default.bucketmapjoin_tmp_result
+              serialization.ddl struct bucketmapjoin_tmp_result { string key, string value1, string value2}
+              serialization.format 1
+              serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+#### A masked pattern was here ####
+            serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+          
+              input format: org.apache.hadoop.mapred.TextInputFormat
+              output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+              properties:
+                bucket_count -1
+                columns key,value1,value2
+                columns.types string:string:string
+#### A masked pattern was here ####
+                name default.bucketmapjoin_tmp_result
+                serialization.ddl struct bucketmapjoin_tmp_result { string key, string value1, string value2}
+                serialization.format 1
+                serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+#### A masked pattern was here ####
+              serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+              name: default.bucketmapjoin_tmp_result
+            name: default.bucketmapjoin_tmp_result
+
+  Stage: Stage-6
+    Move Operator
+      files:
+          hdfs directory: true
+#### A masked pattern was here ####
 
 
 PREHOOK: query: insert overwrite table bucketmapjoin_tmp_result 
@@ -464,11 +529,11 @@ POSTHOOK: Lineage: bucketmapjoin_tmp_result.value2 SIMPLE [(srcbucket_mapjoin_pa
 PREHOOK: query: select count(1) from bucketmapjoin_tmp_result
 PREHOOK: type: QUERY
 PREHOOK: Input: default@bucketmapjoin_tmp_result
-PREHOOK: Output: file:/tmp/tomasz/hive_2011-06-01_18-48-56_344_1892688432515785874/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select count(1) from bucketmapjoin_tmp_result
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@bucketmapjoin_tmp_result
-POSTHOOK: Output: file:/tmp/tomasz/hive_2011-06-01_18-48-56_344_1892688432515785874/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: bucketmapjoin_tmp_result.key SIMPLE [(srcbucket_mapjoin)a.FieldSchema(name:key, type:int, comment:null), ]
 POSTHOOK: Lineage: bucketmapjoin_tmp_result.value1 SIMPLE [(srcbucket_mapjoin)a.FieldSchema(name:value, type:string, comment:null), ]
 POSTHOOK: Lineage: bucketmapjoin_tmp_result.value2 SIMPLE [(srcbucket_mapjoin_part)b.FieldSchema(name:value, type:string, comment:null), ]
@@ -519,11 +584,11 @@ POSTHOOK: Lineage: bucketmapjoin_tmp_result.value2 SIMPLE [(srcbucket_mapjoin_pa
 PREHOOK: query: select count(1) from bucketmapjoin_tmp_result
 PREHOOK: type: QUERY
 PREHOOK: Input: default@bucketmapjoin_tmp_result
-PREHOOK: Output: file:/tmp/tomasz/hive_2011-06-01_18-49-10_145_6457826342635989054/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select count(1) from bucketmapjoin_tmp_result
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@bucketmapjoin_tmp_result
-POSTHOOK: Output: file:/tmp/tomasz/hive_2011-06-01_18-49-10_145_6457826342635989054/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: bucketmapjoin_hash_result_1.key EXPRESSION [(bucketmapjoin_tmp_result)bucketmapjoin_tmp_result.FieldSchema(name:key, type:string, comment:null), ]
 POSTHOOK: Lineage: bucketmapjoin_hash_result_1.value1 EXPRESSION [(bucketmapjoin_tmp_result)bucketmapjoin_tmp_result.FieldSchema(name:value1, type:string, comment:null), ]
 POSTHOOK: Lineage: bucketmapjoin_hash_result_1.value2 EXPRESSION [(bucketmapjoin_tmp_result)bucketmapjoin_tmp_result.FieldSchema(name:value2, type:string, comment:null), ]
@@ -562,14 +627,14 @@ on a.key = b.key
 PREHOOK: type: QUERY
 PREHOOK: Input: default@bucketmapjoin_hash_result_1
 PREHOOK: Input: default@bucketmapjoin_hash_result_2
-PREHOOK: Output: file:/tmp/tomasz/hive_2011-06-01_18-49-17_306_3528505035492541169/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select a.key-b.key, a.value1-b.value1, a.value2-b.value2
 from bucketmapjoin_hash_result_1 a left outer join bucketmapjoin_hash_result_2 b
 on a.key = b.key
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@bucketmapjoin_hash_result_1
 POSTHOOK: Input: default@bucketmapjoin_hash_result_2
-POSTHOOK: Output: file:/tmp/tomasz/hive_2011-06-01_18-49-17_306_3528505035492541169/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: bucketmapjoin_hash_result_1.key EXPRESSION [(bucketmapjoin_tmp_result)bucketmapjoin_tmp_result.FieldSchema(name:key, type:string, comment:null), ]
 POSTHOOK: Lineage: bucketmapjoin_hash_result_1.value1 EXPRESSION [(bucketmapjoin_tmp_result)bucketmapjoin_tmp_result.FieldSchema(name:value1, type:string, comment:null), ]
 POSTHOOK: Lineage: bucketmapjoin_hash_result_1.value2 EXPRESSION [(bucketmapjoin_tmp_result)bucketmapjoin_tmp_result.FieldSchema(name:value2, type:string, comment:null), ]
@@ -611,16 +676,18 @@ ABSTRACT SYNTAX TREE:
   (TOK_QUERY (TOK_FROM (TOK_JOIN (TOK_TABREF (TOK_TABNAME srcbucket_mapjoin) a) (TOK_TABREF (TOK_TABNAME srcbucket_mapjoin_part_2) b) (= (. (TOK_TABLE_OR_COL a) key) (. (TOK_TABLE_OR_COL b) key)))) (TOK_INSERT (TOK_DESTINATION (TOK_TAB (TOK_TABNAME bucketmapjoin_tmp_result))) (TOK_SELECT (TOK_HINTLIST (TOK_HINT TOK_MAPJOIN (TOK_HINTARGLIST a))) (TOK_SELEXPR (. (TOK_TABLE_OR_COL a) key)) (TOK_SELEXPR (. (TOK_TABLE_OR_COL a) value)) (TOK_SELEXPR (. (TOK_TABLE_OR_COL b) value)))))
 
 STAGE DEPENDENCIES:
-  Stage-7 is a root stage
-  Stage-1 depends on stages: Stage-7
-  Stage-5 depends on stages: Stage-1 , consists of Stage-4, Stage-3
+  Stage-9 is a root stage
+  Stage-1 depends on stages: Stage-9
+  Stage-7 depends on stages: Stage-1 , consists of Stage-4, Stage-3, Stage-5
   Stage-4
-  Stage-0 depends on stages: Stage-4, Stage-3
+  Stage-0 depends on stages: Stage-4, Stage-3, Stage-6
   Stage-2 depends on stages: Stage-0
   Stage-3
+  Stage-5
+  Stage-6 depends on stages: Stage-5
 
 STAGE PLANS:
-  Stage: Stage-7
+  Stage: Stage-9
     Map Reduce Local Work
       Alias -> Map Local Tables:
         a 
@@ -642,14 +709,11 @@ STAGE PLANS:
               Position of Big Table: 1
       Bucket Mapjoin Context:
           Alias Bucket Base File Name Mapping:
-            a {srcbucket22.txt=[srcbucket20.txt], srcbucket23.txt=[srcbucket21.txt], ds=2008-04-09/srcbucket22.txt=[srcbucket20.txt], ds=2008-04-09/srcbucket23.txt=[srcbucket21.txt]}
+            a {ds=2008-04-08/srcbucket22.txt=[srcbucket20.txt], ds=2008-04-08/srcbucket23.txt=[srcbucket21.txt], ds=2008-04-09/srcbucket22.txt=[srcbucket20.txt], ds=2008-04-09/srcbucket23.txt=[srcbucket21.txt]}
           Alias Bucket File Name Mapping:
-            a {pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part_2/ds=2008-04-08/srcbucket22.txt=[pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin/srcbucket20.txt], pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part_2/ds=2008-04-08/srcbucket23.txt=[pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin/srcbucket21.txt], pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part_2/ds=2008-04-09/srcbucket22.txt=[pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin/srcbucket20.txt], pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part_2/ds=2008-04-09/srcbucket23.txt=[pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin/srcbucket21.txt]}
+#### A masked pattern was here ####
           Alias Bucket Output File Name Mapping:
-            pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part_2/ds=2008-04-08/srcbucket22.txt 0
-            pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part_2/ds=2008-04-08/srcbucket23.txt 1
-            pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part_2/ds=2008-04-09/srcbucket22.txt 0
-            pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part_2/ds=2008-04-09/srcbucket23.txt 1
+#### A masked pattern was here ####
 
   Stage: Stage-1
     Map Reduce
@@ -691,9 +755,9 @@ STAGE PLANS:
                   File Output Operator
                     compressed: false
                     GlobalTableId: 1
-                    directory: pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-49-20_656_8693277223997418843/-ext-10002
+#### A masked pattern was here ####
                     NumFilesPerFileSink: 1
-                    Stats Publishing Key Prefix: pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-49-20_656_8693277223997418843/-ext-10000/
+#### A masked pattern was here ####
                     table:
                         input format: org.apache.hadoop.mapred.TextInputFormat
                         output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
@@ -701,9 +765,7 @@ STAGE PLANS:
                           bucket_count -1
                           columns key,value1,value2
                           columns.types string:string:string
-                          file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                          file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                          location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/bucketmapjoin_tmp_result
+#### A masked pattern was here ####
                           name default.bucketmapjoin_tmp_result
                           numFiles 1
                           numPartitions 0
@@ -713,7 +775,7 @@ STAGE PLANS:
                           serialization.format 1
                           serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                           totalSize 17966
-                          transient_lastDdlTime 1306979350
+#### A masked pattern was here ####
                         serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                         name: default.bucketmapjoin_tmp_result
                     TotalFiles: 1
@@ -723,10 +785,9 @@ STAGE PLANS:
         Map Reduce Local Work
       Needs Tagging: false
       Path -> Alias:
-        pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part_2/ds=2008-04-08 [b]
-        pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part_2/ds=2008-04-09 [b]
+#### A masked pattern was here ####
       Path -> Partition:
-        pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part_2/ds=2008-04-08 
+#### A masked pattern was here ####
           Partition
             base file name: ds=2008-04-08
             input format: org.apache.hadoop.mapred.TextInputFormat
@@ -738,15 +799,18 @@ STAGE PLANS:
               bucket_field_name key
               columns key,value
               columns.types int:string
-              file.inputformat org.apache.hadoop.mapred.TextInputFormat
-              file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-              location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part_2/ds=2008-04-08
+#### A masked pattern was here ####
               name default.srcbucket_mapjoin_part_2
+              numFiles 2
+              numPartitions 2
+              numRows 0
               partition_columns ds
+              rawDataSize 0
               serialization.ddl struct srcbucket_mapjoin_part_2 { i32 key, string value}
               serialization.format 1
               serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-              transient_lastDdlTime 1306979324
+              totalSize 3062
+#### A masked pattern was here ####
             serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
           
               input format: org.apache.hadoop.mapred.TextInputFormat
@@ -756,19 +820,22 @@ STAGE PLANS:
                 bucket_field_name key
                 columns key,value
                 columns.types int:string
-                file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part_2
+#### A masked pattern was here ####
                 name default.srcbucket_mapjoin_part_2
+                numFiles 4
+                numPartitions 2
+                numRows 0
                 partition_columns ds
+                rawDataSize 0
                 serialization.ddl struct srcbucket_mapjoin_part_2 { i32 key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                transient_lastDdlTime 1306979323
+                totalSize 6124
+#### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.srcbucket_mapjoin_part_2
             name: default.srcbucket_mapjoin_part_2
-        pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part_2/ds=2008-04-09 
+#### A masked pattern was here ####
           Partition
             base file name: ds=2008-04-09
             input format: org.apache.hadoop.mapred.TextInputFormat
@@ -780,15 +847,18 @@ STAGE PLANS:
               bucket_field_name key
               columns key,value
               columns.types int:string
-              file.inputformat org.apache.hadoop.mapred.TextInputFormat
-              file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-              location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part_2/ds=2008-04-09
+#### A masked pattern was here ####
               name default.srcbucket_mapjoin_part_2
+              numFiles 2
+              numPartitions 2
+              numRows 0
               partition_columns ds
+              rawDataSize 0
               serialization.ddl struct srcbucket_mapjoin_part_2 { i32 key, string value}
               serialization.format 1
               serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-              transient_lastDdlTime 1306979326
+              totalSize 3062
+#### A masked pattern was here ####
             serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
           
               input format: org.apache.hadoop.mapred.TextInputFormat
@@ -798,34 +868,36 @@ STAGE PLANS:
                 bucket_field_name key
                 columns key,value
                 columns.types int:string
-                file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/srcbucket_mapjoin_part_2
+#### A masked pattern was here ####
                 name default.srcbucket_mapjoin_part_2
+                numFiles 4
+                numPartitions 2
+                numRows 0
                 partition_columns ds
+                rawDataSize 0
                 serialization.ddl struct srcbucket_mapjoin_part_2 { i32 key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                transient_lastDdlTime 1306979323
+                totalSize 6124
+#### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.srcbucket_mapjoin_part_2
             name: default.srcbucket_mapjoin_part_2
 
-  Stage: Stage-5
+  Stage: Stage-7
     Conditional Operator
 
   Stage: Stage-4
     Move Operator
       files:
           hdfs directory: true
-          source: pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-49-20_656_8693277223997418843/-ext-10002
-          destination: pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-49-20_656_8693277223997418843/-ext-10000
+#### A masked pattern was here ####
 
   Stage: Stage-0
     Move Operator
       tables:
           replace: true
-          source: pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-49-20_656_8693277223997418843/-ext-10000
+#### A masked pattern was here ####
           table:
               input format: org.apache.hadoop.mapred.TextInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
@@ -833,9 +905,7 @@ STAGE PLANS:
                 bucket_count -1
                 columns key,value1,value2
                 columns.types string:string:string
-                file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/bucketmapjoin_tmp_result
+#### A masked pattern was here ####
                 name default.bucketmapjoin_tmp_result
                 numFiles 1
                 numPartitions 0
@@ -845,23 +915,23 @@ STAGE PLANS:
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                 totalSize 17966
-                transient_lastDdlTime 1306979350
+#### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.bucketmapjoin_tmp_result
-          tmp directory: pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-49-20_656_8693277223997418843/-ext-10001
+#### A masked pattern was here ####
 
   Stage: Stage-2
     Stats-Aggr Operator
-      Stats Aggregation Key Prefix: pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-49-20_656_8693277223997418843/-ext-10000/
+#### A masked pattern was here ####
 
   Stage: Stage-3
     Map Reduce
       Alias -> Map Operator Tree:
-        pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-49-20_656_8693277223997418843/-ext-10002 
+#### A masked pattern was here ####
             File Output Operator
               compressed: false
               GlobalTableId: 0
-              directory: pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-49-20_656_8693277223997418843/-ext-10000
+#### A masked pattern was here ####
               NumFilesPerFileSink: 1
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
@@ -870,9 +940,7 @@ STAGE PLANS:
                     bucket_count -1
                     columns key,value1,value2
                     columns.types string:string:string
-                    file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                    file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/bucketmapjoin_tmp_result
+#### A masked pattern was here ####
                     name default.bucketmapjoin_tmp_result
                     numFiles 1
                     numPartitions 0
@@ -882,7 +950,7 @@ STAGE PLANS:
                     serialization.format 1
                     serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                     totalSize 17966
-                    transient_lastDdlTime 1306979350
+#### A masked pattern was here ####
                   serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                   name: default.bucketmapjoin_tmp_result
               TotalFiles: 1
@@ -890,9 +958,9 @@ STAGE PLANS:
               MultiFileSpray: false
       Needs Tagging: false
       Path -> Alias:
-        pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-49-20_656_8693277223997418843/-ext-10002 [pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-49-20_656_8693277223997418843/-ext-10002]
+#### A masked pattern was here ####
       Path -> Partition:
-        pfile:/data/users/tomasz/apache-hive/build/ql/scratchdir/hive_2011-06-01_18-49-20_656_8693277223997418843/-ext-10002 
+#### A masked pattern was here ####
           Partition
             base file name: -ext-10002
             input format: org.apache.hadoop.mapred.TextInputFormat
@@ -901,9 +969,7 @@ STAGE PLANS:
               bucket_count -1
               columns key,value1,value2
               columns.types string:string:string
-              file.inputformat org.apache.hadoop.mapred.TextInputFormat
-              file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-              location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/bucketmapjoin_tmp_result
+#### A masked pattern was here ####
               name default.bucketmapjoin_tmp_result
               numFiles 1
               numPartitions 0
@@ -913,7 +979,7 @@ STAGE PLANS:
               serialization.format 1
               serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               totalSize 17966
-              transient_lastDdlTime 1306979350
+#### A masked pattern was here ####
             serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
           
               input format: org.apache.hadoop.mapred.TextInputFormat
@@ -922,9 +988,7 @@ STAGE PLANS:
                 bucket_count -1
                 columns key,value1,value2
                 columns.types string:string:string
-                file.inputformat org.apache.hadoop.mapred.TextInputFormat
-                file.outputformat org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                location pfile:/data/users/tomasz/apache-hive/build/ql/test/data/warehouse/bucketmapjoin_tmp_result
+#### A masked pattern was here ####
                 name default.bucketmapjoin_tmp_result
                 numFiles 1
                 numPartitions 0
@@ -934,10 +998,95 @@ STAGE PLANS:
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                 totalSize 17966
-                transient_lastDdlTime 1306979350
+#### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.bucketmapjoin_tmp_result
             name: default.bucketmapjoin_tmp_result
+
+  Stage: Stage-5
+    Map Reduce
+      Alias -> Map Operator Tree:
+#### A masked pattern was here ####
+            File Output Operator
+              compressed: false
+              GlobalTableId: 0
+#### A masked pattern was here ####
+              NumFilesPerFileSink: 1
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  properties:
+                    bucket_count -1
+                    columns key,value1,value2
+                    columns.types string:string:string
+#### A masked pattern was here ####
+                    name default.bucketmapjoin_tmp_result
+                    numFiles 1
+                    numPartitions 0
+                    numRows 928
+                    rawDataSize 17038
+                    serialization.ddl struct bucketmapjoin_tmp_result { string key, string value1, string value2}
+                    serialization.format 1
+                    serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                    totalSize 17966
+#### A masked pattern was here ####
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.bucketmapjoin_tmp_result
+              TotalFiles: 1
+              GatherStats: false
+              MultiFileSpray: false
+      Needs Tagging: false
+      Path -> Alias:
+#### A masked pattern was here ####
+      Path -> Partition:
+#### A masked pattern was here ####
+          Partition
+            base file name: -ext-10002
+            input format: org.apache.hadoop.mapred.TextInputFormat
+            output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+            properties:
+              bucket_count -1
+              columns key,value1,value2
+              columns.types string:string:string
+#### A masked pattern was here ####
+              name default.bucketmapjoin_tmp_result
+              numFiles 1
+              numPartitions 0
+              numRows 928
+              rawDataSize 17038
+              serialization.ddl struct bucketmapjoin_tmp_result { string key, string value1, string value2}
+              serialization.format 1
+              serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+              totalSize 17966
+#### A masked pattern was here ####
+            serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+          
+              input format: org.apache.hadoop.mapred.TextInputFormat
+              output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+              properties:
+                bucket_count -1
+                columns key,value1,value2
+                columns.types string:string:string
+#### A masked pattern was here ####
+                name default.bucketmapjoin_tmp_result
+                numFiles 1
+                numPartitions 0
+                numRows 928
+                rawDataSize 17038
+                serialization.ddl struct bucketmapjoin_tmp_result { string key, string value1, string value2}
+                serialization.format 1
+                serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                totalSize 17966
+#### A masked pattern was here ####
+              serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+              name: default.bucketmapjoin_tmp_result
+            name: default.bucketmapjoin_tmp_result
+
+  Stage: Stage-6
+    Move Operator
+      files:
+          hdfs directory: true
+#### A masked pattern was here ####
 
 
 PREHOOK: query: insert overwrite table bucketmapjoin_tmp_result 
@@ -976,11 +1125,11 @@ POSTHOOK: Lineage: bucketmapjoin_tmp_result.value2 SIMPLE [(srcbucket_mapjoin_pa
 PREHOOK: query: select count(1) from bucketmapjoin_tmp_result
 PREHOOK: type: QUERY
 PREHOOK: Input: default@bucketmapjoin_tmp_result
-PREHOOK: Output: file:/tmp/tomasz/hive_2011-06-01_18-49-27_800_7783962503066464741/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select count(1) from bucketmapjoin_tmp_result
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@bucketmapjoin_tmp_result
-POSTHOOK: Output: file:/tmp/tomasz/hive_2011-06-01_18-49-27_800_7783962503066464741/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: bucketmapjoin_hash_result_1.key EXPRESSION [(bucketmapjoin_tmp_result)bucketmapjoin_tmp_result.FieldSchema(name:key, type:string, comment:null), ]
 POSTHOOK: Lineage: bucketmapjoin_hash_result_1.value1 EXPRESSION [(bucketmapjoin_tmp_result)bucketmapjoin_tmp_result.FieldSchema(name:value1, type:string, comment:null), ]
 POSTHOOK: Lineage: bucketmapjoin_hash_result_1.value2 EXPRESSION [(bucketmapjoin_tmp_result)bucketmapjoin_tmp_result.FieldSchema(name:value2, type:string, comment:null), ]
@@ -1067,11 +1216,11 @@ POSTHOOK: Lineage: bucketmapjoin_tmp_result.value2 SIMPLE [(srcbucket_mapjoin_pa
 PREHOOK: query: select count(1) from bucketmapjoin_tmp_result
 PREHOOK: type: QUERY
 PREHOOK: Input: default@bucketmapjoin_tmp_result
-PREHOOK: Output: file:/tmp/tomasz/hive_2011-06-01_18-49-40_921_1484073841172092220/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select count(1) from bucketmapjoin_tmp_result
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@bucketmapjoin_tmp_result
-POSTHOOK: Output: file:/tmp/tomasz/hive_2011-06-01_18-49-40_921_1484073841172092220/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: bucketmapjoin_hash_result_1.key EXPRESSION [(bucketmapjoin_tmp_result)bucketmapjoin_tmp_result.FieldSchema(name:key, type:string, comment:null), ]
 POSTHOOK: Lineage: bucketmapjoin_hash_result_1.key EXPRESSION [(bucketmapjoin_tmp_result)bucketmapjoin_tmp_result.FieldSchema(name:key, type:string, comment:null), ]
 POSTHOOK: Lineage: bucketmapjoin_hash_result_1.value1 EXPRESSION [(bucketmapjoin_tmp_result)bucketmapjoin_tmp_result.FieldSchema(name:value1, type:string, comment:null), ]
@@ -1134,14 +1283,14 @@ on a.key = b.key
 PREHOOK: type: QUERY
 PREHOOK: Input: default@bucketmapjoin_hash_result_1
 PREHOOK: Input: default@bucketmapjoin_hash_result_2
-PREHOOK: Output: file:/tmp/tomasz/hive_2011-06-01_18-49-48_095_3457615548481166389/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select a.key-b.key, a.value1-b.value1, a.value2-b.value2
 from bucketmapjoin_hash_result_1 a left outer join bucketmapjoin_hash_result_2 b
 on a.key = b.key
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@bucketmapjoin_hash_result_1
 POSTHOOK: Input: default@bucketmapjoin_hash_result_2
-POSTHOOK: Output: file:/tmp/tomasz/hive_2011-06-01_18-49-48_095_3457615548481166389/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: bucketmapjoin_hash_result_1.key EXPRESSION [(bucketmapjoin_tmp_result)bucketmapjoin_tmp_result.FieldSchema(name:key, type:string, comment:null), ]
 POSTHOOK: Lineage: bucketmapjoin_hash_result_1.key EXPRESSION [(bucketmapjoin_tmp_result)bucketmapjoin_tmp_result.FieldSchema(name:key, type:string, comment:null), ]
 POSTHOOK: Lineage: bucketmapjoin_hash_result_1.value1 EXPRESSION [(bucketmapjoin_tmp_result)bucketmapjoin_tmp_result.FieldSchema(name:value1, type:string, comment:null), ]

@@ -87,6 +87,11 @@ public class MapredWork implements Serializable {
 
   private boolean mapperCannotSpanPartns;
 
+  // used to indicate the input is sorted, and so a BinarySearchRecordReader shoudl be used
+  private boolean inputFormatSorted = false;
+
+  private transient boolean smbJoin;
+
   public MapredWork() {
     aliasToPartnInfo = new LinkedHashMap<String, PartitionDesc>();
   }
@@ -437,10 +442,57 @@ public class MapredWork implements Serializable {
     this.opParseCtxMap = opParseCtxMap;
   }
 
+  public boolean isInputFormatSorted() {
+    return inputFormatSorted;
+  }
+
+  public void setInputFormatSorted(boolean inputFormatSorted) {
+    this.inputFormatSorted = inputFormatSorted;
+  }
+
   public void resolveDynamicPartitionMerge(HiveConf conf, Path path,
       TableDesc tblDesc, ArrayList<String> aliases, PartitionDesc partDesc) {
     pathToAliases.put(path.toString(), aliases);
     pathToPartitionInfo.put(path.toString(), partDesc);
   }
 
+  public List<Operator<?>> getAllOperators() {
+    ArrayList<Operator<?>> opList = new ArrayList<Operator<?>>();
+    ArrayList<Operator<?>> returnList = new ArrayList<Operator<?>>();
+
+    if (getReducer() != null) {
+      opList.add(getReducer());
+    }
+
+    Map<String, ArrayList<String>> pa = getPathToAliases();
+    if (pa != null) {
+      for (List<String> ls : pa.values()) {
+        for (String a : ls) {
+          Operator<?> op = getAliasToWork().get(a);
+          if (op != null ) {
+            opList.add(op);
+          }
+        }
+      }
+    }
+
+    //recursively add all children
+    while (!opList.isEmpty()) {
+      Operator<?> op = opList.remove(0);
+      if (op.getChildOperators() != null) {
+        opList.addAll(op.getChildOperators());
+      }
+      returnList.add(op);
+    }
+
+    return returnList;
+  }
+
+  public boolean isSmbJoin() {
+    return smbJoin;
+  }
+
+  public void setSmbJoin(boolean smbJoin) {
+    this.smbJoin = smbJoin;
+  }
 }

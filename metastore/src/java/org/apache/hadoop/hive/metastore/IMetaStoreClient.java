@@ -126,11 +126,9 @@ public interface IMetaStoreClient {
    *
    * @param dbName
    *          The name of the database from which you will retrieve the table names
-   * @param filterType
-   *          The type of filter
    * @param filter
    *          The filter string
-   * @param max_tables
+   * @param maxTables
    *          The maximum number of tables returned
    * @return  A list of table names that match the desired filter
    */
@@ -223,7 +221,7 @@ public interface IMetaStoreClient {
   /**
    * Get a Database Object
    * @param databaseName  name of the database to fetch
-   * @return
+   * @return the database
    * @throws NoSuchObjectException The database does not exist
    * @throws MetaException Could not fetch the database
    * @throws TException A thrift communication error occurred
@@ -361,7 +359,7 @@ public interface IMetaStoreClient {
    * @param pvals
    * @param userName
    * @param groupNames
-   * @return
+   * @return the partition
    * @throws MetaException
    * @throws UnknownTableException
    * @throws NoSuchObjectException
@@ -390,7 +388,8 @@ public interface IMetaStoreClient {
       short max_parts) throws MetaException, TException;
 
   public List<String> listPartitionNames(String db_name, String tbl_name,
-      List<String> part_vals, short max_parts) throws MetaException, TException;
+      List<String> part_vals, short max_parts)
+      throws MetaException, TException, NoSuchObjectException;
 
   /**
    * Get list of partitions matching specified filter
@@ -416,7 +415,7 @@ public interface IMetaStoreClient {
    * @param s
    * @param userName
    * @param groupNames
-   * @return
+   * @return the list of partitions
    * @throws NoSuchObjectException
    */
   public List<Partition> listPartitionsWithAuthInfo(String dbName,
@@ -443,7 +442,7 @@ public interface IMetaStoreClient {
    * @param s
    * @param userName
    * @param groupNames
-   * @return
+   * @return the list of paritions
    * @throws NoSuchObjectException
    */
   public List<Partition> listPartitionsWithAuthInfo(String dbName,
@@ -555,6 +554,27 @@ public interface IMetaStoreClient {
       throws InvalidOperationException, MetaException, TException;
 
   /**
+   * rename a partition to a new partition
+   *
+   * @param dbname
+   *          database of the old partition
+   * @param name
+   *          table name of the old partition
+   * @param part_vals
+   *          values of the old partition
+   * @param newPart
+   *          new partition
+   * @throws InvalidOperationException
+   *           if srcFs and destFs are different
+   * @throws MetaException
+   *          if error in updating metadata
+   * @throws TException
+   *          if error in communicating with metastore server
+   */
+  public void renamePartition(final String dbname, final String name, final List<String> part_vals, final Partition newPart)
+      throws InvalidOperationException, MetaException, TException;
+
+  /**
    * @param db
    * @param tableName
    * @throws UnknownTableException
@@ -635,7 +655,7 @@ public interface IMetaStoreClient {
    * @param dbName
    * @param tblName
    * @param indexName
-   * @return
+   * @return the index
    * @throws MetaException
    * @throws UnknownTableException
    * @throws NoSuchObjectException
@@ -651,7 +671,7 @@ public interface IMetaStoreClient {
    * @param db_name
    * @param tbl_name
    * @param max
-   * @return
+   * @return the list of indexes
    * @throws NoSuchObjectException
    * @throws MetaException
    * @throws TException
@@ -665,7 +685,7 @@ public interface IMetaStoreClient {
    * @param db_name
    * @param tbl_name
    * @param max
-   * @return
+   * @return the list of names
    * @throws MetaException
    * @throws TException
    */
@@ -677,7 +697,7 @@ public interface IMetaStoreClient {
    * @param tbl_name
    * @param name index name
    * @param deleteData
-   * @return
+   * @return true on success
    * @throws NoSuchObjectException
    * @throws MetaException
    * @throws TException
@@ -687,9 +707,9 @@ public interface IMetaStoreClient {
       MetaException, TException;
 
   /**
-   * @param Role
+   * @param role
    *          role object
-   * @return
+   * @return true on success
    * @throws MetaException
    * @throws TException
    */
@@ -699,9 +719,8 @@ public interface IMetaStoreClient {
   /**
    * @param role_name
    *          role name
-   * @param db_name
    *
-   * @return
+   * @return true on success
    * @throws MetaException
    * @throws TException
    */
@@ -709,7 +728,7 @@ public interface IMetaStoreClient {
 
   /**
    * list all role names
-   * @return
+   * @return list of names
    * @throws TException
    * @throws MetaException
    */
@@ -723,7 +742,7 @@ public interface IMetaStoreClient {
    * @param grantor
    * @param grantorType
    * @param grantOption
-   * @return
+   * @return true on success
    * @throws MetaException
    * @throws TException
    */
@@ -737,9 +756,8 @@ public interface IMetaStoreClient {
    * @param user_name
    *          user name
    * @param principalType
-   * @param db_name
    *
-   * @return
+   * @return true on success
    * @throws MetaException
    * @throws TException
    */
@@ -750,7 +768,7 @@ public interface IMetaStoreClient {
    *
    * @param principalName
    * @param principalType
-   * @return
+   * @return list of roles
    * @throws MetaException
    * @throws TException
    */
@@ -761,7 +779,7 @@ public interface IMetaStoreClient {
    * @param hiveObject
    * @param user_name
    * @param group_names
-   * @return
+   * @return the privilege set
    * @throws MetaException
    * @throws TException
    */
@@ -773,7 +791,7 @@ public interface IMetaStoreClient {
    * @param principal_name
    * @param principal_type
    * @param hiveObject
-   * @return
+   * @return list of privileges
    * @throws MetaException
    * @throws TException
    */
@@ -783,7 +801,7 @@ public interface IMetaStoreClient {
 
   /**
    * @param privileges
-   * @return
+   * @return true on success
    * @throws MetaException
    * @throws TException
    */
@@ -792,7 +810,7 @@ public interface IMetaStoreClient {
 
   /**
    * @param privileges
-   * @return
+   * @return true on success
    * @throws MetaException
    * @throws TException
    */
@@ -802,7 +820,7 @@ public interface IMetaStoreClient {
   /**
    * @param owner the intended owner for the token
    * @param renewerKerberosPrincipalName
-   * @return
+   * @return the string of the token
    * @throws MetaException
    * @throws TException
    */
@@ -811,7 +829,7 @@ public interface IMetaStoreClient {
 
   /**
    * @param tokenStrForm
-   * @return
+   * @return the new expiration time
    * @throws MetaException
    * @throws TException
    */

@@ -92,6 +92,7 @@ import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Order;
 import org.apache.hadoop.hive.ql.Context;
+import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.QueryPlan;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator.RecordWriter;
 import org.apache.hadoop.hive.ql.io.ContentSummaryInputFormat;
@@ -105,7 +106,6 @@ import org.apache.hadoop.hive.ql.io.ReworkMapredInputFormat;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.Partition;
 import org.apache.hadoop.hive.ql.metadata.Table;
-import org.apache.hadoop.hive.ql.parse.ErrorMsg;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.plan.DynamicPartitionCtx;
 import org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc;
@@ -118,8 +118,9 @@ import org.apache.hadoop.hive.ql.plan.MapredLocalWork;
 import org.apache.hadoop.hive.ql.plan.MapredWork;
 import org.apache.hadoop.hive.ql.plan.PartitionDesc;
 import org.apache.hadoop.hive.ql.plan.PlanUtils;
-import org.apache.hadoop.hive.ql.plan.TableDesc;
 import org.apache.hadoop.hive.ql.plan.PlanUtils.ExpressionTypes;
+import org.apache.hadoop.hive.ql.plan.TableDesc;
+import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.stats.StatsFactory;
 import org.apache.hadoop.hive.ql.stats.StatsPublisher;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
@@ -134,8 +135,8 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.SequenceFile;
-import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.SequenceFile.CompressionType;
+import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.DefaultCodec;
 import org.apache.hadoop.mapred.FileOutputFormat;
@@ -144,6 +145,7 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.util.ReflectionUtils;
+import org.apache.hadoop.util.Shell;
 
 /**
  * Utilities.
@@ -403,8 +405,10 @@ public final class Utilities {
     } catch (UnsupportedEncodingException ex) {
       throw new RuntimeException("UTF-8 support required", ex);
     }
+
     ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
-    XMLDecoder decoder = new XMLDecoder(bais, null, null, conf.getClassLoader());
+
+    XMLDecoder decoder = new XMLDecoder(bais, null, null);
     try {
       ExprNodeDesc expr = (ExprNodeDesc) decoder.readObject();
       return expr;
@@ -477,7 +481,7 @@ public final class Utilities {
   public static QueryPlan deserializeQueryPlan(InputStream in, Configuration conf) {
     XMLDecoder d = null;
     try {
-      d = new XMLDecoder(in, null, null, conf.getClassLoader());
+      d = new XMLDecoder(in, null, null);
       QueryPlan ret = (QueryPlan) d.readObject();
       return (ret);
     } finally {
@@ -510,7 +514,7 @@ public final class Utilities {
   public static MapredWork deserializeMapRedWork(InputStream in, Configuration conf) {
     XMLDecoder d = null;
     try {
-      d = new XMLDecoder(in, null, null, conf.getClassLoader());
+      d = new XMLDecoder(in, null, null);
       MapredWork ret = (MapredWork) d.readObject();
       return (ret);
     } finally {
@@ -542,7 +546,7 @@ public final class Utilities {
   public static MapredLocalWork deserializeMapRedLocalWork(InputStream in, Configuration conf) {
     XMLDecoder d = null;
     try {
-      d = new XMLDecoder(in, null, null, conf.getClassLoader());
+      d = new XMLDecoder(in, null, null);
       MapredLocalWork ret = (MapredLocalWork) d.readObject();
       return (ret);
     } finally {
@@ -586,6 +590,7 @@ public final class Utilities {
     defaultTd = PlanUtils.getDefaultTableDesc("" + Utilities.ctrlaCode);
   }
 
+  public static final int carriageReturnCode = 13;
   public static final int newLineCode = 10;
   public static final int tabCode = 9;
   public static final int ctrlaCode = 1;
@@ -811,12 +816,29 @@ public final class Utilities {
 
   public static StreamStatus readColumn(DataInput in, OutputStream out) throws IOException {
 
+    boolean foundCrChar = false;
     while (true) {
       int b;
       try {
         b = in.readByte();
       } catch (EOFException e) {
         return StreamStatus.EOF;
+      }
+
+      // Default new line characters on windows are "CRLF" so detect if there are any windows
+      // native newline characters and handle them.
+      if (Shell.WINDOWS) {
+        // if the CR is not followed by the LF on windows then add it back to the stream and
+        // proceed with next characters in the input stream.
+        if (foundCrChar && b != Utilities.newLineCode) {
+          out.write(Utilities.carriageReturnCode);
+          foundCrChar = false;
+        }
+
+        if (b == Utilities.carriageReturnCode) {
+          foundCrChar = true;
+          continue;
+        }
       }
 
       if (b == Utilities.newLineCode) {
@@ -1008,10 +1030,6 @@ public final class Utilities {
       return null;
     }
 
-    try {
-      fs.close();
-    } catch (IOException e) {
-    }
     String file = path.makeQualified(fs).toString();
     // For compatibility with hadoop 0.17, change file:/a/b/c to file:///a/b/c
     if (StringUtils.startsWith(file, "file:/") && !StringUtils.startsWith(file, "file:///")) {
@@ -1143,6 +1161,12 @@ public final class Utilities {
   private static Pattern fileNameTaskIdRegex = Pattern.compile("^.*?([0-9]+)(_[0-9]{1,3})?(\\..*)?$");
 
   /**
+   * This retruns prefix part + taskID for bucket join for partitioned table
+   */
+  private static Pattern fileNamePrefixedTaskIdRegex =
+      Pattern.compile("^.*?((\\(.*\\))?[0-9]+)(_[0-9]{1,3})?(\\..*)?$");
+
+  /**
    * Get the task id from the filename. It is assumed that the filename is derived from the output
    * of getTaskId
    *
@@ -1150,13 +1174,28 @@ public final class Utilities {
    *          filename to extract taskid from
    */
   public static String getTaskIdFromFilename(String filename) {
+    return getIdFromFilename(filename, fileNameTaskIdRegex);
+  }
+
+  /**
+   * Get the part-spec + task id from the filename. It is assumed that the filename is derived
+   * from the output of getTaskId
+   *
+   * @param filename
+   *          filename to extract taskid from
+   */
+  public static String getPrefixedTaskIdFromFilename(String filename) {
+    return getIdFromFilename(filename, fileNamePrefixedTaskIdRegex);
+  }
+
+  private static String getIdFromFilename(String filename, Pattern pattern) {
     String taskId = filename;
     int dirEnd = filename.lastIndexOf(Path.SEPARATOR);
     if (dirEnd != -1) {
       taskId = filename.substring(dirEnd + 1);
     }
 
-    Matcher m = fileNameTaskIdRegex.matcher(taskId);
+    Matcher m = pattern.matcher(taskId);
     if (!m.matches()) {
       LOG.warn("Unable to get task id from file name: " + filename + ". Using last component"
           + taskId + " as task id.");
@@ -1175,14 +1214,21 @@ public final class Utilities {
    *          filename to replace taskid "0_0" or "0_0.gz" by 33 to "33_0" or "33_0.gz"
    */
   public static String replaceTaskIdFromFilename(String filename, int bucketNum) {
+    return replaceTaskIdFromFilename(filename, String.valueOf(bucketNum));
+  }
+
+  public static String replaceTaskIdFromFilename(String filename, String fileId) {
     String taskId = getTaskIdFromFilename(filename);
-    String newTaskId = replaceTaskId(taskId, bucketNum);
+    String newTaskId = replaceTaskId(taskId, fileId);
     String ret = replaceTaskIdFromFilename(filename, taskId, newTaskId);
     return (ret);
   }
 
   private static String replaceTaskId(String taskId, int bucketNum) {
-    String strBucketNum = String.valueOf(bucketNum);
+    return replaceTaskId(taskId, String.valueOf(bucketNum));
+  }
+
+  private static String replaceTaskId(String taskId, String strBucketNum) {
     int bucketNumLen = strBucketNum.length();
     int taskIdLen = taskId.length();
     StringBuffer s = new StringBuffer();
@@ -1333,8 +1379,6 @@ public final class Utilities {
 
   /**
    * Remove all temporary files and duplicate (double-committed) files from a given directory.
-   *
-   * @return a list of path names corresponding to should-be-created empty buckets.
    */
   public static void removeTempOrDuplicateFiles(FileSystem fs, Path path) throws IOException {
     removeTempOrDuplicateFiles(fs, path, null);
@@ -1410,7 +1454,7 @@ public final class Utilities {
           throw new IOException("Unable to delete tmp file: " + one.getPath());
         }
       } else {
-        String taskId = getTaskIdFromFilename(one.getPath().getName());
+        String taskId = getPrefixedTaskIdFromFilename(one.getPath().getName());
         FileStatus otherFile = taskIdToFile.get(taskId);
         if (otherFile == null) {
           taskIdToFile.put(taskId, one);
@@ -1444,6 +1488,26 @@ public final class Utilities {
 
   public static String getNameMessage(Exception e) {
     return e.getClass().getName() + "(" + e.getMessage() + ")";
+  }
+
+  public static String getResourceFiles(Configuration conf, SessionState.ResourceType t) {
+    // fill in local files to be added to the task environment
+    SessionState ss = SessionState.get();
+    Set<String> files = (ss == null) ? null : ss.list_resource(t, null);
+    if (files != null) {
+      List<String> realFiles = new ArrayList<String>(files.size());
+      for (String one : files) {
+        try {
+          realFiles.add(realFile(one, conf));
+        } catch (IOException e) {
+          throw new RuntimeException("Cannot validate file " + one + "due to exception: "
+              + e.getMessage(), e);
+        }
+      }
+      return StringUtils.join(realFiles, ",");
+    } else {
+      return "";
+    }
   }
 
   /**
@@ -1501,6 +1565,7 @@ public final class Utilities {
 
     loader = new URLClassLoader(newPath.toArray(new URL[0]));
     curThread.setContextClassLoader(loader);
+    SessionState.get().getConf().setClassLoader(loader);
   }
 
   public static String formatBinaryString(byte[] array, int start, int length) {
@@ -1621,8 +1686,8 @@ public final class Utilities {
   /**
    * Calculate the total size of input files.
    *
-   * @param job
-   *          the hadoop job conf.
+   * @param ctx
+   *          the hadoop job context
    * @param work
    *          map reduce job plan
    * @param filter
@@ -1750,7 +1815,7 @@ public final class Utilities {
                 throw new IOException(e);
               }
             } while (!executorDone);
-	  }
+    }
           executor.shutdown();
         }
         HiveInterruptUtils.checkInterrupted();
@@ -1838,7 +1903,7 @@ public final class Utilities {
       FileStatus[] status = Utilities.getFileStatusRecurse(loadPath, numDPCols, fs);
 
       if (status.length == 0) {
-        LOG.warn("No partition is genereated by dynamic partitioning");
+        LOG.warn("No partition is generated by dynamic partitioning");
         return null;
       }
 
@@ -1892,6 +1957,22 @@ public final class Utilities {
     jobConf.set(Constants.LIST_COLUMNS, columnNamesString);
   }
 
+  public static void setColumnTypeList(JobConf jobConf, Operator op) {
+    RowSchema rowSchema = op.getSchema();
+    if (rowSchema == null) {
+      return;
+    }
+    StringBuilder columnTypes = new StringBuilder();
+    for (ColumnInfo colInfo : rowSchema.getSignature()) {
+      if (columnTypes.length() > 0) {
+        columnTypes.append(",");
+      }
+      columnTypes.append(colInfo.getType().getTypeName());
+    }
+    String columnTypesString = columnTypes.toString();
+    jobConf.set(Constants.LIST_COLUMN_TYPES, columnTypesString);
+  }
+
   public static void validatePartSpec(Table tbl, Map<String, String> partSpec)
       throws SemanticException {
 
@@ -1909,9 +1990,10 @@ public final class Utilities {
 
   public static String suffix = ".hashtable";
 
-  public static String generatePath(String baseURI, Byte tag, String bigBucketFileName) {
-    String path = new String(baseURI + Path.SEPARATOR + "MapJoin-" + tag + "-" + bigBucketFileName
-        + suffix);
+  public static String generatePath(String baseURI, String dumpFilePrefix,
+      Byte tag, String bigBucketFileName) {
+    String path = new String(baseURI + Path.SEPARATOR + "MapJoin-" + dumpFilePrefix + tag +
+      "-" + bigBucketFileName + suffix);
     return path;
   }
 
@@ -1954,22 +2036,6 @@ public final class Utilities {
   public static double showTime(long time) {
     double result = (double) time / (double) 1000;
     return result;
-  }
-
-  /**
-   * Determines whether a partition has been archived
-   *
-   * @param p
-   * @return
-   */
-  public static boolean isArchived(Partition p) {
-    Map<String, String> params = p.getParameters();
-    if ("true".equalsIgnoreCase(params.get(
-        org.apache.hadoop.hive.metastore.api.Constants.IS_ARCHIVED))) {
-      return true;
-    } else {
-      return false;
-    }
   }
 
   /**
@@ -2088,10 +2154,10 @@ public final class Utilities {
    * is a SQLRecoverableException or SQLNonTransientException. For SQLRecoverableException
    * the caller needs to reconnect to the database and restart the whole transaction.
    *
-   * @param query the prepared statement of SQL.
-   * @param type either SQLCommandType.QUERY or SQLCommandType.UPDATE
+   * @param cmd the SQL command
+   * @param stmt the prepared statement of SQL.
    * @param baseWindow  The base time window (in milliseconds) before the next retry.
-   * see {@getRandomWaitTime} for details.
+   * see {@link #getRandomWaitTime} for details.
    * @param maxRetries the maximum # of retries when getting a SQLTransientException.
    * @throws SQLException throws SQLRecoverableException or SQLNonTransientException the
    * first time it is caught, or SQLTransientException when the maxRetries has reached.
@@ -2108,15 +2174,15 @@ public final class Utilities {
         result = cmd.run(stmt);
         return result;
       } catch (SQLTransientException e) {
-      	LOG.warn("Failure and retry #" + failures +  " with exception " + e.getMessage());
+        LOG.warn("Failure and retry #" + failures +  " with exception " + e.getMessage());
         if (failures >= maxRetries) {
           throw e;
         }
         long waitTime = getRandomWaitTime(baseWindow, failures, r);
-      	try {
-      	  Thread.sleep(waitTime);
-      	} catch (InterruptedException iex) {
-     	  }
+        try {
+          Thread.sleep(waitTime);
+        } catch (InterruptedException iex) {
+         }
       } catch (SQLException e) {
         // throw other types of SQLExceptions (SQLNonTransientException / SQLRecoverableException)
         throw e;
@@ -2132,8 +2198,8 @@ public final class Utilities {
    * the caller needs to reconnect to the database and restart the whole transaction.
    *
    * @param connectionString the JDBC connection string.
-   * @param baseWindow  The base time window (in milliseconds) before the next retry.
-   * see {@getRandomWaitTime} for details.
+   * @param waitWindow  The base time window (in milliseconds) before the next retry.
+   * see {@link #getRandomWaitTime} for details.
    * @param maxRetries the maximum # of retries when getting a SQLTransientException.
    * @throws SQLException throws SQLRecoverableException or SQLNonTransientException the
    * first time it is caught, or SQLTransientException when the maxRetries has reached.
@@ -2174,8 +2240,8 @@ public final class Utilities {
    *
    * @param conn a JDBC connection.
    * @param stmt the SQL statement to be prepared.
-   * @param baseWindow  The base time window (in milliseconds) before the next retry.
-   * see {@getRandomWaitTime} for details.
+   * @param waitWindow  The base time window (in milliseconds) before the next retry.
+   * see {@link #getRandomWaitTime} for details.
    * @param maxRetries the maximum # of retries when getting a SQLTransientException.
    * @throws SQLException throws SQLRecoverableException or SQLNonTransientException the
    * first time it is caught, or SQLTransientException when the maxRetries has reached.
@@ -2208,14 +2274,14 @@ public final class Utilities {
 
   /**
    * Introducing a random factor to the wait time before another retry.
-	 * The wait time is dependent on # of failures and a random factor.
-	 * At the first time of getting an exception , the wait time
-	 * is a random number between 0..baseWindow msec. If the first retry
-	 * still fails, we will wait baseWindow msec grace period before the 2nd retry.
-	 * Also at the second retry, the waiting window is expanded to 2*baseWindow msec
-	 * alleviating the request rate from the server. Similarly the 3rd retry
-	 * will wait 2*baseWindow msec. grace period before retry and the waiting window is
-	 * expanded to 3*baseWindow msec and so on.
+   * The wait time is dependent on # of failures and a random factor.
+   * At the first time of getting an exception , the wait time
+   * is a random number between 0..baseWindow msec. If the first retry
+   * still fails, we will wait baseWindow msec grace period before the 2nd retry.
+   * Also at the second retry, the waiting window is expanded to 2*baseWindow msec
+   * alleviating the request rate from the server. Similarly the 3rd retry
+   * will wait 2*baseWindow msec. grace period before retry and the waiting window is
+   * expanded to 3*baseWindow msec and so on.
    * @param baseWindow the base waiting window.
    * @param failures number of failures so far.
    * @param r a random generator.
@@ -2224,16 +2290,16 @@ public final class Utilities {
   public static long getRandomWaitTime(int baseWindow, int failures, Random r) {
     return (long) (
           baseWindow * failures +     // grace period for the last round of attempt
-      	  baseWindow * (failures + 1) * r.nextDouble()); // expanding time window for each failure
+          baseWindow * (failures + 1) * r.nextDouble()); // expanding time window for each failure
   }
+
+  public static final char sqlEscapeChar = '\\';
 
   /**
    * Escape the '_', '%', as well as the escape characters inside the string key.
    * @param key the string that will be used for the SQL LIKE operator.
-   * @param escape the escape character
    * @return a string with escaped '_' and '%'.
    */
-  public static final char sqlEscapeChar = '\\';
   public static String escapeSqlLike(String key) {
     StringBuffer sb = new StringBuffer(key.length());
     for (char c: key.toCharArray()) {
@@ -2289,5 +2355,9 @@ public final class Utilities {
     sb.append(ms + " msec");
 
     return sb.toString();
+  }
+
+  public static Class getBuiltinUtilsClass() throws ClassNotFoundException {
+    return Class.forName("org.apache.hive.builtins.BuiltinUtils");
   }
 }

@@ -36,6 +36,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
+import java.util.HashSet;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -61,6 +63,7 @@ import org.apache.hadoop.hive.metastore.api.HiveObjectPrivilege;
 import org.apache.hadoop.hive.metastore.api.HiveObjectRef;
 import org.apache.hadoop.hive.metastore.api.HiveObjectType;
 import org.apache.hadoop.hive.metastore.api.Index;
+import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
@@ -154,9 +157,14 @@ public class Hive {
     if (db == null || needsRefresh) {
       closeCurrent();
       c.set("fs.scheme.class", "dfs");
-      db = new Hive(c);
-      hiveDB.set(db);
+      Hive newdb = new Hive(c);
+      if (db != null && db.getCurrentDatabase() != null){
+        newdb.setCurrentDatabase(db.getCurrentDatabase());
+      }
+      hiveDB.set(newdb);
+      return newdb;
     }
+    db.conf = c;
     return db;
   }
 
@@ -241,7 +249,6 @@ public class Hive {
    * @param name
    * @param deleteData
    * @param ignoreUnknownDb if true, will ignore NoSuchObjectException
-   * @return
    * @throws HiveException
    * @throws NoSuchObjectException
    */
@@ -257,7 +264,6 @@ public class Hive {
    * @param ignoreUnknownDb if true, will ignore NoSuchObjectException
    * @param cascade           if true, delete all tables on the DB if exists. Othewise, the query
    *                        will fail if table still exists.
-   * @return
    * @throws HiveException
    * @throws NoSuchObjectException
    */
@@ -402,8 +408,8 @@ public class Hive {
    *
    * @param tblName
    *          name of the existing table
-   * @param newTbl
-   *          new name of the table. could be the old name
+   * @param newPart
+   *          new partition
    * @throws InvalidOperationException
    *           if the changes in metadata is not acceptable
    * @throws TException
@@ -423,6 +429,53 @@ public class Hive {
       throw new HiveException("Unable to alter partition.", e);
     } catch (TException e) {
       throw new HiveException("Unable to alter partition.", e);
+    }
+  }
+
+  /**
+   * Rename a old partition to new partition
+   *
+   * @param tbl
+   *          existing table
+   * @param oldPartSpec
+   *          spec of old partition
+   * @param newPart
+   *          new partition
+   * @throws InvalidOperationException
+   *           if the changes in metadata is not acceptable
+   * @throws TException
+   */
+  public void renamePartition(Table tbl, Map<String, String> oldPartSpec, Partition newPart)
+      throws HiveException {
+    try {
+      Map<String, String> newPartSpec = newPart.getSpec();
+      if (oldPartSpec.keySet().size() != tbl.getPartCols().size()
+          || newPartSpec.keySet().size() != tbl.getPartCols().size()) {
+        throw new HiveException("Unable to rename partition to the same name: number of partition cols don't match. ");
+      }
+      if (!oldPartSpec.keySet().equals(newPartSpec.keySet())){
+        throw new HiveException("Unable to rename partition to the same name: old and new partition cols don't match. ");
+      }
+      List<String> pvals = new ArrayList<String>();
+
+      for (FieldSchema field : tbl.getPartCols()) {
+        String val = oldPartSpec.get(field.getName());
+        if (val == null || val.length() == 0) {
+          throw new HiveException("get partition: Value for key "
+              + field.getName() + " is null or empty");
+        } else if (val != null){
+          pvals.add(val);
+        }
+      }
+      getMSC().renamePartition(tbl.getDbName(), tbl.getTableName(), pvals,
+          newPart.getTPartition());
+
+    } catch (InvalidOperationException e){
+      throw new HiveException("Unable to rename partition.", e);
+    } catch (MetaException e) {
+      throw new HiveException("Unable to rename partition.", e);
+    } catch (TException e) {
+      throw new HiveException("Unable to rename partition.", e);
     }
   }
 
@@ -709,16 +762,9 @@ public class Hive {
   }
 
   /**
-   * Drops table along with the data in it. If the table doesn't exist
-   * then it is a no-op
-   * @param dbName database where the table lives
-   * @param tableName table to drop
-   * @throws HiveException thrown if the drop fails
    * Drops table along with the data in it. If the table doesn't exist then it
    * is a no-op
    *
-   * @param dbName
-   *          database where the table lives
    * @param tableName
    *          table to drop
    * @throws HiveException
@@ -730,11 +776,6 @@ public class Hive {
   }
 
   /**
-   * Drops table along with the data in it. If the table doesn't exist
-   * then it is a no-op
-   * @param dbName database where the table lives
-   * @param tableName table to drop
-   * @throws HiveException thrown if the drop fails
    * Drops table along with the data in it. If the table doesn't exist then it
    * is a no-op
    *
@@ -752,6 +793,7 @@ public class Hive {
   /**
    * Drops the table.
    *
+   * @param dbName
    * @param tableName
    * @param deleteData
    *          deletes the underlying data along with metadata
@@ -780,7 +822,7 @@ public class Hive {
   /**
    * Returns metadata for the table named tableName
    * @param tableName the name of the table
-   * @return
+   * @return the table metadata
    * @throws HiveException if there's an internal error or if the
    * table doesn't exist
    */
@@ -793,7 +835,7 @@ public class Hive {
    * Returns metadata for the table named tableName
    * @param tableName the name of the table
    * @param throwException controls whether an exception is thrown or a returns a null
-   * @return
+   * @return the table metadata
    * @throws HiveException if there's an internal error or if the
    * table doesn't exist
    */
@@ -998,15 +1040,9 @@ public class Hive {
   }
 
   /**
-   * @param userName
-   *          principal name
-   * @param isRole
-   *          is the given principal name a role
-   * @param isGroup
-   *          is the given principal name a group
    * @param privileges
    *          a bag of privileges
-   * @return
+   * @return true on success
    * @throws HiveException
    */
   public boolean revokePrivileges(PrivilegeBag privileges)
@@ -1064,8 +1100,6 @@ public class Hive {
    * @param holdDDLTime if true, force [re]create the partition
    * @param inheritTableSpecs if true, on [re]creating the partition, take the
    *          location/inputformat/outputformat/serde details from table spec
-   * @param tmpDirPath
-   *          The temporary directory.
    */
   public void loadPartition(Path loadPath, String tableName,
       Map<String, String> partSpec, boolean replace, boolean holdDDLTime,
@@ -1141,9 +1175,9 @@ public class Hive {
    * @param tableName
    * @param partSpec
    * @param replace
-   * @param tmpDirPath
-   * @param numSp: number of static partitions in the partition spec
-   * @return
+   * @param numDP number of dynamic partitions
+   * @param holdDDLTime
+   * @return a list of strings with the dynamic partition paths
    * @throws HiveException
    */
   public ArrayList<LinkedHashMap<String, String>> loadDynamicPartitions(Path loadPath,
@@ -1151,41 +1185,53 @@ public class Hive {
       int numDP, boolean holdDDLTime)
       throws HiveException {
 
+    Set<Path> validPartitions = new HashSet<Path>();
     try {
       ArrayList<LinkedHashMap<String, String>> fullPartSpecs =
         new ArrayList<LinkedHashMap<String, String>>();
 
       FileSystem fs = loadPath.getFileSystem(conf);
-      FileStatus[] status = Utilities.getFileStatusRecurse(loadPath, numDP, fs);
-      if (status.length == 0) {
-        LOG.warn("No partition is genereated by dynamic partitioning");
+      FileStatus[] leafStatus = Utilities.getFileStatusRecurse(loadPath, numDP+1, fs);
+      // Check for empty partitions
+      for (FileStatus s : leafStatus) {
+        if (s.isDir()) {
+          // No leaves in this directory
+          LOG.info("NOT moving empty directory: " + s.getPath());
+        } else {
+          validPartitions.add(s.getPath().getParent());
+        }
       }
 
-      if (status.length > conf.getIntVar(HiveConf.ConfVars.DYNAMICPARTITIONMAXPARTS)) {
-        throw new HiveException("Number of dynamic partitions created is " + status.length
+      if (validPartitions.size() == 0) {
+        LOG.warn("No partition is generated by dynamic partitioning");
+      }
+
+      if (validPartitions.size() > conf.getIntVar(HiveConf.ConfVars.DYNAMICPARTITIONMAXPARTS)) {
+        throw new HiveException("Number of dynamic partitions created is " + validPartitions.size()
             + ", which is more than "
             + conf.getIntVar(HiveConf.ConfVars.DYNAMICPARTITIONMAXPARTS)
             +". To solve this try to set " + HiveConf.ConfVars.DYNAMICPARTITIONMAXPARTS.varname
-            + " to at least " + status.length + '.');
+            + " to at least " + validPartitions.size() + '.');
       }
 
       // for each dynamically created DP directory, construct a full partition spec
       // and load the partition based on that
-      for (int i= 0; i < status.length; ++i) {
+      Iterator<Path> iter = validPartitions.iterator();
+      while (iter.hasNext()) {
         // get the dynamically created directory
-        Path partPath = status[i].getPath();
+        Path partPath = iter.next();
         assert fs.getFileStatus(partPath).isDir():
           "partitions " + partPath + " is not a directory !";
 
         // generate a full partition specification
         LinkedHashMap<String, String> fullPartSpec = new LinkedHashMap<String, String>(partSpec);
         Warehouse.makeSpecFromName(fullPartSpec, partPath);
-      	fullPartSpecs.add(fullPartSpec);
+        fullPartSpecs.add(fullPartSpec);
 
         // finally load the partition -- move the file to the final table address
-      	loadPartition(partPath, tableName, fullPartSpec, replace, holdDDLTime, true);
-      	LOG.info("New loading path = " + partPath + " with partSpec " + fullPartSpec);
-    	}
+        loadPartition(partPath, tableName, fullPartSpec, replace, holdDDLTime, true);
+        LOG.info("New loading path = " + partPath + " with partSpec " + fullPartSpec);
+      }
       return fullPartSpecs;
     } catch (IOException e) {
       throw new HiveException(e);
@@ -1204,8 +1250,7 @@ public class Hive {
    *          name of table to be loaded.
    * @param replace
    *          if true - replace files in the table, otherwise add files to table
-   * @param tmpDirPath
-   *          The temporary directory.
+   * @param holdDDLTime
    */
   public void loadTable(Path loadPath, String tableName, boolean replace,
       boolean holdDDLTime) throws HiveException {
@@ -1255,7 +1300,7 @@ public class Hive {
    * @param partParams
    *          partition parameters
    * @param inputFormat the inputformat class
-   * @param outputformat the outputformat class
+   * @param outputFormat the outputformat class
    * @param numBuckets the number of buckets
    * @param cols the column schema
    * @param serializationLib the serde class
@@ -1394,7 +1439,11 @@ public class Hive {
             throw new HiveException("new partition path should not be null or empty.");
           }
           tpart.getSd().setLocation(partPath);
-          alterPartition(tbl.getTableName(), new Partition(tbl, tpart));
+          String fullName = tbl.getTableName();
+          if (!org.apache.commons.lang.StringUtils.isEmpty(tbl.getDbName())) {
+            fullName = tbl.getDbName() + "." + tbl.getTableName();
+          }
+          alterPartition(fullName, new Partition(tbl, tpart));
         }
       }
       if (tpart == null) {
@@ -1508,14 +1557,16 @@ public class Hive {
    *
    * @param tbl
    *          object for which partition is needed. Must be partitioned.
+   * @param limit number of partitions to return
    * @return list of partition objects
    * @throws HiveException
    */
-  public List<Partition> getPartitions(Table tbl, Map<String, String> partialPartSpec)
+  public List<Partition> getPartitions(Table tbl, Map<String, String> partialPartSpec,
+      short limit)
   throws HiveException {
     if (!tbl.isPartitioned()) {
       throw new HiveException("Partition spec should only be supplied for a " +
-      		"partitioned table");
+          "partitioned table");
     }
 
     List<String> partialPvals = getPvals(tbl.getPartCols(), partialPartSpec);
@@ -1523,7 +1574,7 @@ public class Hive {
     List<org.apache.hadoop.hive.metastore.api.Partition> partitions = null;
     try {
       partitions = getMSC().listPartitionsWithAuthInfo(tbl.getDbName(), tbl.getTableName(),
-          partialPvals, (short) -1, getUserName(), getGroupNames());
+          partialPvals, limit, getUserName(), getGroupNames());
     } catch (Exception e) {
       throw new HiveException(e);
     }
@@ -1534,6 +1585,21 @@ public class Hive {
     }
 
     return qlPartitions;
+  }
+
+  /**
+   * get all the partitions of the table that matches the given partial
+   * specification. partition columns whose value is can be anything should be
+   * an empty string.
+   *
+   * @param tbl
+   *          object for which partition is needed. Must be partitioned.
+   * @return list of partition objects
+   * @throws HiveException
+   */
+  public List<Partition> getPartitions(Table tbl, Map<String, String> partialPartSpec)
+  throws HiveException {
+    return getPartitions(tbl, partialPartSpec, (short)-1);
   }
 
   /**
@@ -1554,7 +1620,7 @@ public class Hive {
 
     if (!tbl.isPartitioned()) {
       throw new HiveException("Partition spec should only be supplied for a " +
-      		"partitioned table");
+                "partitioned table");
     }
 
     List<String> names = getPartitionNames(tbl.getDbName(), tbl.getTableName(),
@@ -1646,7 +1712,7 @@ public class Hive {
 
   /**
    * Get the name of the current database
-   * @return
+   * @return the current database name
    */
   public String getCurrentDatabase() {
     if (null == currentDatabase) {
@@ -1746,7 +1812,7 @@ public class Hive {
    *          user name
    * @param group_names
    *          group names
-   * @return
+   * @return the privilege set
    * @throws HiveException
    */
   public PrincipalPrivilegeSet get_privilege_set(HiveObjectType objectType,
@@ -1771,7 +1837,7 @@ public class Hive {
    * @param tableName
    * @param partValues
    * @param columnName
-   * @return
+   * @return list of privileges
    * @throws HiveException
    */
   public List<HiveObjectPrivilege> showPrivilegeGrant(
@@ -1818,7 +1884,7 @@ public class Hive {
             // Note: there are race conditions here, but I don't believe
             // they're worse than what was already present.
             int counter = 1;
-            
+
             // Strip off the file type, if any so we don't make:
             // 000000_0.gz -> 000000_0.gz_copy_1
             String name = itemStaging.getName();
@@ -1830,10 +1896,10 @@ public class Hive {
             } else {
               filetype = "";
             }
-            
+
             Path itemDest = new Path(destf, itemStaging.getName());
             Path itemStagingBase = new Path(itemStaging.getParent(), name);
-            
+
             while (fs.exists(itemDest)) {
               Path proposedStaging = itemStagingBase
                   .suffix("_copy_" + counter++).suffix(filetype);
@@ -1959,20 +2025,20 @@ public class Hive {
 
       // rename src directory to destf
       if (srcs.length == 1 && srcs[0].isDir()) {
-      	// rename can fail if the parent doesn't exist
-      	if (!fs.exists(destf.getParent())) {
-      	  fs.mkdirs(destf.getParent());
-      	}
-      	if (fs.exists(destf)) {
-      	  fs.delete(destf, true);
-      	}
+        // rename can fail if the parent doesn't exist
+        if (!fs.exists(destf.getParent())) {
+          fs.mkdirs(destf.getParent());
+        }
+        if (fs.exists(destf)) {
+          fs.delete(destf, true);
+        }
 
-      	boolean b = fs.rename(srcs[0].getPath(), destf);
-      	if (!b) {
-      	  throw new HiveException("Unable to move results from " + srcs[0].getPath()
-      	      + " to destination directory: " + destf);
-      	}
-      	LOG.debug("Renaming:" + srcf.toString() + " to " + destf.toString()  + ",Status:" + b);
+        boolean b = fs.rename(srcs[0].getPath(), destf);
+        if (!b) {
+          throw new HiveException("Unable to move results from " + srcs[0].getPath()
+              + " to destination directory: " + destf);
+        }
+        LOG.debug("Renaming:" + srcf.toString() + " to " + destf.toString()  + ",Status:" + b);
       } else { // srcf is a file or pattern containing wildcards
         if (!fs.exists(destf)) {
           fs.mkdirs(destf);

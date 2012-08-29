@@ -39,7 +39,7 @@ STAGE PLANS:
               expressions:
                     expr: create_union(0,key)
                     type: uniontype<string>
-                    expr: create_union(if((key < 100), 0, 1),2.0,value)
+                    expr: create_union(if((key < 100.0), 0, 1),2.0,value)
                     type: uniontype<double,string>
                     expr: create_union(1,'a',struct(2,'b'))
                     type: uniontype<string,struct<col1:int,col2:string>>
@@ -62,12 +62,12 @@ create_union(1, "a", struct(2, "b"))
 FROM src LIMIT 2
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
-PREHOOK: Output: file:/tmp/sdong/hive_2011-02-10_17-43-01_598_5119870403669486647/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT create_union(0, key), create_union(if(key<100, 0, 1), 2.0, value),
 create_union(1, "a", struct(2, "b"))
 FROM src LIMIT 2
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_17-43-01_598_5119870403669486647/-mr-10000
+#### A masked pattern was here ####
 {0:"238"}	{1:"val_238"}	{1:{"col1":2,"col2":"b"}}
 {0:"86"}	{0:2.0}	{1:{"col1":2,"col2":"b"}}

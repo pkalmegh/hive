@@ -22,11 +22,10 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Map.Entry;
+import java.util.Set;
 
 /**
  * Map Join operator Descriptor implementation.
@@ -75,14 +74,14 @@ public class HashTableSinkDesc extends JoinDesc implements Serializable {
 
   private Map<Byte, List<Integer>> retainList;
 
-  private transient String bigTableAlias;
-
-  private LinkedHashMap<String, LinkedHashMap<String, ArrayList<String>>> aliasBucketFileNameMapping;
-  private LinkedHashMap<String, Integer> bucketFileNameMapping;
+  private transient BucketMapJoinContext bucketMapjoinContext;
   private float hashtableMemoryUsage;
 
+  //map join dump file name
+  private String dumpFilePrefix;
+
   public HashTableSinkDesc() {
-    bucketFileNameMapping = new LinkedHashMap<String, Integer>();
+    bucketMapjoinContext = new BucketMapJoinContext();
   }
 
   public HashTableSinkDesc(MapJoinDesc clone) {
@@ -106,9 +105,8 @@ public class HashTableSinkDesc extends JoinDesc implements Serializable {
     this.valueTblFilteredDescs = clone.getValueFilteredTblDescs();
     this.posBigTable = clone.getPosBigTable();
     this.retainList = clone.getRetainList();
-    this.bigTableAlias = clone.getBigTableAlias();
-    this.aliasBucketFileNameMapping = clone.getAliasBucketFileNameMapping();
-    this.bucketFileNameMapping = clone.getBucketFileNameMapping();
+    this.dumpFilePrefix = clone.getDumpFilePrefix();
+    this.bucketMapjoinContext = new BucketMapJoinContext(clone);
   }
 
 
@@ -132,6 +130,21 @@ public class HashTableSinkDesc extends JoinDesc implements Serializable {
 
   public void setHashtableMemoryUsage(float hashtableMemoryUsage) {
     this.hashtableMemoryUsage = hashtableMemoryUsage;
+  }
+
+  /**
+   * @return the dumpFilePrefix
+   */
+  public String getDumpFilePrefix() {
+    return dumpFilePrefix;
+  }
+
+  /**
+   * @param dumpFilePrefix
+   *          the dumpFilePrefix to set
+   */
+  public void setDumpFilePrefix(String dumpFilePrefix) {
+    this.dumpFilePrefix = dumpFilePrefix;
   }
 
   public boolean isHandleSkewJoin() {
@@ -343,34 +356,11 @@ public class HashTableSinkDesc extends JoinDesc implements Serializable {
     this.valueTblDescs = valueTblDescs;
   }
 
-  /**
-   * @return bigTableAlias
-   */
-  public String getBigTableAlias() {
-    return bigTableAlias;
+  public BucketMapJoinContext getBucketMapjoinContext() {
+    return bucketMapjoinContext;
   }
 
-  /**
-   * @param bigTableAlias
-   */
-  public void setBigTableAlias(String bigTableAlias) {
-    this.bigTableAlias = bigTableAlias;
-  }
-
-  public LinkedHashMap<String, LinkedHashMap<String, ArrayList<String>>> getAliasBucketFileNameMapping() {
-    return aliasBucketFileNameMapping;
-  }
-
-  public void setAliasBucketFileNameMapping(
-      LinkedHashMap<String, LinkedHashMap<String, ArrayList<String>>> aliasBucketFileNameMapping) {
-    this.aliasBucketFileNameMapping = aliasBucketFileNameMapping;
-  }
-
-  public LinkedHashMap<String, Integer> getBucketFileNameMapping() {
-    return bucketFileNameMapping;
-  }
-
-  public void setBucketFileNameMapping(LinkedHashMap<String, Integer> bucketFileNameMapping) {
-    this.bucketFileNameMapping = bucketFileNameMapping;
+  public void setBucketMapjoinContext(BucketMapJoinContext bucketMapjoinContext) {
+    this.bucketMapjoinContext = bucketMapjoinContext;
   }
 }

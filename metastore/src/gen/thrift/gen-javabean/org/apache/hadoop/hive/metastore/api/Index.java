@@ -5,6 +5,7 @@
  */
 package org.apache.hadoop.hive.metastore.api;
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -759,7 +760,59 @@ public class Index implements org.apache.thrift.TBase<Index, Index._Fields>, jav
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_indexName = true && (isSetIndexName());
+    builder.append(present_indexName);
+    if (present_indexName)
+      builder.append(indexName);
+
+    boolean present_indexHandlerClass = true && (isSetIndexHandlerClass());
+    builder.append(present_indexHandlerClass);
+    if (present_indexHandlerClass)
+      builder.append(indexHandlerClass);
+
+    boolean present_dbName = true && (isSetDbName());
+    builder.append(present_dbName);
+    if (present_dbName)
+      builder.append(dbName);
+
+    boolean present_origTableName = true && (isSetOrigTableName());
+    builder.append(present_origTableName);
+    if (present_origTableName)
+      builder.append(origTableName);
+
+    boolean present_createTime = true;
+    builder.append(present_createTime);
+    if (present_createTime)
+      builder.append(createTime);
+
+    boolean present_lastAccessTime = true;
+    builder.append(present_lastAccessTime);
+    if (present_lastAccessTime)
+      builder.append(lastAccessTime);
+
+    boolean present_indexTableName = true && (isSetIndexTableName());
+    builder.append(present_indexTableName);
+    if (present_indexTableName)
+      builder.append(indexTableName);
+
+    boolean present_sd = true && (isSetSd());
+    builder.append(present_sd);
+    if (present_sd)
+      builder.append(sd);
+
+    boolean present_parameters = true && (isSetParameters());
+    builder.append(present_parameters);
+    if (present_parameters)
+      builder.append(parameters);
+
+    boolean present_deferredRebuild = true;
+    builder.append(present_deferredRebuild);
+    if (present_deferredRebuild)
+      builder.append(deferredRebuild);
+
+    return builder.toHashCode();
   }
 
   public int compareTo(Index other) {
@@ -949,15 +1002,15 @@ public class Index implements org.apache.thrift.TBase<Index, Index._Fields>, jav
         case 9: // PARAMETERS
           if (field.type == org.apache.thrift.protocol.TType.MAP) {
             {
-              org.apache.thrift.protocol.TMap _map84 = iprot.readMapBegin();
-              this.parameters = new HashMap<String,String>(2*_map84.size);
-              for (int _i85 = 0; _i85 < _map84.size; ++_i85)
+              org.apache.thrift.protocol.TMap _map105 = iprot.readMapBegin();
+              this.parameters = new HashMap<String,String>(2*_map105.size);
+              for (int _i106 = 0; _i106 < _map105.size; ++_i106)
               {
-                String _key86; // required
-                String _val87; // required
-                _key86 = iprot.readString();
-                _val87 = iprot.readString();
-                this.parameters.put(_key86, _val87);
+                String _key107; // required
+                String _val108; // required
+                _key107 = iprot.readString();
+                _val108 = iprot.readString();
+                this.parameters.put(_key107, _val108);
               }
               iprot.readMapEnd();
             }
@@ -1026,10 +1079,10 @@ public class Index implements org.apache.thrift.TBase<Index, Index._Fields>, jav
       oprot.writeFieldBegin(PARAMETERS_FIELD_DESC);
       {
         oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, this.parameters.size()));
-        for (Map.Entry<String, String> _iter88 : this.parameters.entrySet())
+        for (Map.Entry<String, String> _iter109 : this.parameters.entrySet())
         {
-          oprot.writeString(_iter88.getKey());
-          oprot.writeString(_iter88.getValue());
+          oprot.writeString(_iter109.getKey());
+          oprot.writeString(_iter109.getValue());
         }
         oprot.writeMapEnd();
       }

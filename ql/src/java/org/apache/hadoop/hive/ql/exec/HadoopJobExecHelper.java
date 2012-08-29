@@ -20,16 +20,18 @@ package org.apache.hadoop.hive.ql.exec;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.lang.Exception;
+import java.net.MalformedURLException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Enumeration;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -45,12 +47,12 @@ import org.apache.hadoop.hive.ql.session.SessionState.LogHelper;
 import org.apache.hadoop.hive.ql.stats.ClientStatsPublisher;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.mapred.Counters;
+import org.apache.hadoop.mapred.Counters.Counter;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.TaskCompletionEvent;
 import org.apache.hadoop.mapred.TaskReport;
-import org.apache.hadoop.mapred.Counters.Counter;
 import org.apache.log4j.Appender;
 import org.apache.log4j.FileAppender;
 import org.apache.log4j.LogManager;
@@ -100,14 +102,10 @@ public class HadoopJobExecHelper {
    * this msg pattern is used to track when a job is successfully done.
    *
    * @param jobId
-   * @return
+   * @return the job end message
    */
   public static String getJobEndMsg(String jobId) {
     return "Ended Job = " + jobId;
-  }
-
-  private String getTaskAttemptLogUrl(String taskTrackerHttpAddress, String taskAttemptId) {
-    return taskTrackerHttpAddress + "/tasklog?taskid=" + taskAttemptId + "&all=true";
   }
 
   public boolean mapStarted() {
@@ -221,7 +219,8 @@ public class HadoopJobExecHelper {
     SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
     //DecimalFormat longFormatter = new DecimalFormat("###,###");
     long reportTime = System.currentTimeMillis();
-    long maxReportInterval = 60 * 1000; // One minute
+    long maxReportInterval =
+        HiveConf.getLongVar(job, HiveConf.ConfVars.HIVE_LOG_INCREMENTAL_PLAN_PROGRESS_INTERVAL);
     boolean fatal = false;
     StringBuilder errMsg = new StringBuilder();
     long pullInterval = HiveConf.getLongVar(job, HiveConf.ConfVars.HIVECOUNTERSPULLINTERVAL);
@@ -288,7 +287,7 @@ public class HadoopJobExecHelper {
         // of finished jobs (because it has purged them from memory). From
         // hive's perspective - it's equivalent to the job having failed.
         // So raise a meaningful exception
-        throw new IOException("Could not find status of job: + rj.getJobID()");
+        throw new IOException("Could not find status of job:" + rj.getJobID());
       } else {
         th.setRunningJob(newRj);
         rj = newRj;
@@ -310,7 +309,7 @@ public class HadoopJobExecHelper {
       errMsg.setLength(0);
 
       updateCounters(ctrs, rj);
-      
+
       // Prepare data for Client Stat Publishers (if any present) and execute them
       if (clientStatPublishers.size() > 0 && ctrs != null) {
         Map<String, Double> exctractedCounters = extractAllCounterValues(ctrs);
@@ -355,8 +354,10 @@ public class HadoopJobExecHelper {
           ss.getHiveHistory().setTaskCounters(SessionState.get().getQueryId(), getId(), ctrs);
           ss.getHiveHistory().setTaskProperty(SessionState.get().getQueryId(), getId(),
               Keys.TASK_HADOOP_PROGRESS, output);
-          ss.getHiveHistory().progressTask(SessionState.get().getQueryId(), this.task);
-          this.callBackObj.logPlanProgress(ss);
+          if (ss.getConf().getBoolVar(HiveConf.ConfVars.HIVE_LOG_INCREMENTAL_PLAN_PROGRESS)) {
+            ss.getHiveHistory().progressTask(SessionState.get().getQueryId(), this.task);
+            this.callBackObj.logPlanProgress(ss);
+          }
         }
         console.printInfo(output);
         lastReport = report;
@@ -381,6 +382,10 @@ public class HadoopJobExecHelper {
         console.printError("[Fatal Error] " + errMsg.toString());
         success = false;
       } else {
+        SessionState ss = SessionState.get();
+        if (ss != null) {
+          ss.getHiveHistory().setTaskCounters(SessionState.get().getQueryId(), getId(), ctrs);
+        }
         success = rj.isSuccessful();
       }
     }
@@ -399,7 +404,6 @@ public class HadoopJobExecHelper {
     MapRedStats mapRedStats = new MapRedStats(numMap, numReduce, cpuMsec, success, rj.getID().toString());
     mapRedStats.setCounters(ctrs);
 
-    this.task.setDone();
     // update based on the final value of the counters
     updateCounters(ctrs, rj);
 
@@ -489,7 +493,8 @@ public class HadoopJobExecHelper {
   }
 
   @SuppressWarnings("deprecation")
-  private void showJobFailDebugInfo(JobConf conf, RunningJob rj) throws IOException {
+  private void showJobFailDebugInfo(JobConf conf, RunningJob rj)
+    throws IOException, MalformedURLException {
     // Mapping from task ID to the number of failures
     Map<String, Integer> failures = new HashMap<String, Integer>();
     // Successful task ID's
@@ -510,6 +515,7 @@ public class HadoopJobExecHelper {
       }
 
       boolean more = true;
+      boolean firstError = true;
       for (TaskCompletionEvent t : taskCompletions) {
         // getTaskJobIDs returns Strings for compatibility with Hadoop versions
         // without TaskID or TaskAttemptID
@@ -525,7 +531,10 @@ public class HadoopJobExecHelper {
         // and the logs
         String taskId = taskJobIds[0];
         String jobId = taskJobIds[1];
-        console.printError("Examining task ID: " + taskId + " from job " + jobId);
+        if (firstError) {
+          console.printError("Examining task ID: " + taskId + " (and more) from job " + jobId);
+          firstError = false;
+        }
 
         TaskInfo ti = taskIdToInfo.get(taskId);
         if (ti == null) {
@@ -534,7 +543,11 @@ public class HadoopJobExecHelper {
         }
         // These tasks should have come from the same job.
         assert (ti.getJobId() != null && ti.getJobId().equals(jobId));
-        ti.getLogUrls().add(getTaskAttemptLogUrl(t.getTaskTrackerHttp(), t.getTaskId()));
+        String taskAttemptLogUrl = ShimLoader.getHadoopShims().getTaskAttemptLogUrl(
+          conf, t.getTaskTrackerHttp(), t.getTaskId());
+        if (taskAttemptLogUrl != null) {
+          ti.getLogUrls().add(taskAttemptLogUrl);
+        }
 
         // If a task failed, then keep track of the total number of failures
         // for that task (typically, a task gets re-run up to 4 times if it
@@ -693,12 +706,22 @@ public class HadoopJobExecHelper {
       statusMesg += " with errors";
       returnVal = 2;
       console.printError(statusMesg);
-      if (HiveConf.getBoolVar(job, HiveConf.ConfVars.SHOW_JOB_FAIL_DEBUG_INFO)) {
+      if (HiveConf.getBoolVar(job, HiveConf.ConfVars.SHOW_JOB_FAIL_DEBUG_INFO) ||
+          HiveConf.getBoolVar(job, HiveConf.ConfVars.JOB_DEBUG_CAPTURE_STACKTRACES)) {
         try {
-          JobDebugger jd = new JobDebugger(job, rj, console);
+          JobDebugger jd;
+          if (SessionState.get() != null) {
+            jd = new JobDebugger(job, rj, console, SessionState.get().getStackTraces());
+          } else {
+            jd = new JobDebugger(job, rj, console);
+          }
           Thread t = new Thread(jd);
           t.start();
           t.join(HiveConf.getIntVar(job, HiveConf.ConfVars.JOB_DEBUG_TIMEOUT));
+          int ec = jd.getErrorCode();
+          if (ec > 0) {
+            returnVal = ec;
+          }
         } catch (InterruptedException e) {
           console.printError("Timed out trying to grab more detailed job failure"
               + " information, please check jobtracker for more info");
@@ -735,8 +758,6 @@ public class HadoopJobExecHelper {
       try {
         clientStatsPublishers.add((ClientStatsPublisher) Class.forName(
             clientStatsPublisherClass.trim(), true, JavaUtils.getClassLoader()).newInstance());
-      } catch (RuntimeException e) {
-        throw e;
       } catch (Exception e) {
         LOG.warn(e.getClass().getName() + " occured when trying to create class: "
             + clientStatsPublisherClass.trim() + " implementing ClientStatsPublisher interface");

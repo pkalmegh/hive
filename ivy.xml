@@ -23,22 +23,28 @@
   </info>
 
   <configurations defaultconfmapping="default">
-    <!--these match the Maven configurations-->
-    <conf name="default" extends="master,runtime"/>
-    <conf name="master" description="contains the artifact but no dependencies"/>
-    <conf name="compile" description="contains the artifact but no dependencies"/>
-    <conf name="runtime" description="runtime but not the artifact"/>
+    <include file="${ivy.conf.dir}/common-configurations.xml"/>
     <!-- Private configurations -->
     <conf name="docs" visibility="private"/>
     <conf name="checkstyle" visibility="private"/>
+    <conf name="findbugs" visibility="private"/>
+    <conf name="rat" visibility="private"/>
     <conf name="maven" visibility="private"/>
   </configurations>
 
 
   <dependencies>
+   <dependency org="org.apache.rat" name="apache-rat-tasks"
+               rev="${rat.version}" conf="rat->default"/>
+   <dependency org="org.apache.rat" name="apache-rat-core"
+               rev="${rat.version}" conf="rat->default"/>
    <dependency org="checkstyle" name="checkstyle" rev="${checkstyle.version}"
      conf="checkstyle->default"/>
+   <dependency org="com.google.code.findbugs" name="findbugs-ant" rev="${findbugs.version}"
+     conf="findbugs->default"/>
    <dependency org="org.jdom" name="jdom" rev="${jdom.version}"
+     conf="docs->default"/>
+   <dependency org="org.apache.velocity" name="velocity" rev="${velocity.version}"
      conf="docs->default"/>
    <dependency org="org.apache.maven" name="maven-ant-tasks" rev="${maven-ant-tasks.version}"
      conf="maven->default"/>

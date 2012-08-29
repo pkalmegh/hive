@@ -23,6 +23,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.net.URI;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
@@ -39,6 +41,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.MapRedStats;
+import org.apache.hadoop.hive.ql.exec.FunctionRegistry;
 import org.apache.hadoop.hive.ql.exec.Utilities;
 import org.apache.hadoop.hive.ql.history.HiveHistory;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
@@ -82,6 +85,7 @@ public class SessionState {
    */
   public InputStream in;
   public PrintStream out;
+  public PrintStream info;
   public PrintStream err;
   /**
    * Standard output from any child process(es).
@@ -112,6 +116,17 @@ public class SessionState {
   private List<MapRedStats> lastMapRedStatsList;
 
   private Map<String, String> hiveVariables;
+
+  // A mapping from a hadoop job ID to the stack traces collected from the map reduce task logs
+  private Map<String, List<List<String>>> stackTraces;
+
+  // This mapping collects all the configuration variables which have been set by the user
+  // explicitely, either via SET in the CLI, the hiveconf option, or a System property.
+  // It is a mapping from the variable name to its value.  Note that if a user repeatedly
+  // changes the value of a variable, the corresponding change will be made in this mapping.
+  private Map<String, String> overriddenConfigurations;
+
+  private Map<String, List<String>> localMapRedErrors;
 
   /**
    * Lineage state.
@@ -174,6 +189,21 @@ public class SessionState {
     this.conf = conf;
     isSilent = conf.getBoolVar(HiveConf.ConfVars.HIVESESSIONSILENT);
     ls = new LineageState();
+    overriddenConfigurations = new HashMap<String, String>();
+    overriddenConfigurations.putAll(HiveConf.getConfSystemProperties());
+
+    // Register the Hive builtins jar and all of its functions
+    try {
+      Class<?> pluginClass = Utilities.getBuiltinUtilsClass();
+      URL jarLocation = pluginClass.getProtectionDomain().getCodeSource()
+        .getLocation();
+      add_builtin_resource(
+        ResourceType.JAR, jarLocation.toString());
+      FunctionRegistry.registerFunctionsFromPluginJar(
+        jarLocation, pluginClass.getClassLoader());
+    } catch (Exception ex) {
+      throw new RuntimeException("Failed to load Hive builtin functions", ex);
+    }
   }
 
   public void setCmd(String cmdString) {
@@ -324,6 +354,11 @@ public class SessionState {
       return ((ss != null) && (ss.out != null)) ? ss.out : System.out;
     }
 
+    public PrintStream getInfoStream() {
+      SessionState ss = SessionState.get();
+      return ((ss != null) && (ss.info != null)) ? ss.info : getErrStream();
+    }
+
     public PrintStream getErrStream() {
       SessionState ss = SessionState.get();
       return ((ss != null) && (ss.err != null)) ? ss.err : System.err;
@@ -351,7 +386,7 @@ public class SessionState {
 
     public void printInfo(String info, String detail) {
       if (!getIsSilent()) {
-        getErrStream().println(info);
+        getInfoStream().println(info);
       }
       LOG.info(info + StringUtils.defaultString(detail));
     }
@@ -403,8 +438,9 @@ public class SessionState {
     LogHelper console = getConsole();
     try {
       ClassLoader loader = Thread.currentThread().getContextClassLoader();
-      Thread.currentThread().setContextClassLoader(
-          Utilities.addToClassPath(loader, StringUtils.split(newJar, ",")));
+      ClassLoader newLoader = Utilities.addToClassPath(loader, StringUtils.split(newJar, ","));
+      Thread.currentThread().setContextClassLoader(newLoader);
+      SessionState.get().getConf().setClassLoader(newLoader);
       console.printInfo("Added " + newJar + " to class path");
       return true;
     } catch (Exception e) {
@@ -509,8 +545,8 @@ public class SessionState {
     return null;
   }
 
-  private final HashMap<ResourceType, HashSet<String>> resource_map =
-    new HashMap<ResourceType, HashSet<String>>();
+  private final HashMap<ResourceType, Set<String>> resource_map =
+    new HashMap<ResourceType, Set<String>>();
 
   public String add_resource(ResourceType t, String value) {
     // By default don't convert to unix
@@ -525,34 +561,46 @@ public class SessionState {
       return null;
     }
 
-    if (resource_map.get(t) == null) {
-      resource_map.put(t, new HashSet<String>());
-    }
+    Set<String> resourceMap = getResourceMap(t);
 
     String fnlVal = value;
     if (t.hook != null) {
-      fnlVal = t.hook.preHook(resource_map.get(t), value);
+      fnlVal = t.hook.preHook(resourceMap, value);
       if (fnlVal == null) {
         return fnlVal;
       }
     }
     getConsole().printInfo("Added resource: " + fnlVal);
-    resource_map.get(t).add(fnlVal);
+    resourceMap.add(fnlVal);
 
     return fnlVal;
   }
 
+  public void add_builtin_resource(ResourceType t, String value) {
+    getResourceMap(t).add(value);
+  }
+
+  private Set<String> getResourceMap(ResourceType t) {
+    Set<String> result = resource_map.get(t);
+    if (result == null) {
+      result = new HashSet<String>();
+      resource_map.put(t, result);
+    }
+    return result;
+  }
+
   /**
-   * Returns the list of filesystem schemas as regex which
-   * are permissible for download as a resource.
+   * Returns  true if it is from any external File Systems except local
    */
-  public static String getMatchingSchemaAsRegex() {
-    String[] matchingSchema = {"s3", "s3n", "hdfs"};
-    return StringUtils.join(matchingSchema, "|");
+  public static boolean canDownloadResource(String value) {
+    // Allow to download resources from any external FileSystem.
+    // And no need to download if it already exists on local file system.
+    String scheme = new Path(value).toUri().getScheme();
+    return (scheme != null) && !scheme.equalsIgnoreCase("file");
   }
 
   private String downloadResource(String value, boolean convertToUnix) {
-    if (value.matches("("+ getMatchingSchemaAsRegex() +")://.*")) {
+    if (canDownloadResource(value)) {
       getConsole().printInfo("converting to local " + value);
       File resourceDir = new File(getConf().getVar(HiveConf.ConfVars.DOWNLOADED_RESOURCES_DIR));
       String destinationName = new Path(value).getName();
@@ -665,5 +713,40 @@ public class SessionState {
 
   public void setLastMapRedStatsList(List<MapRedStats> lastMapRedStatsList) {
     this.lastMapRedStatsList = lastMapRedStatsList;
+  }
+
+  public void setStackTraces(Map<String, List<List<String>>> stackTraces) {
+    this.stackTraces = stackTraces;
+  }
+
+  public Map<String, List<List<String>>> getStackTraces() {
+    return stackTraces;
+  }
+
+  public Map<String, String> getOverriddenConfigurations() {
+    if (overriddenConfigurations == null) {
+      overriddenConfigurations = new HashMap<String, String>();
+    }
+    return overriddenConfigurations;
+  }
+
+  public void setOverriddenConfigurations(Map<String, String> overriddenConfigurations) {
+    this.overriddenConfigurations = overriddenConfigurations;
+  }
+
+  public Map<String, List<String>> getLocalMapRedErrors() {
+    return localMapRedErrors;
+  }
+
+  public void addLocalMapRedErrors(String id, List<String> localMapRedErrors) {
+    if (!this.localMapRedErrors.containsKey(id)) {
+      this.localMapRedErrors.put(id, new ArrayList<String>());
+    }
+
+    this.localMapRedErrors.get(id).addAll(localMapRedErrors);
+  }
+
+  public void setLocalMapRedErrors(Map<String, List<String>> localMapRedErrors) {
+    this.localMapRedErrors = localMapRedErrors;
   }
 }

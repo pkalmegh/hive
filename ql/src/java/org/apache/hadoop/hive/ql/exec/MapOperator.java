@@ -33,7 +33,6 @@ import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.ql.io.IOContext;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.VirtualColumn;
 import org.apache.hadoop.hive.ql.plan.MapredWork;
@@ -86,7 +85,7 @@ public class MapOperator extends Operator<MapredWork> implements Serializable {
 
   private Map<Operator<? extends Serializable>, java.util.ArrayList<String>> operatorToPaths;
 
-  private final Map<Operator<? extends Serializable>, MapOpCtx> childrenOpToOpCtxMap = 
+  private final Map<Operator<? extends Serializable>, MapOpCtx> childrenOpToOpCtxMap =
     new HashMap<Operator<? extends Serializable>, MapOpCtx>();
 
   private ArrayList<Operator<? extends Serializable>> extraChildrenToClose = null;
@@ -146,6 +145,7 @@ public class MapOperator extends Operator<MapredWork> implements Serializable {
     StructObjectInspector partObjectInspector; // partition
     StructObjectInspector rowObjectInspector;
     Object[] rowWithPart;
+    Object[] rowWithPartAndVC;
     Deserializer deserializer;
     public String tableName;
     public String partName;
@@ -160,12 +160,14 @@ public class MapOperator extends Operator<MapredWork> implements Serializable {
         StructObjectInspector rawRowObjectInspector,
         StructObjectInspector partObjectInspector,
         Object[] rowWithPart,
+        Object[] rowWithPartAndVC,
         Deserializer deserializer) {
       this.isPartitioned = isPartitioned;
       this.rowObjectInspector = rowObjectInspector;
       this.rawRowObjectInspector = rawRowObjectInspector;
       this.partObjectInspector = partObjectInspector;
       this.rowWithPart = rowWithPart;
+      this.rowWithPartAndVC = rowWithPartAndVC;
       this.deserializer = deserializer;
     }
 
@@ -188,6 +190,13 @@ public class MapOperator extends Operator<MapredWork> implements Serializable {
      */
     public Object[] getRowWithPart() {
       return rowWithPart;
+    }
+
+    /**
+     * @return the rowWithPartAndVC
+     */
+    public Object[] getRowWithPartAndVC() {
+      return rowWithPartAndVC;
     }
 
     /**
@@ -214,7 +223,7 @@ public class MapOperator extends Operator<MapredWork> implements Serializable {
     initialize(hconf, null);
   }
 
-  private static MapOpCtx initObjectInspector(MapredWork conf,
+  private MapOpCtx initObjectInspector(MapredWork conf,
       Configuration hconf, String onefile) throws HiveException,
       ClassNotFoundException, InstantiationException, IllegalAccessException,
       SerDeException {
@@ -278,12 +287,12 @@ public class MapOperator extends Operator<MapredWork> implements Serializable {
       // LOG.info("dump " + tableName + " " + partName + " " +
       // rowObjectInspector.getTypeName());
       opCtx = new MapOpCtx(true, rowObjectInspector, rawRowObjectInspector, partObjectInspector,
-          rowWithPart, deserializer);
+                           rowWithPart, null, deserializer);
     } else {
       // LOG.info("dump2 " + tableName + " " + partName + " " +
       // rowObjectInspector.getTypeName());
       opCtx = new MapOpCtx(false, rawRowObjectInspector, rawRowObjectInspector, null, null,
-          deserializer);
+                           null, deserializer);
     }
     opCtx.tableName = tableName;
     opCtx.partName = partName;
@@ -300,15 +309,17 @@ public class MapOperator extends Operator<MapredWork> implements Serializable {
     deserializer = opCtxMap.get(inp).getDeserializer();
     isPartitioned = opCtxMap.get(inp).isPartitioned();
     rowWithPart = opCtxMap.get(inp).getRowWithPart();
+    rowWithPartAndVC = opCtxMap.get(inp).getRowWithPartAndVC();
     rowObjectInspector = opCtxMap.get(inp).getRowObjectInspector();
     if (listInputPaths.contains(inp)) {
       return;
     }
 
     listInputPaths.add(inp);
-    StructObjectInspector rawRowObjectInspector = opCtxMap.get(inp).rawRowObjectInspector;
-    StructObjectInspector partObjectInspector = opCtxMap.get(inp).partObjectInspector;
+
     if (op instanceof TableScanOperator) {
+      StructObjectInspector rawRowObjectInspector = opCtxMap.get(inp).rawRowObjectInspector;
+      StructObjectInspector partObjectInspector = opCtxMap.get(inp).partObjectInspector;
       TableScanOperator tsOp = (TableScanOperator) op;
       TableScanDesc tsDesc = tsOp.getConf();
       if (tsDesc != null) {
@@ -345,6 +356,7 @@ public class MapOperator extends Operator<MapredWork> implements Serializable {
                                             vcStructObjectInspector}));
           }
           opCtxMap.get(inp).rowObjectInspector = this.rowObjectInspector;
+          opCtxMap.get(inp).rowWithPartAndVC = this.rowWithPartAndVC;
         }
       }
     }
@@ -391,7 +403,7 @@ public class MapOperator extends Operator<MapredWork> implements Serializable {
           setInspectorInput(inp);
         }
       }
-      
+
       if (children.size() == 0) {
         // didn't find match for input file path in configuration!
         // serious problem ..
@@ -412,7 +424,7 @@ public class MapOperator extends Operator<MapredWork> implements Serializable {
     // set that parent initialization is done and call initialize on children
     state = State.INIT;
     List<Operator<? extends Serializable>> children = getChildOperators();
-    
+
     for (Entry<Operator<? extends Serializable>, MapOpCtx> entry : childrenOpToOpCtxMap
         .entrySet()) {
       Operator<? extends Serializable> child = entry.getKey();
@@ -491,18 +503,19 @@ public class MapOperator extends Operator<MapredWork> implements Serializable {
     // The serializers need to be reset if the input file changed
     if ((this.getExecContext() != null) &&
         this.getExecContext().inputFileChanged()) {
-      LOG.info("Processing path " + this.getExecContext().getCurrentInputFile());
-
       // The child operators cleanup if input file has changed
       cleanUpInputFileChanged();
     }
+    ExecMapperContext context = getExecContext();
 
     Object row = null;
     try {
       if (this.hasVC) {
         this.rowWithPartAndVC[0] = deserializer.deserialize(value);
         int vcPos = isPartitioned ? 2 : 1;
-        populateVirtualColumnValues();
+        if (context != null) {
+          populateVirtualColumnValues(context, vcs, vcValues, deserializer);
+        }
         this.rowWithPartAndVC[vcPos] = this.vcValues;
       } else if (!isPartitioned) {
         row = deserializer.deserialize((Writable) value);
@@ -551,54 +564,60 @@ public class MapOperator extends Operator<MapredWork> implements Serializable {
     }
   }
 
-  private void populateVirtualColumnValues() {
-    if (this.vcs != null) {
-      ExecMapperContext mapExecCxt = this.getExecContext();
-      IOContext ioCxt = mapExecCxt.getIoCxt();
-      for (int i = 0; i < vcs.size(); i++) {
-        VirtualColumn vc = vcs.get(i);
-        if (vc.equals(VirtualColumn.FILENAME) && mapExecCxt.inputFileChanged()) {
-          this.vcValues[i] = new Text(mapExecCxt.getCurrentInputFile());
-        } else if (vc.equals(VirtualColumn.BLOCKOFFSET)) {
-          long current = ioCxt.getCurrentBlockStart();
-          LongWritable old = (LongWritable) this.vcValues[i];
-          if (old == null) {
-            old = new LongWritable(current);
-            this.vcValues[i] = old;
-            continue;
-          }
-          if (current != old.get()) {
-            old.set(current);
-          }
-        } else if (vc.equals(VirtualColumn.ROWOFFSET)) {
-          long current = ioCxt.getCurrentRow();
-          LongWritable old = (LongWritable) this.vcValues[i];
-          if (old == null) {
-            old = new LongWritable(current);
-            this.vcValues[i] = old;
-            continue;
-          }
-          if (current != old.get()) {
-            old.set(current);
-          }
-        } else if (vc.equals(VirtualColumn.RAWDATASIZE)) {
-          long current = 0L;
-          SerDeStats stats = this.deserializer.getSerDeStats();
-          if(stats != null) {
-            current = stats.getRawDataSize();
-          }
-          LongWritable old = (LongWritable) this.vcValues[i];
-          if (old == null) {
-            old = new LongWritable(current);
-            this.vcValues[i] = old;
-            continue;
-          }
-          if (current != old.get()) {
-            old.set(current);
-          }
+  public static Writable[] populateVirtualColumnValues(ExecMapperContext ctx,
+      List<VirtualColumn> vcs, Writable[] vcValues, Deserializer deserializer) {
+    if (vcs == null) {
+      return vcValues;
+    }
+    if (vcValues == null) {
+      vcValues = new Writable[vcs.size()];
+    }
+    for (int i = 0; i < vcs.size(); i++) {
+      VirtualColumn vc = vcs.get(i);
+      if (vc.equals(VirtualColumn.FILENAME)) {
+        if (ctx.inputFileChanged()) {
+          vcValues[i] = new Text(ctx.getCurrentInputFile());
+        }
+      } else if (vc.equals(VirtualColumn.BLOCKOFFSET)) {
+        long current = ctx.getIoCxt().getCurrentBlockStart();
+        LongWritable old = (LongWritable) vcValues[i];
+        if (old == null) {
+          old = new LongWritable(current);
+          vcValues[i] = old;
+          continue;
+        }
+        if (current != old.get()) {
+          old.set(current);
+        }
+      } else if (vc.equals(VirtualColumn.ROWOFFSET)) {
+        long current = ctx.getIoCxt().getCurrentRow();
+        LongWritable old = (LongWritable) vcValues[i];
+        if (old == null) {
+          old = new LongWritable(current);
+          vcValues[i] = old;
+          continue;
+        }
+        if (current != old.get()) {
+          old.set(current);
+        }
+      } else if (vc.equals(VirtualColumn.RAWDATASIZE)) {
+        long current = 0L;
+        SerDeStats stats = deserializer.getSerDeStats();
+        if(stats != null) {
+          current = stats.getRawDataSize();
+        }
+        LongWritable old = (LongWritable) vcValues[i];
+        if (old == null) {
+          old = new LongWritable(current);
+          vcValues[i] = old;
+          continue;
+        }
+        if (current != old.get()) {
+          old.set(current);
         }
       }
     }
+    return vcValues;
   }
 
   @Override

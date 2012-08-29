@@ -1,3 +1,20 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.hadoop.hive.ql.stats.jdbc;
 
 import java.util.ArrayList;
@@ -72,6 +89,10 @@ public class JDBCStatsUtils {
     return JDBCStatsSetupConstants.PART_STAT_ID_COLUMN_NAME;
   }
 
+  public static String getTimestampColumnName() {
+    return JDBCStatsSetupConstants.PART_STAT_TIMESTAMP_COLUMN_NAME;
+  }
+
   public static String getStatTableName() {
     return JDBCStatsSetupConstants.PART_STAT_TABLE_NAME;
   }
@@ -104,7 +125,8 @@ public class JDBCStatsUtils {
    */
   public static String getCreate(String comment) {
     String create = "CREATE TABLE /* " + comment + " */ " + JDBCStatsUtils.getStatTableName() +
-          " (" + JDBCStatsUtils.getIdColumnName() + " VARCHAR(255) PRIMARY KEY ";
+          " (" + getTimestampColumnName() + " TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+          JDBCStatsUtils.getIdColumnName() + " VARCHAR(255) PRIMARY KEY ";
     for (int i = 0; i < supportedStats.size(); i++) {
       create += ", " + getStatColumnName(supportedStats.get(i)) + " BIGINT ";
     }
@@ -120,7 +142,7 @@ public class JDBCStatsUtils {
     for (int i = 0; i < supportedStats.size(); i++) {
       update += columnNameMapping.get(supportedStats.get(i)) + " = ? , ";
     }
-    update = update.substring(0, update.length() - 2);
+    update += getTimestampColumnName() + " = CURRENT_TIMESTAMP";
     update += " WHERE " + JDBCStatsUtils.getIdColumnName() + " = ? AND ? > ( SELECT TEMP."
         + getStatColumnName(getBasicStat()) + " FROM ( " +
         " SELECT " + getStatColumnName(getBasicStat()) + " FROM " + getStatTableName() + " WHERE "
@@ -132,12 +154,15 @@ public class JDBCStatsUtils {
    * Prepares INSERT statement for statistic publishing.
    */
   public static String getInsert(String comment) {
-    String insert = "INSERT INTO /* " + comment + " */ " + getStatTableName() + " VALUES (?, ";
+    String columns = JDBCStatsUtils.getIdColumnName();
+    String values = "?";
+
     for (int i = 0; i < supportedStats.size(); i++) {
-      insert += "? , ";
+      columns += ", " + getStatColumnName(supportedStats.get(i));
+      values += ", ?";
     }
-    insert = insert.substring(0, insert.length() - 3);
-    insert += ")";
+    String insert = "INSERT INTO /* " + comment + " */ " + getStatTableName() + "(" + columns +
+        ") VALUES (" + values + ")";
     return insert;
   }
 

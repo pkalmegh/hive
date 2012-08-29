@@ -106,7 +106,7 @@ public class HiveDatabaseMetaData implements java.sql.DatabaseMetaData {
   public ResultSet getCatalogs() throws SQLException {
     try {
       // TODO a client call to get the schema's after HIVE-675 is implemented
-      final List<String> catalogs = new ArrayList();
+      final List<String> catalogs = new ArrayList<String>();
       catalogs.add("default");
       return new HiveMetaDataResultSet<String>(Arrays.asList("TABLE_CAT")
               , Arrays.asList("STRING")
@@ -171,7 +171,7 @@ public class HiveDatabaseMetaData implements java.sql.DatabaseMetaData {
           } else if (c == '_') {
             result.append('.');
           } else {
-            result.append(c);
+            result.append(Character.toLowerCase(c));
           }
         }
       }
@@ -389,7 +389,6 @@ public class HiveDatabaseMetaData implements java.sql.DatabaseMetaData {
   /**
    *  Returns the value of maxColumnNameLength.
    *
-   *  @param int
    */
   public int getMaxColumnNameLength() throws SQLException {
     return maxColumnNameLength;
@@ -571,7 +570,7 @@ public class HiveDatabaseMetaData implements java.sql.DatabaseMetaData {
   public ResultSet getTables(String catalog, String schemaPattern,
                              String tableNamePattern, String[] types) throws SQLException {
     final List<String> tablesstr;
-    final List<JdbcTable> resultTables = new ArrayList();
+    final List<JdbcTable> resultTables = new ArrayList<JdbcTable>();
     final String resultCatalog;
     if (catalog==null) { // On jdbc the default catalog is null but on hive it's "default"
       resultCatalog = "default";
@@ -654,7 +653,7 @@ public class HiveDatabaseMetaData implements java.sql.DatabaseMetaData {
   /**
    * Translate hive table types into jdbc table types.
    * @param hivetabletype
-   * @return
+   * @return the type of the table
    */
   public static String toJdbcTableType(String hivetabletype) {
     if (hivetabletype==null) {

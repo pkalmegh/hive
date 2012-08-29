@@ -69,6 +69,8 @@ public final class PlanUtils {
 
   protected static final Log LOG = LogFactory.getLog("org.apache.hadoop.hive.ql.plan.PlanUtils");
 
+  private static long countForMapJoinDumpFilePrefix = 0;
+
   /**
    * ExpressionTypes.
    *
@@ -76,6 +78,10 @@ public final class PlanUtils {
   public static enum ExpressionTypes {
     FIELD, JEXL
   };
+
+  public static long getCountForMapJoinDumpFilePrefix() {
+    return countForMapJoinDumpFilePrefix++;
+  }
 
   @SuppressWarnings("nls")
   public static MapredWork getMapRedWork() {
@@ -261,6 +267,11 @@ public final class PlanUtils {
 
       if (crtTblDesc.getLineDelim() != null) {
         properties.setProperty(Constants.LINE_DELIM, crtTblDesc.getLineDelim());
+      }
+
+      if (crtTblDesc.getTableName() != null && crtTblDesc.getDatabaseName() != null) {
+        properties.setProperty(org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_NAME,
+            crtTblDesc.getDatabaseName() + "." + crtTblDesc.getTableName());
       }
 
       // replace the default input & output file format with those found in
@@ -646,11 +657,25 @@ public final class PlanUtils {
 
   /**
    * Loads the storage handler (if one exists) for the given table
-   * and invokes {@link HiveStorageHandler#configureTableJobProperties}.
+   * and invokes {@link HiveStorageHandler#configureInputJobProperties(TableDesc, java.util.Map)}.
    *
    * @param tableDesc table descriptor
    */
-  public static void configureTableJobPropertiesForStorageHandler(
+  public static void configureInputJobPropertiesForStorageHandler(TableDesc tableDesc) {
+      configureJobPropertiesForStorageHandler(true,tableDesc);
+  }
+
+  /**
+   * Loads the storage handler (if one exists) for the given table
+   * and invokes {@link HiveStorageHandler#configureOutputJobProperties(TableDesc, java.util.Map)}.
+   *
+   * @param tableDesc table descriptor
+   */
+  public static void configureOutputJobPropertiesForStorageHandler(TableDesc tableDesc) {
+      configureJobPropertiesForStorageHandler(false,tableDesc);
+  }
+
+  private static void configureJobPropertiesForStorageHandler(boolean input,
     TableDesc tableDesc) {
 
     if (tableDesc == null) {
@@ -665,9 +690,28 @@ public final class PlanUtils {
             org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_STORAGE));
       if (storageHandler != null) {
         Map<String, String> jobProperties = new LinkedHashMap<String, String>();
-        storageHandler.configureTableJobProperties(
-          tableDesc,
-          jobProperties);
+        if(input) {
+            try {
+                storageHandler.configureInputJobProperties(
+                  tableDesc,
+                  jobProperties);
+            } catch(AbstractMethodError e) {
+                LOG.debug("configureInputJobProperties not found "+
+                    "using configureTableJobProperties",e);
+                storageHandler.configureTableJobProperties(tableDesc, jobProperties);
+            }
+        }
+        else {
+            try {
+                storageHandler.configureOutputJobProperties(
+                  tableDesc,
+                  jobProperties);
+            } catch(AbstractMethodError e) {
+                LOG.debug("configureOutputJobProperties not found"+
+                    "using configureTableJobProperties",e);
+                storageHandler.configureTableJobProperties(tableDesc, jobProperties);
+            }
+        }
         // Job properties are only relevant for non-native tables, so
         // for native tables, leave it null to avoid cluttering up
         // plans.
@@ -678,6 +722,14 @@ public final class PlanUtils {
     } catch (HiveException ex) {
       throw new RuntimeException(ex);
     }
+  }
+
+  public static String stripQuotes(String val) {
+    if ((val.charAt(0) == '\'' && val.charAt(val.length() - 1) == '\'')
+        || (val.charAt(0) == '\"' && val.charAt(val.length() - 1) == '\"')) {
+      val = val.substring(1, val.length() - 1);
+    }
+    return val;
   }
 
   private PlanUtils() {

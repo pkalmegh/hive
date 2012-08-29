@@ -2,6 +2,7 @@ PREHOOK: query: CREATE INDEX src_index ON TABLE src(key) as 'BITMAP' WITH DEFERR
 PREHOOK: type: CREATEINDEX
 POSTHOOK: query: CREATE INDEX src_index ON TABLE src(key) as 'BITMAP' WITH DEFERRED REBUILD
 POSTHOOK: type: CREATEINDEX
+POSTHOOK: Output: default@default__src_src_index__
 PREHOOK: query: ALTER INDEX src_index ON src REBUILD
 PREHOOK: type: ALTERINDEX_REBUILD
 PREHOOK: Input: default@src
@@ -41,11 +42,11 @@ STAGE PLANS:
           TableScan
             alias: default__src_src_index__
             filterExpr:
-                expr: (((key > 80) and (key < 100)) and (not EWAH_BITMAP_EMPTY(_bitmaps)))
+                expr: (((key > 80.0) and (key < 100.0)) and (not EWAH_BITMAP_EMPTY(_bitmaps)))
                 type: boolean
             Filter Operator
               predicate:
-                  expr: (((key > 80) and (key < 100)) and (not EWAH_BITMAP_EMPTY(_bitmaps)))
+                  expr: (((key > 80.0) and (key < 100.0)) and (not EWAH_BITMAP_EMPTY(_bitmaps)))
                   type: boolean
               Select Operator
                 expressions:
@@ -119,7 +120,7 @@ STAGE PLANS:
     Move Operator
       files:
           hdfs directory: true
-          destination: file:/tmp/salbiz/hive_2011-08-03_19-22-05_491_6177022778834263416/-mr-10002
+#### A masked pattern was here ####
 
   Stage: Stage-1
     Map Reduce
@@ -128,11 +129,11 @@ STAGE PLANS:
           TableScan
             alias: src
             filterExpr:
-                expr: ((key > 80) and (key < 100))
+                expr: ((key > 80.0) and (key < 100.0))
                 type: boolean
             Filter Operator
               predicate:
-                  expr: ((key > 80) and (key < 100))
+                  expr: ((key > 80.0) and (key < 100.0))
                   type: boolean
               Select Operator
                 expressions:
@@ -170,12 +171,12 @@ PREHOOK: query: SELECT key, value FROM src WHERE key > 80 AND key < 100 ORDER BY
 PREHOOK: type: QUERY
 PREHOOK: Input: default@default__src_src_index__
 PREHOOK: Input: default@src
-PREHOOK: Output: file:/tmp/salbiz/hive_2011-08-03_19-22-05_790_501152882923917503/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT key, value FROM src WHERE key > 80 AND key < 100 ORDER BY key
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@default__src_src_index__
 POSTHOOK: Input: default@src
-POSTHOOK: Output: file:/tmp/salbiz/hive_2011-08-03_19-22-05_790_501152882923917503/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: default__src_src_index__._bitmaps EXPRESSION [(src)src.FieldSchema(name:ROW__OFFSET__INSIDE__BLOCK, type:bigint, comment:), ]
 POSTHOOK: Lineage: default__src_src_index__._bucketname SIMPLE [(src)src.FieldSchema(name:INPUT__FILE__NAME, type:string, comment:), ]
 POSTHOOK: Lineage: default__src_src_index__._offset SIMPLE [(src)src.FieldSchema(name:BLOCK__OFFSET__INSIDE__FILE, type:bigint, comment:), ]

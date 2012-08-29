@@ -14,16 +14,31 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        TableScan
+          alias: x
+          Select Operator
+            expressions:
+                  expr: key
+                  type: string
+                  expr: value
+                  type: string
+                  expr: ds
+                  type: string
+                  expr: hr
+                  type: string
+            outputColumnNames: _col0, _col1, _col2, _col3
+            ListSink
 
 
 PREHOOK: query: SELECT x.* FROM SRCPART x WHERE x.ds = '2008-04-08' and x.hr = 11
 PREHOOK: type: QUERY
 PREHOOK: Input: default@srcpart@ds=2008-04-08/hr=11
-PREHOOK: Output: file:/tmp/sdong/hive_2011-02-10_16-00-18_143_3263159555073204512/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT x.* FROM SRCPART x WHERE x.ds = '2008-04-08' and x.hr = 11
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@srcpart@ds=2008-04-08/hr=11
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_16-00-18_143_3263159555073204512/-mr-10000
+#### A masked pattern was here ####
 238	val_238	2008-04-08	11
 86	val_86	2008-04-08	11
 311	val_311	2008-04-08	11

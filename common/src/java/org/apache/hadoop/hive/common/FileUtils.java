@@ -27,7 +27,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.util.Shell.ShellCommandExecutor;
 
 /**
  * Collection of file manipulation utilities common across Hive.
@@ -144,7 +143,7 @@ public final class FileUtils {
         '\u0013', '\u0014', '\u0015', '\u0016', '\u0017', '\u0018', '\u0019',
         '\u001A', '\u001B', '\u001C', '\u001D', '\u001E', '\u001F',
         '"', '#', '%', '\'', '*', '/', ':', '=', '?', '\\', '\u007F', '{',
-        '[', ']'};
+        '[', ']', '^'};
     for (char c : clist) {
       charToEscape.set(c);
     }
@@ -236,32 +235,6 @@ public final class FileUtils {
       }
     } else {
       results.add(fileStatus);
-    }
-  }
-
-  /**
-   * Archive all the files in the inputFiles into outputFile
-   *
-   * @param inputFiles
-   * @param outputFile
-   * @throws IOException
-   */
-  public static void tar(String parentDir, String[] inputFiles, String outputFile)
-      throws IOException {
-    StringBuffer tarCommand = new StringBuffer();
-    tarCommand.append("cd " + parentDir + " ; ");
-    tarCommand.append(" tar -zcvf ");
-    tarCommand.append(" " + outputFile);
-    for (int i = 0; i < inputFiles.length; i++) {
-      tarCommand.append(" " + inputFiles[i]);
-    }
-    String[] shellCmd = {"bash", "-c", tarCommand.toString()};
-    ShellCommandExecutor shexec = new ShellCommandExecutor(shellCmd);
-    shexec.execute();
-    int exitcode = shexec.getExitCode();
-    if (exitcode != 0) {
-      throw new IOException("Error tarring file " + outputFile
-          + ". Tar process exited with exit code " + exitcode);
     }
   }
 }

@@ -49,8 +49,8 @@ public class HBaseStatsPublisher implements StatsPublisher {
   public boolean connect(Configuration hiveconf) {
 
     try {
-      HBaseConfiguration hbaseConf = new HBaseConfiguration(hiveconf);
-      htable = new HTable(hbaseConf, HBaseStatsSetupConstants.PART_STAT_TABLE_NAME);
+      htable = new HTable(HBaseConfiguration.create(hiveconf),
+        HBaseStatsSetupConstants.PART_STAT_TABLE_NAME);
       // for performance reason, defer update until the closeConnection
       htable.setAutoFlush(false);
     } catch (IOException e) {
@@ -67,6 +67,11 @@ public class HBaseStatsPublisher implements StatsPublisher {
   public boolean publishStat(String rowID, Map<String, String> stats) {
 
     // Write in HBase
+
+    if (stats.isEmpty()) {
+      // If there are no stats to publish, nothing to do.
+      return true;
+    }
 
     if (!HBaseStatsUtils.isValidStatisticSet(stats.keySet())) {
       LOG.warn("Warning. Invalid statistic: " + stats.keySet().toString()
@@ -130,8 +135,7 @@ public class HBaseStatsPublisher implements StatsPublisher {
    */
   public boolean init(Configuration hiveconf) {
     try {
-      HBaseConfiguration hbaseConf = new HBaseConfiguration(hiveconf);
-      HBaseAdmin hbase = new HBaseAdmin(hbaseConf);
+      HBaseAdmin hbase = new HBaseAdmin(HBaseConfiguration.create(hiveconf));
 
       // Creating table if not exists
       if (!hbase.tableExists(HBaseStatsSetupConstants.PART_STAT_TABLE_NAME)) {

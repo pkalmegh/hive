@@ -18,9 +18,10 @@
 
 package org.apache.hadoop.hive.ql.io;
 
+import java.io.DataInputStream;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.io.UnsupportedEncodingException;
 import java.util.List;
 import java.util.Properties;
@@ -35,6 +36,7 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocalFileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.serde.Constants;
 import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
 import org.apache.hadoop.hive.serde2.SerDeException;
@@ -45,9 +47,9 @@ import org.apache.hadoop.hive.serde2.io.ByteWritable;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
 import org.apache.hadoop.hive.serde2.io.ShortWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
@@ -148,10 +150,14 @@ public class TestRCFile extends TestCase {
         "123".getBytes("UTF-8"), "1000".getBytes("UTF-8"),
         "5.3".getBytes("UTF-8"), "hive and hadoop".getBytes("UTF-8"),
         new byte[0], "NULL".getBytes("UTF-8")};
-
     RCFileOutputFormat.setColumnNumber(conf, expectedFieldsData.length);
-    RCFile.Writer writer = new RCFile.Writer(fs, conf, file, null,
-        new DefaultCodec());
+    RCFile.Writer writer =
+      new RCFile.Writer(fs, conf, file, null,
+                        RCFile.createMetadata(new Text("apple"),
+                                              new Text("block"),
+                                              new Text("cat"),
+                                              new Text("dog")),
+                        new DefaultCodec());
     BytesRefArrayWritable bytes = new BytesRefArrayWritable(record_1.length);
     for (int i = 0; i < record_1.length; i++) {
       BytesRefWritable cu = new BytesRefWritable(record_1[i], 0,
@@ -179,7 +185,12 @@ public class TestRCFile extends TestCase {
         new Text("hive and hadoop"), null, null};
 
     RCFile.Reader reader = new RCFile.Reader(fs, file, conf);
-
+    assertEquals(new Text("block"),
+                 reader.getMetadata().get(new Text("apple")));
+    assertEquals(new Text("block"),
+                 reader.getMetadataValueOf(new Text("apple")));
+    assertEquals(new Text("dog"),
+                 reader.getMetadataValueOf(new Text("cat")));
     LongWritable rowID = new LongWritable();
 
     for (int i = 0; i < 2; i++) {
@@ -262,6 +273,23 @@ public class TestRCFile extends TestCase {
     reader.close();
   }
 
+  public void testReadOldFileHeader() throws IOException {
+    String[] row = new String[]{"Tester", "Bart", "333 X St.", "Reno", "NV",
+                                "USA"};
+    RCFile.Reader reader =
+      new RCFile.Reader(fs, new Path("src/test/data/rc-file-v0.rc"), conf);
+    LongWritable rowID = new LongWritable();
+    BytesRefArrayWritable cols = new BytesRefArrayWritable();
+    assertTrue("old file reader first row", reader.next(rowID));
+    reader.getCurrentRow(cols);
+    assertEquals(row.length, cols.size());
+    for (int i=0; i < cols.size(); ++i) {
+      assertEquals(row[i], new String(cols.get(i).getBytesCopy()));
+    }
+    assertFalse("old file reader end", reader.next(rowID));
+    reader.close();
+  }
+
   public void testWriteAndFullyRead() throws IOException, SerDeException {
     writeTest(fs, 10000, file, bytesArray);
     fullyReadTest(fs, 10000, file);
@@ -321,6 +349,11 @@ public class TestRCFile extends TestCase {
 
   private void writeTest(FileSystem fs, int count, Path file,
       byte[][] fieldsData) throws IOException, SerDeException {
+    writeTest(fs, count, file, fieldsData, conf);
+  }
+
+  private void writeTest(FileSystem fs, int count, Path file,
+      byte[][] fieldsData, Configuration conf) throws IOException, SerDeException {
     fs.delete(file, true);
 
     RCFileOutputFormat.setColumnNumber(conf, fieldsData.length);
@@ -516,12 +549,13 @@ public class TestRCFile extends TestCase {
       System.out.println("The " + i + "th split read "
           + (readCount - previousReadCount));
     }
-    assertEquals("readCount should be equal to writeCount", readCount, writeCount);
+    assertEquals("readCount should be equal to writeCount", writeCount,
+                 readCount);
   }
-  
+
 
   // adopted Hadoop-5476 (calling new SequenceFile.Reader(...) leaves an
-  // InputStream open, if the given sequence file is broken) to RCFile 
+  // InputStream open, if the given sequence file is broken) to RCFile
   private static class TestFSDataInputStream extends FSDataInputStream {
     private boolean closed = false;
 
@@ -529,6 +563,7 @@ public class TestRCFile extends TestCase {
       super(in);
     }
 
+    @Override
     public void close() throws IOException {
       closed = true;
       super.close();
@@ -552,6 +587,7 @@ public class TestRCFile extends TestCase {
       new RCFile.Reader(fs, path, conf) {
         // this method is called by the RCFile.Reader constructor, overwritten,
         // so we can access the opened file
+        @Override
         protected FSDataInputStream openFile(FileSystem fs, Path file,
             int bufferSize, long length) throws IOException {
           final InputStream in = super.openFile(fs, file, bufferSize, length);
@@ -565,6 +601,33 @@ public class TestRCFile extends TestCase {
     assertNotNull(path + " should have been opened.", openedFile[0]);
     assertTrue("InputStream for " + path + " should have been closed.",
         openedFile[0].isClosed());
+  }
+
+  public void testRCFileHeader(char[] expected, Configuration conf)
+      throws IOException, SerDeException {
+
+    writeTest(fs, 10000, file, bytesArray, conf);
+    DataInputStream di = fs.open(file, 10000);
+    byte[] bytes = new byte[3];
+    di.read(bytes);
+    for (int i = 0; i < expected.length; i++) {
+      assertTrue("Headers did not match", bytes[i] == expected[i]);
+    }
+    di.close();
+  }
+
+  public void testNonExplicitRCFileHeader() throws IOException, SerDeException {
+    Configuration conf = new Configuration();
+    conf.setBoolean(HiveConf.ConfVars.HIVEUSEEXPLICITRCFILEHEADER.varname, false);
+    char[] expected = new char[] {'S', 'E', 'Q'};
+    testRCFileHeader(expected, conf);
+  }
+
+  public void testExplicitRCFileHeader() throws IOException, SerDeException {
+    Configuration conf = new Configuration();
+    conf.setBoolean(HiveConf.ConfVars.HIVEUSEEXPLICITRCFILEHEADER.varname, true);
+    char[] expected = new char[] {'R', 'C', 'F'};
+    testRCFileHeader(expected, conf);
   }
 
 }

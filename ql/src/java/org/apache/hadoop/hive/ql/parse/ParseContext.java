@@ -29,6 +29,7 @@ import java.util.Set;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.Context;
 import org.apache.hadoop.hive.ql.exec.AbstractMapJoinOperator;
+import org.apache.hadoop.hive.ql.exec.FetchTask;
 import org.apache.hadoop.hive.ql.exec.GroupByOperator;
 import org.apache.hadoop.hive.ql.exec.JoinOperator;
 import org.apache.hadoop.hive.ql.exec.MapJoinOperator;
@@ -37,13 +38,15 @@ import org.apache.hadoop.hive.ql.exec.TableScanOperator;
 import org.apache.hadoop.hive.ql.exec.Task;
 import org.apache.hadoop.hive.ql.hooks.LineageInfo;
 import org.apache.hadoop.hive.ql.hooks.ReadEntity;
+import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.Table;
+import org.apache.hadoop.hive.ql.optimizer.ppr.PartitionPruner;
 import org.apache.hadoop.hive.ql.optimizer.unionproc.UnionProcContext;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
+import org.apache.hadoop.hive.ql.plan.FilterDesc.sampleDesc;
 import org.apache.hadoop.hive.ql.plan.LoadFileDesc;
 import org.apache.hadoop.hive.ql.plan.LoadTableDesc;
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc;
-import org.apache.hadoop.hive.ql.plan.FilterDesc.sampleDesc;
 
 /**
  * Parse Context: The current parse context. This is passed to the optimizer
@@ -61,6 +64,7 @@ public class ParseContext {
   private HashMap<TableScanOperator, ExprNodeDesc> opToPartPruner;
   private HashMap<TableScanOperator, PrunedPartitionList> opToPartList;
   private HashMap<TableScanOperator, sampleDesc> opToSamplePruner;
+  private Map<TableScanOperator, ExprNodeDesc> opToSkewedPruner;
   private HashMap<String, Operator<? extends Serializable>> topOps;
   private HashMap<String, Operator<? extends Serializable>> topSelOps;
   private LinkedHashMap<Operator<? extends Serializable>, OpParseContext> opParseCtx;
@@ -95,21 +99,25 @@ public class ParseContext {
   // a map-reduce job
   private boolean hasNonPartCols;
 
-  private SemanticAnalyzer.GlobalLimitCtx globalLimitCtx;
+  private GlobalLimitCtx globalLimitCtx;
 
   private HashSet<ReadEntity> semanticInputs;
   private List<Task<? extends Serializable>> rootTasks;
+
+  private FetchTask fetchTask;
 
   public ParseContext() {
   }
 
   /**
+   * @param conf
    * @param qb
    *          current QB
    * @param ast
    *          current parse tree
    * @param opToPartPruner
    *          map from table scan operator to partition pruner
+   * @param opToPartList
    * @param topOps
    *          list of operators for the top query
    * @param topSelOps
@@ -121,7 +129,6 @@ public class ParseContext {
    *          context needed join processing (map join specifically)
    * @param topToTable
    *          the top tables being processed
-   * @param fopToTable the table schemas that are being inserted into
    * @param loadTableWork
    *          list of destination tables being loaded
    * @param loadFileWork
@@ -129,13 +136,16 @@ public class ParseContext {
    * @param ctx
    *          parse context
    * @param idToTableNameMap
-   * @param destTableId
    * @param uCtx
+   * @param destTableId
    * @param listMapJoinOpsNoReducer
    *          list of map join operators with no reducer
+   * @param groupOpToInputTables
+   * @param prunedPartitions
    * @param opToSamplePruner
    *          operator to sample pruner map
-   * @param semanticInputs
+   * @param globalLimitCtx
+   * @param nameToSplitSample
    * @param rootTasks
    */
   public ParseContext(
@@ -155,9 +165,10 @@ public class ParseContext {
       Map<GroupByOperator, Set<String>> groupOpToInputTables,
       Map<String, PrunedPartitionList> prunedPartitions,
       HashMap<TableScanOperator, sampleDesc> opToSamplePruner,
-      SemanticAnalyzer.GlobalLimitCtx globalLimitCtx,
+      GlobalLimitCtx globalLimitCtx,
       HashMap<String, SplitSample> nameToSplitSample,
-      HashSet<ReadEntity> semanticInputs, List<Task<? extends Serializable>> rootTasks) {
+      HashSet<ReadEntity> semanticInputs, List<Task<? extends Serializable>> rootTasks,
+      Map<TableScanOperator, ExprNodeDesc> opToSkewedPruner) {
     this.conf = conf;
     this.qb = qb;
     this.ast = ast;
@@ -183,6 +194,7 @@ public class ParseContext {
     this.globalLimitCtx = globalLimitCtx;
     this.semanticInputs = semanticInputs;
     this.rootTasks = rootTasks;
+    this.opToSkewedPruner = opToSkewedPruner;
   }
 
   /**
@@ -512,11 +524,11 @@ public class ParseContext {
     this.mapJoinContext = mapJoinContext;
   }
 
-  public SemanticAnalyzer.GlobalLimitCtx getGlobalLimitCtx() {
+  public GlobalLimitCtx getGlobalLimitCtx() {
     return globalLimitCtx;
   }
 
-  public void setGlobalLimitCtx(SemanticAnalyzer.GlobalLimitCtx globalLimitCtx) {
+  public void setGlobalLimitCtx(GlobalLimitCtx globalLimitCtx) {
     this.globalLimitCtx = globalLimitCtx;
   }
 
@@ -529,4 +541,38 @@ public class ParseContext {
     this.rootTasks.remove(rootTask);
     this.rootTasks.addAll(tasks);
   }
+
+  public FetchTask getFetchTask() {
+    return fetchTask;
+  }
+
+  public void setFetchTask(FetchTask fetchTask) {
+    this.fetchTask = fetchTask;
+  }
+
+  public PrunedPartitionList getPrunedPartitions(String alias, TableScanOperator ts)
+      throws HiveException {
+    PrunedPartitionList partsList = opToPartList.get(ts);
+    if (partsList == null) {
+      partsList = PartitionPruner.prune(topToTable.get(ts),
+          opToPartPruner.get(ts), conf, alias, prunedPartitions);
+      opToPartList.put(ts, partsList);
+    }
+    return partsList;
+  }
+
+  /**
+   * @return the opToSkewedPruner
+   */
+  public Map<TableScanOperator, ExprNodeDesc> getOpToSkewedPruner() {
+    return opToSkewedPruner;
+  }
+
+  /**
+   * @param opToSkewedPruner the opToSkewedPruner to set
+   */
+  public void setOpToSkewedPruner(HashMap<TableScanOperator, ExprNodeDesc> opToSkewedPruner) {
+    this.opToSkewedPruner = opToSkewedPruner;
+  }
+
 }

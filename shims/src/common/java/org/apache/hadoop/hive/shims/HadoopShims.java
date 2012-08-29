@@ -20,6 +20,9 @@ package org.apache.hadoop.hive.shims;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.security.PrivilegedExceptionAction;
+import java.util.List;
 
 import javax.security.auth.login.LoginException;
 
@@ -31,6 +34,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
@@ -38,7 +42,11 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.TaskCompletionEvent;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.util.Progressable;
 
 /**
  * In order to be compatible with multiple versions of Hadoop, all parts
@@ -57,6 +65,17 @@ public interface HadoopShims {
    * command line interpretation.
    */
   boolean usesJobShell();
+
+  /**
+   * Constructs and Returns TaskAttempt Log Url
+   * or null if the TaskLogServlet is not available
+   *
+   *  @return TaskAttempt Log Url
+   */
+  String getTaskAttemptLogUrl(JobConf conf,
+    String taskTrackerHttpAddress,
+    String taskAttemptId)
+    throws MalformedURLException;
 
   /**
    * Return true if the job has not switched to RUNNING state yet
@@ -145,10 +164,18 @@ public interface HadoopShims {
    * the setup/cleanup/commit of output from the hive client. As a result it does
    * not need support for the same inside the MR framework
    *
-   * This routine sets the appropriate options to set the output format and any
-   * options related to bypass setup/cleanup/commit support in the MR framework
+   * This routine sets the appropriate options related to bypass setup/cleanup/commit
+   * support in the MR framework, but does not set the OutputFormat class.
    */
-  void setNullOutputFormat(JobConf conf);
+  void prepareJobOutput(JobConf conf);
+
+  /**
+   * Used by TaskLogProcessor to Remove HTML quoting from a string
+   * @param item the string to unquote
+   * @return the unquoted string
+   *
+   */
+  public String unquoteHtmlChars(String item);
 
   /**
    * Get the UGI that the given job configuration will run as.
@@ -158,6 +185,24 @@ public interface HadoopShims {
    */
   public UserGroupInformation getUGIForConf(Configuration conf) throws LoginException, IOException;
 
+  /**
+   * Used by metastore server to perform requested rpc in client context.
+   * @param ugi
+   * @param pvea
+   * @throws IOException
+   * @throws InterruptedException
+   */
+  public void doAs(UserGroupInformation ugi, PrivilegedExceptionAction<Void> pvea) throws
+    IOException, InterruptedException;
+
+  /**
+   * Used by metastore server to creates UGI object for a remote user.
+   * @param userName remote User Name
+   * @param groupNames group names associated with remote user name
+   * @return UGI created for the remote user.
+   */
+
+  public UserGroupInformation createRemoteUser(String userName, List<String> groupNames);
   /**
    * Get the short name corresponding to the subject in the passed UGI
    *
@@ -188,6 +233,22 @@ public interface HadoopShims {
    * @throws IOException
    */
   String getTokenStrForm(String tokenSignature) throws IOException;
+
+
+  enum JobTrackerState { INITIALIZING, RUNNING };
+
+  /**
+   * Convert the ClusterStatus to its Thrift equivalent: JobTrackerState.
+   * See MAPREDUCE-2455 for why this is a part of the shim.
+   * @param clusterStatus
+   * @return the matching JobTrackerState
+   * @throws Exception if no equivalent JobTrackerState exists
+   */
+  public JobTrackerState getJobTrackerState(ClusterStatus clusterStatus) throws Exception;
+
+  public TaskAttemptContext newTaskAttemptContext(Configuration conf, final Progressable progressable);
+
+  public JobContext newJobContext(Job job);
 
   /**
    * InputSplitShim.

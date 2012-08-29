@@ -32,25 +32,33 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-4 is a root stage
-  Stage-8 depends on stages: Stage-4 , consists of Stage-7, Stage-6
+  Stage-10 depends on stages: Stage-4 , consists of Stage-7, Stage-6, Stage-8
   Stage-7
-  Stage-0 depends on stages: Stage-7, Stage-6
+  Stage-0 depends on stages: Stage-7, Stage-6, Stage-9
   Stage-5 depends on stages: Stage-0
   Stage-6
-  Stage-12 depends on stages: Stage-4 , consists of Stage-11, Stage-10
-  Stage-11
-  Stage-1 depends on stages: Stage-11, Stage-10
-  Stage-9 depends on stages: Stage-1
-  Stage-10
-  Stage-16 depends on stages: Stage-4 , consists of Stage-15, Stage-14
-  Stage-15
-  Stage-2 depends on stages: Stage-15, Stage-14
-  Stage-13 depends on stages: Stage-2
+  Stage-8
+  Stage-9 depends on stages: Stage-8
+  Stage-16 depends on stages: Stage-4 , consists of Stage-13, Stage-12, Stage-14
+  Stage-13
+  Stage-1 depends on stages: Stage-13, Stage-12, Stage-15
+  Stage-11 depends on stages: Stage-1
+  Stage-12
   Stage-14
-  Stage-19 depends on stages: Stage-4 , consists of Stage-18, Stage-17
+  Stage-15 depends on stages: Stage-14
+  Stage-22 depends on stages: Stage-4 , consists of Stage-19, Stage-18, Stage-20
+  Stage-19
+  Stage-2 depends on stages: Stage-19, Stage-18, Stage-21
+  Stage-17 depends on stages: Stage-2
   Stage-18
-  Stage-3 depends on stages: Stage-18, Stage-17
-  Stage-17
+  Stage-20
+  Stage-21 depends on stages: Stage-20
+  Stage-27 depends on stages: Stage-4 , consists of Stage-24, Stage-23, Stage-25
+  Stage-24
+  Stage-3 depends on stages: Stage-24, Stage-23, Stage-26
+  Stage-23
+  Stage-25
+  Stage-26 depends on stages: Stage-25
 
 STAGE PLANS:
   Stage: Stage-4
@@ -61,7 +69,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: (key < 100)
+                  expr: (key < 100.0)
                   type: boolean
               Select Operator
                 expressions:
@@ -87,7 +95,7 @@ STAGE PLANS:
                         name: default.dest1
             Filter Operator
               predicate:
-                  expr: ((key >= 100) and (key < 200))
+                  expr: ((key >= 100.0) and (key < 200.0))
                   type: boolean
               Select Operator
                 expressions:
@@ -113,7 +121,7 @@ STAGE PLANS:
                         name: default.dest2
             Filter Operator
               predicate:
-                  expr: ((key >= 200) and (key < 300))
+                  expr: ((key >= 200.0) and (key < 300.0))
                   type: boolean
               Select Operator
                 expressions:
@@ -135,7 +143,7 @@ STAGE PLANS:
                         name: default.dest3
             Filter Operator
               predicate:
-                  expr: (key >= 300)
+                  expr: (key >= 300.0)
                   type: boolean
               Select Operator
                 expressions:
@@ -149,14 +157,14 @@ STAGE PLANS:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
 
-  Stage: Stage-8
+  Stage: Stage-10
     Conditional Operator
 
   Stage: Stage-7
     Move Operator
       files:
           hdfs directory: true
-          destination: pfile:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-02-10_15-53-16_613_1322226487151381018/-ext-10000
+#### A masked pattern was here ####
 
   Stage: Stage-0
     Move Operator
@@ -174,7 +182,7 @@ STAGE PLANS:
   Stage: Stage-6
     Map Reduce
       Alias -> Map Operator Tree:
-        pfile:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-02-10_15-53-16_613_1322226487151381018/-ext-10007 
+#### A masked pattern was here ####
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -184,14 +192,33 @@ STAGE PLANS:
                   serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                   name: default.dest1
 
-  Stage: Stage-12
-    Conditional Operator
+  Stage: Stage-8
+    Map Reduce
+      Alias -> Map Operator Tree:
+#### A masked pattern was here ####
+            File Output Operator
+              compressed: false
+              GlobalTableId: 0
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.dest1
 
-  Stage: Stage-11
+  Stage: Stage-9
     Move Operator
       files:
           hdfs directory: true
-          destination: pfile:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-02-10_15-53-16_613_1322226487151381018/-ext-10002
+#### A masked pattern was here ####
+
+  Stage: Stage-16
+    Conditional Operator
+
+  Stage: Stage-13
+    Move Operator
+      files:
+          hdfs directory: true
+#### A masked pattern was here ####
 
   Stage: Stage-1
     Move Operator
@@ -203,13 +230,13 @@ STAGE PLANS:
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.dest2
 
-  Stage: Stage-9
+  Stage: Stage-11
     Stats-Aggr Operator
 
-  Stage: Stage-10
+  Stage: Stage-12
     Map Reduce
       Alias -> Map Operator Tree:
-        pfile:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-02-10_15-53-16_613_1322226487151381018/-ext-10008 
+#### A masked pattern was here ####
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -219,14 +246,33 @@ STAGE PLANS:
                   serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                   name: default.dest2
 
-  Stage: Stage-16
-    Conditional Operator
+  Stage: Stage-14
+    Map Reduce
+      Alias -> Map Operator Tree:
+#### A masked pattern was here ####
+            File Output Operator
+              compressed: false
+              GlobalTableId: 0
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.dest2
 
   Stage: Stage-15
     Move Operator
       files:
           hdfs directory: true
-          destination: pfile:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-02-10_15-53-16_613_1322226487151381018/-ext-10004
+#### A masked pattern was here ####
+
+  Stage: Stage-22
+    Conditional Operator
+
+  Stage: Stage-19
+    Move Operator
+      files:
+          hdfs directory: true
+#### A masked pattern was here ####
 
   Stage: Stage-2
     Move Operator
@@ -241,13 +287,13 @@ STAGE PLANS:
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.dest3
 
-  Stage: Stage-13
+  Stage: Stage-17
     Stats-Aggr Operator
 
-  Stage: Stage-14
+  Stage: Stage-18
     Map Reduce
       Alias -> Map Operator Tree:
-        pfile:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-02-10_15-53-16_613_1322226487151381018/-ext-10009 
+#### A masked pattern was here ####
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -257,14 +303,33 @@ STAGE PLANS:
                   serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                   name: default.dest3
 
-  Stage: Stage-19
-    Conditional Operator
+  Stage: Stage-20
+    Map Reduce
+      Alias -> Map Operator Tree:
+#### A masked pattern was here ####
+            File Output Operator
+              compressed: false
+              GlobalTableId: 0
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.dest3
 
-  Stage: Stage-18
+  Stage: Stage-21
     Move Operator
       files:
           hdfs directory: true
-          destination: file:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-02-10_15-53-16_613_1322226487151381018/-ext-10006
+#### A masked pattern was here ####
+
+  Stage: Stage-27
+    Conditional Operator
+
+  Stage: Stage-24
+    Move Operator
+      files:
+          hdfs directory: true
+#### A masked pattern was here ####
 
   Stage: Stage-3
     Move Operator
@@ -272,16 +337,33 @@ STAGE PLANS:
           hdfs directory: true
           destination: ../build/ql/test/data/warehouse/dest4.out
 
-  Stage: Stage-17
+  Stage: Stage-23
     Map Reduce
       Alias -> Map Operator Tree:
-        file:/data/users/sdong/www/open-source-hive1/build/ql/scratchdir/hive_2011-02-10_15-53-16_613_1322226487151381018/-ext-10010 
+#### A masked pattern was here ####
             File Output Operator
               compressed: false
               GlobalTableId: 0
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+
+  Stage: Stage-25
+    Map Reduce
+      Alias -> Map Operator Tree:
+#### A masked pattern was here ####
+            File Output Operator
+              compressed: false
+              GlobalTableId: 0
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+
+  Stage: Stage-26
+    Move Operator
+      files:
+          hdfs directory: true
+#### A masked pattern was here ####
 
 
 PREHOOK: query: FROM src
@@ -314,11 +396,11 @@ POSTHOOK: Lineage: dest3 PARTITION(ds=2008-04-08,hr=12).key EXPRESSION [(src)src
 PREHOOK: query: SELECT dest1.* FROM dest1
 PREHOOK: type: QUERY
 PREHOOK: Input: default@dest1
-PREHOOK: Output: file:/tmp/sdong/hive_2011-02-10_15-53-22_841_3066800367150585075/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT dest1.* FROM dest1
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@dest1
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_15-53-22_841_3066800367150585075/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: dest1.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: dest1.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: dest2.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -411,11 +493,11 @@ POSTHOOK: Lineage: dest3 PARTITION(ds=2008-04-08,hr=12).key EXPRESSION [(src)src
 PREHOOK: query: SELECT dest2.* FROM dest2
 PREHOOK: type: QUERY
 PREHOOK: Input: default@dest2
-PREHOOK: Output: file:/tmp/sdong/hive_2011-02-10_15-53-23_115_3259629464718805746/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT dest2.* FROM dest2
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@dest2
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_15-53-23_115_3259629464718805746/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: dest1.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: dest1.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: dest2.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -529,11 +611,11 @@ POSTHOOK: Lineage: dest3 PARTITION(ds=2008-04-08,hr=12).key EXPRESSION [(src)src
 PREHOOK: query: SELECT dest3.* FROM dest3
 PREHOOK: type: QUERY
 PREHOOK: Input: default@dest3@ds=2008-04-08/hr=12
-PREHOOK: Output: file:/tmp/sdong/hive_2011-02-10_15-53-23_381_121664267251302859/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT dest3.* FROM dest3
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@dest3@ds=2008-04-08/hr=12
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_15-53-23_381_121664267251302859/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: Lineage: dest1.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: dest1.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: dest2.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]

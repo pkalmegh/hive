@@ -30,9 +30,11 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.Context;
+import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.exec.AbstractMapJoinOperator;
 import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.exec.ConditionalTask;
+import org.apache.hadoop.hive.ql.exec.DependencyCollectionTask;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
 import org.apache.hadoop.hive.ql.exec.MapJoinOperator;
 import org.apache.hadoop.hive.ql.exec.MapRedTask;
@@ -50,7 +52,6 @@ import org.apache.hadoop.hive.ql.lib.Node;
 import org.apache.hadoop.hive.ql.lib.NodeProcessor;
 import org.apache.hadoop.hive.ql.lib.NodeProcessorCtx;
 import org.apache.hadoop.hive.ql.optimizer.GenMRProcContext.GenMRMapJoinCtx;
-import org.apache.hadoop.hive.ql.parse.ErrorMsg;
 import org.apache.hadoop.hive.ql.parse.ParseContext;
 import org.apache.hadoop.hive.ql.parse.RowResolver;
 import org.apache.hadoop.hive.ql.parse.SemanticAnalyzer;
@@ -110,7 +111,7 @@ public class GenMRFileSink1 implements NodeProcessor {
 
     // Has the user enabled merging of files for map-only jobs or for all jobs
     if ((ctx.getMvTask() != null) && (!ctx.getMvTask().isEmpty())) {
-      List<Task<? extends Serializable>> mvTasks = ctx.getMvTask();
+      List<Task<MoveWork>> mvTasks = ctx.getMvTask();
 
       // In case of unions or map-joins, it is possible that the file has
       // already been seen.
@@ -167,7 +168,14 @@ public class GenMRFileSink1 implements NodeProcessor {
       Task<? extends Serializable> currTask, HiveConf hconf) {
 
     MoveWork mvWork = ((MoveTask)mvTask).getWork();
-    StatsWork statsWork = new StatsWork(mvWork.getLoadTableWork());
+    StatsWork statsWork = null;
+    if(mvWork.getLoadTableWork() != null){
+       statsWork = new StatsWork(mvWork.getLoadTableWork());
+    }else if (mvWork.getLoadFileWork() != null){
+       statsWork = new StatsWork(mvWork.getLoadFileWork());
+    }
+    assert statsWork != null : "Error when genereting StatsTask";
+    statsWork.setStatsReliable(hconf.getBoolVar(HiveConf.ConfVars.HIVE_STATS_RELIABLE));
     MapredWork mrWork = (MapredWork) currTask.getWork();
 
     // AggKey in StatsWork is used for stats aggregation while StatsAggPrefix
@@ -178,6 +186,7 @@ public class GenMRFileSink1 implements NodeProcessor {
     // mark the MapredWork and FileSinkOperator for gathering stats
     nd.getConf().setGatherStats(true);
     mrWork.setGatheringStats(true);
+    nd.getConf().setStatsReliable(hconf.getBoolVar(HiveConf.ConfVars.HIVE_STATS_RELIABLE));
     // mrWork.addDestinationTable(nd.getConf().getTableInfo().getTableName());
 
     // subscribe feeds from the MoveTask so that MoveTask can forward the list
@@ -257,7 +266,7 @@ public class GenMRFileSink1 implements NodeProcessor {
     ConditionalTask cndTsk = createCondTask(conf, currTask, dummyMv, cplan,
         fsConf.getDirName());
 
-    LinkMoveTask(ctx, newOutput, cndTsk);
+    linkMoveTask(ctx, newOutput, cndTsk);
   }
 
   /**
@@ -416,18 +425,77 @@ public class GenMRFileSink1 implements NodeProcessor {
     //
     // 3. add the moveTask as the children of the conditional task
     //
-    LinkMoveTask(ctx, fsOutput, cndTsk);
+    linkMoveTask(ctx, fsOutput, cndTsk);
  }
 
-  private void LinkMoveTask(GenMRProcContext ctx, FileSinkOperator newOutput,
+  /**
+   * Make the move task in the GenMRProcContext following the FileSinkOperator a dependent of all
+   * possible subtrees branching from the ConditionalTask.
+   *
+   * @param ctx
+   * @param newOutput
+   * @param cndTsk
+   */
+  private void linkMoveTask(GenMRProcContext ctx, FileSinkOperator newOutput,
       ConditionalTask cndTsk) {
 
-    List<Task<? extends Serializable>> mvTasks = ctx.getMvTask();
-    Task<? extends Serializable> mvTask = findMoveTask(mvTasks, newOutput);
+    List<Task<MoveWork>> mvTasks = ctx.getMvTask();
+    Task<MoveWork> mvTask = findMoveTask(mvTasks, newOutput);
+
+    for (Task<? extends Serializable> tsk : cndTsk.getListTasks()) {
+      linkMoveTask(ctx, mvTask, tsk);
+    }
+  }
+
+  /**
+   * Follows the task tree down from task and makes all leaves parents of mvTask
+   *
+   * @param ctx
+   * @param mvTask
+   * @param task
+   */
+  private void linkMoveTask(GenMRProcContext ctx, Task<MoveWork> mvTask,
+      Task<? extends Serializable> task) {
+
+    if (task.getDependentTasks() == null || task.getDependentTasks().isEmpty()) {
+      // If it's a leaf, add the move task as a child
+      addDependentMoveTasks(ctx, mvTask, task);
+    } else {
+      // Otherwise, for each child run this method recursively
+      for (Task<? extends Serializable> childTask : task.getDependentTasks()) {
+        linkMoveTask(ctx, mvTask, childTask);
+      }
+    }
+  }
+
+  /**
+   * Adds the dependencyTaskForMultiInsert in ctx as a dependent of parentTask.  If mvTask is a
+   * load table, and HIVE_MULTI_INSERT_ATOMIC_OUTPUTS is set, adds mvTask as a dependent of
+   * dependencyTaskForMultiInsert in ctx, otherwise adds mvTask as a dependent of parentTask as
+   * well.
+   * @param ctx
+   * @param mvTask
+   * @param parentTask
+   */
+  private void addDependentMoveTasks(GenMRProcContext ctx, Task<MoveWork> mvTask,
+      Task<? extends Serializable> parentTask) {
 
     if (mvTask != null) {
-      for (Task<? extends Serializable> tsk : cndTsk.getListTasks()) {
-        tsk.addDependentTask(mvTask);
+      if (ctx.getConf().getBoolVar(
+          HiveConf.ConfVars.HIVE_MULTI_INSERT_MOVE_TASKS_SHARE_DEPENDENCIES)) {
+
+        DependencyCollectionTask dependencyTask = ctx.getDependencyTaskForMultiInsert();
+        parentTask.addDependentTask(dependencyTask);
+        if (mvTask.getWork().getLoadTableWork() != null) {
+          // Moving tables/partitions depend on the dependencyTask
+          dependencyTask.addDependentTask(mvTask);
+        } else {
+          // Moving files depends on the parentTask (we still want the dependencyTask to depend
+          // on the parentTask)
+          parentTask.addDependentTask(mvTask);
+        }
+      } else {
+        parentTask.addDependentTask(mvTask);
       }
     }
   }
@@ -481,7 +549,7 @@ public class GenMRFileSink1 implements NodeProcessor {
       }
 
       MergeWork work = new MergeWork(inputDirs, finalName,
-          hasDynamicPartitions);
+          hasDynamicPartitions, fsInputDesc.getDynPartCtx());
       LinkedHashMap<String, ArrayList<String>> pathToAliases =
           new LinkedHashMap<String, ArrayList<String>>();
       pathToAliases.put(inputDir, (ArrayList<String>) inputDirs.clone());
@@ -513,8 +581,22 @@ public class GenMRFileSink1 implements NodeProcessor {
       Task<? extends Serializable> currTask, MoveWork mvWork,
       MapredWork mergeWork, String inputPath) {
 
-    Task<? extends Serializable> mergeTask = TaskFactory.get(mergeWork, conf);
-    Task<? extends Serializable> moveTask = TaskFactory.get(mvWork, conf);
+    // There are 3 options for this ConditionalTask:
+    // 1) Merge the partitions
+    // 2) Move the partitions (i.e. don't merge the partitions)
+    // 3) Merge some partitions and move other partitions (i.e. merge some partitions and don't
+    //    merge others) in this case the merge is done first followed by the move to prevent
+    //    conflicts.
+    Task<? extends Serializable> mergeOnlyMergeTask = TaskFactory.get(mergeWork, conf);
+    Task<? extends Serializable> moveOnlyMoveTask = TaskFactory.get(mvWork, conf);
+    Task<? extends Serializable> mergeAndMoveMergeTask = TaskFactory.get(mergeWork, conf);
+    Task<? extends Serializable> mergeAndMoveMoveTask = TaskFactory.get(mvWork, conf);
+
+    // NOTE! It is necessary merge task is the parent of the move task, and not
+    // the other way around, for the proper execution of the execute method of
+    // ConditionalTask
+    mergeAndMoveMergeTask.addDependentTask(mergeAndMoveMoveTask);
+
     List<Serializable> listWorks = new ArrayList<Serializable>();
     listWorks.add(mvWork);
     listWorks.add(mergeWork);
@@ -522,8 +604,9 @@ public class GenMRFileSink1 implements NodeProcessor {
     ConditionalWork cndWork = new ConditionalWork(listWorks);
 
     List<Task<? extends Serializable>> listTasks = new ArrayList<Task<? extends Serializable>>();
-    listTasks.add(moveTask);
-    listTasks.add(mergeTask);
+    listTasks.add(moveOnlyMoveTask);
+    listTasks.add(mergeOnlyMergeTask);
+    listTasks.add(mergeAndMoveMergeTask);
 
     ConditionalTask cndTsk = (ConditionalTask) TaskFactory.get(cndWork, conf);
     cndTsk.setListTasks(listTasks);
@@ -540,11 +623,11 @@ public class GenMRFileSink1 implements NodeProcessor {
     return cndTsk;
   }
 
-  private Task<? extends Serializable> findMoveTask(
-      List<Task<? extends Serializable>> mvTasks, FileSinkOperator fsOp) {
+  private Task<MoveWork> findMoveTask(
+      List<Task<MoveWork>> mvTasks, FileSinkOperator fsOp) {
     // find the move task
-    for (Task<? extends Serializable> mvTsk : mvTasks) {
-      MoveWork mvWork = (MoveWork) mvTsk.getWork();
+    for (Task<MoveWork> mvTsk : mvTasks) {
+      MoveWork mvWork = mvTsk.getWork();
       String srcDir = null;
       if (mvWork.getLoadFileWork() != null) {
         srcDir = mvWork.getLoadFileWork().getSourceDir();
@@ -607,7 +690,7 @@ public class GenMRFileSink1 implements NodeProcessor {
       fsOp.getConf().setDirName(tmpDir);
     }
 
-    Task<? extends Serializable> mvTask = null;
+    Task<MoveWork> mvTask = null;
 
     if (!chDir) {
       mvTask = findMoveTask(ctx.getMvTask(), fsOp);
@@ -622,7 +705,8 @@ public class GenMRFileSink1 implements NodeProcessor {
 
     // Set the move task to be dependent on the current task
     if (mvTask != null) {
-      currTask.addDependentTask(mvTask);
+
+      addDependentMoveTasks(ctx, mvTask, currTask);
     }
 
     // In case of multi-table insert, the path to alias mapping is needed for
@@ -632,22 +716,33 @@ public class GenMRFileSink1 implements NodeProcessor {
     if (currTopOp != null) {
       Task<? extends Serializable> mapTask = opTaskMap.get(null);
       if (mapTask == null) {
-        assert (!seenOps.contains(currTopOp));
-        seenOps.add(currTopOp);
-        GenMapRedUtils.setTaskPlan(currAliasId, currTopOp,
-            (MapredWork) currTask.getWork(), false, ctx);
+        if (!seenOps.contains(currTopOp)) {
+          seenOps.add(currTopOp);
+          GenMapRedUtils.setTaskPlan(currAliasId, currTopOp,
+              (MapredWork) currTask.getWork(), false, ctx);
+        }
         opTaskMap.put(null, currTask);
-        rootTasks.add(currTask);
+        if (!rootTasks.contains(currTask)) {
+          rootTasks.add(currTask);
+        }
       } else {
         if (!seenOps.contains(currTopOp)) {
           seenOps.add(currTopOp);
           GenMapRedUtils.setTaskPlan(currAliasId, currTopOp,
               (MapredWork) mapTask.getWork(), false, ctx);
+        } else {
+          UnionOperator currUnionOp = ctx.getCurrUnionOp();
+          if (currUnionOp != null) {
+            opTaskMap.put(null, currTask);
+            ctx.setCurrTopOp(null);
+            GenMapRedUtils.initUnionPlan(ctx, currTask, false);
+            return dest;
+          }
         }
         // mapTask and currTask should be merged by and join/union operator
         // (e.g., GenMRUnion1j) which has multiple topOps.
-        assert mapTask == currTask : "mapTask.id = " + mapTask.getId()
-            + "; currTask.id = " + currTask.getId();
+        // assert mapTask == currTask : "mapTask.id = " + mapTask.getId()
+        // + "; currTask.id = " + currTask.getId();
       }
 
       return dest;

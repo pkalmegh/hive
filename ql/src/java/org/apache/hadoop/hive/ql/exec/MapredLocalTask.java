@@ -26,9 +26,9 @@ import java.lang.management.MemoryMXBean;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -39,6 +39,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.common.io.CachingPrintStream;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.Context;
 import org.apache.hadoop.hive.ql.DriverContext;
@@ -48,9 +49,9 @@ import org.apache.hadoop.hive.ql.exec.persistence.AbstractMapJoinKey;
 import org.apache.hadoop.hive.ql.exec.persistence.HashMapWrapper;
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinObjectValue;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
+import org.apache.hadoop.hive.ql.plan.BucketMapJoinContext;
 import org.apache.hadoop.hive.ql.plan.FetchWork;
 import org.apache.hadoop.hive.ql.plan.MapredLocalWork;
-import org.apache.hadoop.hive.ql.plan.MapredLocalWork.BucketMapJoinContext;
 import org.apache.hadoop.hive.ql.plan.api.StageType;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.session.SessionState.LogHelper;
@@ -127,13 +128,12 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
       String jarCmd;
 
       jarCmd = hiveJar + " " + ExecDriver.class.getName();
-
-      String hiveConfArgs = ExecDriver.generateCmdLine(conf);
+      String hiveConfArgs = ExecDriver.generateCmdLine(conf, ctx);
       String cmdLine = hadoopExec + " jar " + jarCmd + " -localtask -plan " + planPath.toString()
           + " " + isSilent + " " + hiveConfArgs;
 
       String workDir = (new File(".")).getCanonicalPath();
-      String files = ExecDriver.getResourceFiles(conf, SessionState.ResourceType.FILE);
+      String files = Utilities.getResourceFiles(conf, SessionState.ResourceType.FILE);
 
       if (!files.isEmpty()) {
         cmdLine = cmdLine + " -files " + files;
@@ -199,6 +199,11 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
       } else {
         variables.put(HADOOP_OPTS_KEY, hadoopOpts);
       }
+
+      if(variables.containsKey(MapRedTask.HIVE_DEBUG_RECURSIVE)) {
+        MapRedTask.configureDebugVariablesForChildJVM(variables);
+      }
+
       env = new String[variables.size()];
       int pos = 0;
       for (Map.Entry<String, String> entry : variables.entrySet()) {
@@ -210,8 +215,10 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
       // Run ExecDriver in another JVM
       executor = Runtime.getRuntime().exec(cmdLine, env, new File(workDir));
 
+      CachingPrintStream errPrintStream = new CachingPrintStream(System.err);
+
       StreamPrinter outPrinter = new StreamPrinter(executor.getInputStream(), null, System.out);
-      StreamPrinter errPrinter = new StreamPrinter(executor.getErrorStream(), null, System.err);
+      StreamPrinter errPrinter = new StreamPrinter(executor.getErrorStream(), null, errPrintStream);
 
       outPrinter.start();
       errPrinter.start();
@@ -220,6 +227,9 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
 
       if (exitVal != 0) {
         LOG.error("Execution failed with exit status: " + exitVal);
+        if (SessionState.get() != null) {
+          SessionState.get().addLocalMapRedErrors(getId(), errPrintStream.getOutput());
+        }
       } else {
         LOG.info("Execution completed successfully");
         console.printInfo("Mapred Local Task Succeeded . Convert the Join into MapJoin");
@@ -256,7 +266,7 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
       initializeOperators(fetchOpJobConfMap);
       // for each big table's bucket, call the start forward
       if (inputFileChangeSenstive) {
-        for (LinkedHashMap<String, ArrayList<String>> bigTableBucketFiles : work
+        for (Map<String, List<String>> bigTableBucketFiles : work
             .getBucketMapjoinContext().getAliasBucketFileNameMapping().values()) {
           for (String bigTableBucket : bigTableBucketFiles.keySet()) {
             startForward(inputFileChangeSenstive, bigTableBucket);
@@ -308,8 +318,7 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
         InspectableObject row = fetchOp.getNextRow();
         if (row == null) {
           if (inputFileChangeSenstive) {
-            String fileName = this.getFileName(bigTableBucket);
-            execContext.setCurrentBigBucketFile(fileName);
+            execContext.setCurrentBigBucketFile(bigTableBucket);
             forwardOp.reset();
           }
           forwardOp.close(false);
@@ -370,12 +379,8 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
       }
       // initialize the forward operator
       ObjectInspector objectInspector = fetchOp.getOutputObjectInspector();
-      if (objectInspector != null) {
-        forwardOp.initialize(jobConf, new ObjectInspector[] {objectInspector});
-        l4j.info("fetchoperator for " + entry.getKey() + " initialized");
-      } else {
-        fetchOp.setEmptyTable(true);
-      }
+      forwardOp.initialize(jobConf, new ObjectInspector[] {objectInspector});
+      l4j.info("fetchoperator for " + entry.getKey() + " initialized");
     }
   }
 
@@ -399,10 +404,11 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
     HashMapWrapper<AbstractMapJoinKey, MapJoinObjectValue> hashTable =
       new HashMapWrapper<AbstractMapJoinKey, MapJoinObjectValue>();
 
-    if (bigBucketFileName == null || bigBucketFileName.length() == 0) {
-      bigBucketFileName = "-";
-    }
-    String tmpURIPath = Utilities.generatePath(tmpURI, tag, bigBucketFileName);
+    String fileName = work.getBucketFileName(bigBucketFileName);
+
+    HashTableSinkOperator htso = (HashTableSinkOperator)childOp;
+    String tmpURIPath = Utilities.generatePath(tmpURI, htso.getConf().getDumpFilePrefix(),
+        tag, fileName);
     console.printInfo(Utilities.now() + "\tDump the hashtable into file: " + tmpURIPath);
     Path path = new Path(tmpURIPath);
     FileSystem fs = path.getFileSystem(job);
@@ -430,17 +436,6 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
     fetchOp.setupContext(iter, null);
   }
 
-  private String getFileName(String path) {
-    if (path == null || path.length() == 0) {
-      return null;
-    }
-
-    int last_separator = path.lastIndexOf(Path.SEPARATOR) + 1;
-    String fileName = path.substring(last_separator);
-    return fileName;
-
-  }
-
   @Override
   public void localizeMRTmpFilesImpl(Context ctx) {
 
@@ -449,6 +444,11 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
   @Override
   public boolean isMapRedLocalTask() {
     return true;
+  }
+
+  @Override
+  public Collection<Operator<? extends Serializable>> getTopOperators() {
+    return getWork().getAliasToWork().values();
   }
 
   @Override

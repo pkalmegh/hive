@@ -23,7 +23,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: (key = 5)
+                  expr: (key = 5.0)
                   type: boolean
               Select Operator
                 expressions:
@@ -47,13 +47,12 @@ STAGE PLANS:
 PREHOOK: query: SELECT * FROM src where key=5
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
-PREHOOK: Output: file:/tmp/sdong/hive_2011-02-10_17-07-36_889_4709058180675925800/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: SELECT * FROM src where key=5
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
-POSTHOOK: Output: file:/tmp/sdong/hive_2011-02-10_17-07-36_889_4709058180675925800/-mr-10000
+#### A masked pattern was here ####
 5	val_5
 5	val_5
 5	val_5
 c=1
-../lib/derby.jar

@@ -25,8 +25,8 @@ import org.apache.commons.logging.Log;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.io.IOContext;
+import org.apache.hadoop.hive.ql.plan.BucketMapJoinContext;
 import org.apache.hadoop.hive.ql.plan.MapredLocalWork;
-import org.apache.hadoop.hive.ql.plan.MapredLocalWork.BucketMapJoinContext;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.util.ReflectionUtils;
 
@@ -43,7 +43,11 @@ public class ExecMapperContext {
   // so it won't be updated.
   private String currentInputFile = null;
   private boolean inputFileChecked = false;
-  private Integer fileId = new Integer(-1);
+
+  // for SMB join, replaced with number part of task-id , making output file name
+  // if big alias is not partitioned table, it's bucket number
+  // if big alias is partitioned table, it's partition spec + bucket number
+  private String fileId = null;
   private MapredLocalWork localWork = null;
   private Map<String, FetchOperator> fetchOperators;
   private JobConf jc;
@@ -64,7 +68,10 @@ public class ExecMapperContext {
     ioCxt = IOContext.get();
   }
 
-
+  public void clear() {
+    IOContext.clear();
+    ioCxt = null;
+  }
 
   /**
    * For CompbineFileInputFormat, the mapper's input file will be changed on the
@@ -74,7 +81,7 @@ public class ExecMapperContext {
    * after the input file changed. This is first introduced to process bucket
    * map join.
    *
-   * @return
+   * @return is the input file changed?
    */
   public boolean inputFileChanged() {
     if (!inputFileChecked) {
@@ -147,11 +154,11 @@ public class ExecMapperContext {
     this.localWork = localWork;
   }
 
-  public Integer getFileId() {
+  public String getFileId() {
     return fileId;
   }
 
-  public void setFileId(Integer fileId) {
+  public void setFileId(String fileId) {
     this.fileId = fileId;
   }
 
@@ -170,5 +177,4 @@ public class ExecMapperContext {
   public void setIoCxt(IOContext ioCxt) {
     this.ioCxt = ioCxt;
   }
-
 }

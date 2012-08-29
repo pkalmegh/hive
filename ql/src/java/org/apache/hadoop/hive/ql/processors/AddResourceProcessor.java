@@ -57,6 +57,7 @@ public class AddResourceProcessor implements CommandProcessor {
         return new CommandProcessorResponse(1,errMsg,null);
       }
     }
+
     return new CommandProcessorResponse(0);
   }
 

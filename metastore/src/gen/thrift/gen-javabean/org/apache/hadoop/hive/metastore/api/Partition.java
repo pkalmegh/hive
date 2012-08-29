@@ -5,6 +5,7 @@
  */
 package org.apache.hadoop.hive.metastore.api;
 
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -661,7 +662,49 @@ public class Partition implements org.apache.thrift.TBase<Partition, Partition._
 
   @Override
   public int hashCode() {
-    return 0;
+    HashCodeBuilder builder = new HashCodeBuilder();
+
+    boolean present_values = true && (isSetValues());
+    builder.append(present_values);
+    if (present_values)
+      builder.append(values);
+
+    boolean present_dbName = true && (isSetDbName());
+    builder.append(present_dbName);
+    if (present_dbName)
+      builder.append(dbName);
+
+    boolean present_tableName = true && (isSetTableName());
+    builder.append(present_tableName);
+    if (present_tableName)
+      builder.append(tableName);
+
+    boolean present_createTime = true;
+    builder.append(present_createTime);
+    if (present_createTime)
+      builder.append(createTime);
+
+    boolean present_lastAccessTime = true;
+    builder.append(present_lastAccessTime);
+    if (present_lastAccessTime)
+      builder.append(lastAccessTime);
+
+    boolean present_sd = true && (isSetSd());
+    builder.append(present_sd);
+    if (present_sd)
+      builder.append(sd);
+
+    boolean present_parameters = true && (isSetParameters());
+    builder.append(present_parameters);
+    if (present_parameters)
+      builder.append(parameters);
+
+    boolean present_privileges = true && (isSetPrivileges());
+    builder.append(present_privileges);
+    if (present_privileges)
+      builder.append(privileges);
+
+    return builder.toHashCode();
   }
 
   public int compareTo(Partition other) {
@@ -772,13 +815,13 @@ public class Partition implements org.apache.thrift.TBase<Partition, Partition._
         case 1: // VALUES
           if (field.type == org.apache.thrift.protocol.TType.LIST) {
             {
-              org.apache.thrift.protocol.TList _list75 = iprot.readListBegin();
-              this.values = new ArrayList<String>(_list75.size);
-              for (int _i76 = 0; _i76 < _list75.size; ++_i76)
+              org.apache.thrift.protocol.TList _list96 = iprot.readListBegin();
+              this.values = new ArrayList<String>(_list96.size);
+              for (int _i97 = 0; _i97 < _list96.size; ++_i97)
               {
-                String _elem77; // required
-                _elem77 = iprot.readString();
-                this.values.add(_elem77);
+                String _elem98; // required
+                _elem98 = iprot.readString();
+                this.values.add(_elem98);
               }
               iprot.readListEnd();
             }
@@ -827,15 +870,15 @@ public class Partition implements org.apache.thrift.TBase<Partition, Partition._
         case 7: // PARAMETERS
           if (field.type == org.apache.thrift.protocol.TType.MAP) {
             {
-              org.apache.thrift.protocol.TMap _map78 = iprot.readMapBegin();
-              this.parameters = new HashMap<String,String>(2*_map78.size);
-              for (int _i79 = 0; _i79 < _map78.size; ++_i79)
+              org.apache.thrift.protocol.TMap _map99 = iprot.readMapBegin();
+              this.parameters = new HashMap<String,String>(2*_map99.size);
+              for (int _i100 = 0; _i100 < _map99.size; ++_i100)
               {
-                String _key80; // required
-                String _val81; // required
-                _key80 = iprot.readString();
-                _val81 = iprot.readString();
-                this.parameters.put(_key80, _val81);
+                String _key101; // required
+                String _val102; // required
+                _key101 = iprot.readString();
+                _val102 = iprot.readString();
+                this.parameters.put(_key101, _val102);
               }
               iprot.readMapEnd();
             }
@@ -868,9 +911,9 @@ public class Partition implements org.apache.thrift.TBase<Partition, Partition._
       oprot.writeFieldBegin(VALUES_FIELD_DESC);
       {
         oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRING, this.values.size()));
-        for (String _iter82 : this.values)
+        for (String _iter103 : this.values)
         {
-          oprot.writeString(_iter82);
+          oprot.writeString(_iter103);
         }
         oprot.writeListEnd();
       }
@@ -901,10 +944,10 @@ public class Partition implements org.apache.thrift.TBase<Partition, Partition._
       oprot.writeFieldBegin(PARAMETERS_FIELD_DESC);
       {
         oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, this.parameters.size()));
-        for (Map.Entry<String, String> _iter83 : this.parameters.entrySet())
+        for (Map.Entry<String, String> _iter104 : this.parameters.entrySet())
         {
-          oprot.writeString(_iter83.getKey());
-          oprot.writeString(_iter83.getValue());
+          oprot.writeString(_iter104.getKey());
+          oprot.writeString(_iter104.getValue());
         }
         oprot.writeMapEnd();
       }

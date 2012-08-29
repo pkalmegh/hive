@@ -21,14 +21,17 @@ package org.apache.hadoop.hive.ql.parse;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Stack;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.exec.FunctionInfo;
 import org.apache.hadoop.hive.ql.exec.FunctionRegistry;
@@ -51,6 +54,8 @@ import org.apache.hadoop.hive.ql.plan.ExprNodeFieldDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeNullDesc;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBaseCompare;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual;
 import org.apache.hadoop.hive.serde.Constants;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category;
@@ -129,11 +134,15 @@ public final class TypeCheckProcFactory {
 
     opRules.put(new RuleRegExp("R1", HiveParser.TOK_NULL + "%"),
         getNullExprProcessor());
-    opRules.put(new RuleRegExp("R2", HiveParser.Number + "%"),
+    opRules.put(new RuleRegExp("R2", HiveParser.Number + "%|" +
+        HiveParser.TinyintLiteral + "%|" +
+        HiveParser.SmallintLiteral + "%|" +
+        HiveParser.BigintLiteral + "%"),
         getNumExprProcessor());
     opRules
         .put(new RuleRegExp("R3", HiveParser.Identifier + "%|"
-        + HiveParser.StringLiteral + "%|" + HiveParser.TOK_CHARSETLITERAL
+        + HiveParser.StringLiteral + "%|" + HiveParser.TOK_CHARSETLITERAL + "%|"
+        + HiveParser.TOK_STRINGLITERALSEQUENCE + "%|"
         + "%|" + HiveParser.KW_IF + "%|" + HiveParser.KW_CASE + "%|"
         + HiveParser.KW_WHEN + "%|" + HiveParser.KW_IN + "%|"
         + HiveParser.KW_ARRAY + "%|" + HiveParser.KW_MAP + "%|"
@@ -217,9 +226,23 @@ public final class TypeCheckProcFactory {
       // try to parse the expression in that order to ensure that the
       // most specific type is used for conversion.
       try {
-        v = Double.valueOf(expr.getText());
-        v = Long.valueOf(expr.getText());
-        v = Integer.valueOf(expr.getText());
+        if (expr.getText().endsWith("L")) {
+          // Literal bigint.
+          v = Long.valueOf(expr.getText().substring(
+                0, expr.getText().length() - 1));
+        } else if (expr.getText().endsWith("S")) {
+          // Literal smallint.
+          v = Short.valueOf(expr.getText().substring(
+                0, expr.getText().length() - 1));
+        } else if (expr.getText().endsWith("Y")) {
+          // Literal tinyint.
+          v = Byte.valueOf(expr.getText().substring(
+                0, expr.getText().length() - 1));
+        } else {
+          v = Double.valueOf(expr.getText());
+          v = Long.valueOf(expr.getText());
+          v = Integer.valueOf(expr.getText());
+        }
       } catch (NumberFormatException e) {
         // do nothing here, we will throw an exception in the following block
       }
@@ -266,6 +289,14 @@ public final class TypeCheckProcFactory {
       switch (expr.getToken().getType()) {
       case HiveParser.StringLiteral:
         str = BaseSemanticAnalyzer.unescapeSQLString(expr.getText());
+        break;
+      case HiveParser.TOK_STRINGLITERALSEQUENCE:
+        StringBuilder sb = new StringBuilder();
+        for (Node n : expr.getChildren()) {
+          sb.append(
+              BaseSemanticAnalyzer.unescapeSQLString(((ASTNode)n).getText()));
+        }
+        str = sb.toString();
         break;
       case HiveParser.TOK_CHARSETLITERAL:
         str = BaseSemanticAnalyzer.charSetString(expr.getChild(0).getText(),
@@ -357,6 +388,7 @@ public final class TypeCheckProcFactory {
       }
 
       ASTNode expr = (ASTNode) nd;
+      ASTNode parent = stack.size() > 1 ? (ASTNode) stack.get(stack.size() - 2) : null;
       RowResolver input = ctx.getInputRR();
 
       if (expr.getType() != HiveParser.TOK_TABLE_OR_COL) {
@@ -373,9 +405,14 @@ public final class TypeCheckProcFactory {
 
       if (isTableAlias) {
         if (colInfo != null) {
-          // it's a table alias, and also a column
-          ctx.setError(ErrorMsg.AMBIGUOUS_TABLE_OR_COLUMN.getMsg(expr), expr);
-          return null;
+          if (parent != null && parent.getType() == HiveParser.DOT) {
+            // It's a table alias.
+            return null;
+          }
+          // It's a column.
+          return new ExprNodeColumnDesc(colInfo.getType(), colInfo
+              .getInternalName(), colInfo.getTabAlias(), colInfo
+              .getIsVirtualCol());
         } else {
           // It's a table alias.
           // We will process that later in DOT.
@@ -396,7 +433,7 @@ public final class TypeCheckProcFactory {
             ctx.setError(ErrorMsg.NON_KEY_EXPR_IN_GROUPBY.getMsg(exprNode), expr);
             return null;
           } else {
-            List<String> possibleColumnNames = input.getNonHiddenColumnNames(-1);
+            List<String> possibleColumnNames = input.getReferenceableColumnAliases(tableOrCol, -1);
             String reason = String.format("(possible column names are: %s)",
                 StringUtils.join(possibleColumnNames, ", "));
             ctx.setError(ErrorMsg.INVALID_TABLE_OR_COLUMN.getMsg(expr.getChild(0), reason),
@@ -648,10 +685,92 @@ public final class TypeCheckProcFactory {
         if (fi.getGenericUDTF() != null) {
           throw new SemanticException(ErrorMsg.UDTF_INVALID_LOCATION.getMsg());
         }
+        // UDAF in filter condition, group-by caluse, param of funtion, etc.
+        if (fi.getGenericUDAFResolver() != null) {
+          if (isFunction) {
+            throw new SemanticException(ErrorMsg.UDAF_INVALID_LOCATION.
+                getMsg((ASTNode) expr.getChild(0)));
+          } else {
+            throw new SemanticException(ErrorMsg.UDAF_INVALID_LOCATION.getMsg(expr));
+          }
+        }
         if (!ctx.getAllowStatefulFunctions() && (fi.getGenericUDF() != null)) {
           if (FunctionRegistry.isStateful(fi.getGenericUDF())) {
             throw new SemanticException(
               ErrorMsg.UDF_STATEFUL_INVALID_LOCATION.getMsg());
+          }
+        }
+
+        // Try to infer the type of the constant only if there are two
+        // nodes, one of them is column and the other is numeric const
+        if (fi.getGenericUDF() instanceof GenericUDFBaseCompare
+            && children.size() == 2
+            && ((children.get(0) instanceof ExprNodeConstantDesc
+                && children.get(1) instanceof ExprNodeColumnDesc)
+                || (children.get(0) instanceof ExprNodeColumnDesc
+                    && children.get(1) instanceof ExprNodeConstantDesc))) {
+          int constIdx =
+              children.get(0) instanceof ExprNodeConstantDesc ? 0 : 1;
+
+          Set<String> inferTypes = new HashSet<String>(Arrays.asList(
+              Constants.TINYINT_TYPE_NAME.toLowerCase(),
+              Constants.SMALLINT_TYPE_NAME.toLowerCase(),
+              Constants.INT_TYPE_NAME.toLowerCase(),
+              Constants.BIGINT_TYPE_NAME.toLowerCase(),
+              Constants.FLOAT_TYPE_NAME.toLowerCase(),
+              Constants.DOUBLE_TYPE_NAME.toLowerCase(),
+              Constants.STRING_TYPE_NAME.toLowerCase()
+              ));
+
+          String constType = children.get(constIdx).getTypeString().toLowerCase();
+          String columnType = children.get(1 - constIdx).getTypeString().toLowerCase();
+
+          if (inferTypes.contains(constType) && inferTypes.contains(columnType)
+              && !columnType.equalsIgnoreCase(constType)) {
+            String constValue =
+                ((ExprNodeConstantDesc) children.get(constIdx)).getValue().toString();
+            boolean triedDouble = false;
+
+            Number value = null;
+            try {
+              if (columnType.equalsIgnoreCase(Constants.TINYINT_TYPE_NAME)) {
+                value = new Byte(constValue);
+              } else if (columnType.equalsIgnoreCase(Constants.SMALLINT_TYPE_NAME)) {
+                value = new Short(constValue);
+              } else if (columnType.equalsIgnoreCase(Constants.INT_TYPE_NAME)) {
+                value = new Integer(constValue);
+              } else if (columnType.equalsIgnoreCase(Constants.BIGINT_TYPE_NAME)) {
+                value = new Long(constValue);
+              } else if (columnType.equalsIgnoreCase(Constants.FLOAT_TYPE_NAME)) {
+                value = new Float(constValue);
+              } else if (columnType.equalsIgnoreCase(Constants.DOUBLE_TYPE_NAME)
+                  || (columnType.equalsIgnoreCase(Constants.STRING_TYPE_NAME)
+                     && !constType.equalsIgnoreCase(Constants.BIGINT_TYPE_NAME))) {
+                // no smart inference for queries like "str_col = bigint_const"
+                triedDouble = true;
+                value = new Double(constValue);
+              }
+            } catch (NumberFormatException nfe) {
+              // this exception suggests the precise type inference did not succeed
+              // we'll try again to convert it to double
+              // however, if we already tried this, or the column is NUMBER type and
+              // the operator is EQUAL, return false due to the type mismatch
+              if (triedDouble ||
+                  (fi.getGenericUDF() instanceof GenericUDFOPEqual
+                  && !columnType.equals(Constants.STRING_TYPE_NAME))) {
+                return new ExprNodeConstantDesc(false);
+              }
+
+              try {
+                value = new Double(constValue);
+              } catch (NumberFormatException ex) {
+                return new ExprNodeConstantDesc(false);
+              }
+            }
+
+            if (value != null) {
+              children.set(constIdx, new ExprNodeConstantDesc(value));
+            }
           }
         }
 

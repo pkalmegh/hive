@@ -26,8 +26,7 @@ PREHOOK: type: SHOW_TABLESTATUS
 POSTHOOK: query: show table extended like `src_rc_concatenate_test`
 POSTHOOK: type: SHOW_TABLESTATUS
 tableName:src_rc_concatenate_test
-owner:heyongqiang
-location:pfile:/Users/heyongqiang/Documents/workspace/Hive-3/build/ql/test/data/warehouse/src_rc_concatenate_test
+#### A masked pattern was here ####
 inputformat:org.apache.hadoop.hive.ql.io.RCFileInputFormat
 outputformat:org.apache.hadoop.hive.ql.io.RCFileOutputFormat
 columns:struct columns { i32 key, string value}
@@ -37,31 +36,31 @@ totalNumberFiles:3
 totalFileSize:636
 maxFileSize:222
 minFileSize:206
-lastAccessTime:0
-lastUpdateTime:1303856093000
+#### A masked pattern was here ####
 
 PREHOOK: query: select count(1) from src_rc_concatenate_test
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src_rc_concatenate_test
-PREHOOK: Output: file:/var/folders/6g/6grtCwPMEf4sqHUPpy6xQG9ByHg/-Tmp-/heyongqiang/hive_2011-04-26_15-14-54_116_5056538740056177435/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select count(1) from src_rc_concatenate_test
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src_rc_concatenate_test
-POSTHOOK: Output: file:/var/folders/6g/6grtCwPMEf4sqHUPpy6xQG9ByHg/-Tmp-/heyongqiang/hive_2011-04-26_15-14-54_116_5056538740056177435/-mr-10000
+#### A masked pattern was here ####
 15
 PREHOOK: query: select sum(hash(key)), sum(hash(value)) from src_rc_concatenate_test
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src_rc_concatenate_test
-PREHOOK: Output: file:/var/folders/6g/6grtCwPMEf4sqHUPpy6xQG9ByHg/-Tmp-/heyongqiang/hive_2011-04-26_15-15-01_971_2647514620376325946/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select sum(hash(key)), sum(hash(value)) from src_rc_concatenate_test
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src_rc_concatenate_test
-POSTHOOK: Output: file:/var/folders/6g/6grtCwPMEf4sqHUPpy6xQG9ByHg/-Tmp-/heyongqiang/hive_2011-04-26_15-15-01_971_2647514620376325946/-mr-10000
+#### A masked pattern was here ####
 214	-7678496319
 PREHOOK: query: create index src_rc_concatenate_test_index on table src_rc_concatenate_test(key) as 'compact' WITH DEFERRED REBUILD IDXPROPERTIES ("prop1"="val1", "prop2"="val2")
 PREHOOK: type: CREATEINDEX
 POSTHOOK: query: create index src_rc_concatenate_test_index on table src_rc_concatenate_test(key) as 'compact' WITH DEFERRED REBUILD IDXPROPERTIES ("prop1"="val1", "prop2"="val2")
 POSTHOOK: type: CREATEINDEX
+POSTHOOK: Output: default@default__src_rc_concatenate_test_src_rc_concatenate_test_index__
 PREHOOK: query: show indexes on src_rc_concatenate_test
 PREHOOK: type: SHOWINDEXES
 POSTHOOK: query: show indexes on src_rc_concatenate_test
@@ -80,37 +79,35 @@ PREHOOK: type: SHOW_TABLESTATUS
 POSTHOOK: query: show table extended like `src_rc_concatenate_test`
 POSTHOOK: type: SHOW_TABLESTATUS
 tableName:src_rc_concatenate_test
-owner:heyongqiang
-location:pfile:/Users/heyongqiang/Documents/workspace/Hive-3/build/ql/test/data/warehouse/src_rc_concatenate_test
+#### A masked pattern was here ####
 inputformat:org.apache.hadoop.hive.ql.io.RCFileInputFormat
 outputformat:org.apache.hadoop.hive.ql.io.RCFileOutputFormat
 columns:struct columns { i32 key, string value}
 partitioned:false
 partitionColumns:
 totalNumberFiles:1
-totalFileSize:334
-maxFileSize:334
-minFileSize:334
-lastAccessTime:0
-lastUpdateTime:1303856111000
+totalFileSize:239
+maxFileSize:239
+minFileSize:239
+#### A masked pattern was here ####
 
 PREHOOK: query: select count(1) from src_rc_concatenate_test
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src_rc_concatenate_test
-PREHOOK: Output: file:/var/folders/6g/6grtCwPMEf4sqHUPpy6xQG9ByHg/-Tmp-/heyongqiang/hive_2011-04-26_15-15-12_232_1765943327509437357/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select count(1) from src_rc_concatenate_test
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src_rc_concatenate_test
-POSTHOOK: Output: file:/var/folders/6g/6grtCwPMEf4sqHUPpy6xQG9ByHg/-Tmp-/heyongqiang/hive_2011-04-26_15-15-12_232_1765943327509437357/-mr-10000
+#### A masked pattern was here ####
 15
 PREHOOK: query: select sum(hash(key)), sum(hash(value)) from src_rc_concatenate_test
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src_rc_concatenate_test
-PREHOOK: Output: file:/var/folders/6g/6grtCwPMEf4sqHUPpy6xQG9ByHg/-Tmp-/heyongqiang/hive_2011-04-26_15-15-18_738_6289595467011155110/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select sum(hash(key)), sum(hash(value)) from src_rc_concatenate_test
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src_rc_concatenate_test
-POSTHOOK: Output: file:/var/folders/6g/6grtCwPMEf4sqHUPpy6xQG9ByHg/-Tmp-/heyongqiang/hive_2011-04-26_15-15-18_738_6289595467011155110/-mr-10000
+#### A masked pattern was here ####
 214	-7678496319
 PREHOOK: query: drop index src_rc_concatenate_test_index on src_rc_concatenate_test
 PREHOOK: type: DROPINDEX
@@ -151,8 +148,7 @@ PREHOOK: type: SHOW_TABLESTATUS
 POSTHOOK: query: show table extended like `src_rc_concatenate_test_part` partition (ds='2011')
 POSTHOOK: type: SHOW_TABLESTATUS
 tableName:src_rc_concatenate_test_part
-owner:heyongqiang
-location:pfile:/Users/heyongqiang/Documents/workspace/Hive-3/build/ql/test/data/warehouse/src_rc_concatenate_test_part/ds=2011
+#### A masked pattern was here ####
 inputformat:org.apache.hadoop.hive.ql.io.RCFileInputFormat
 outputformat:org.apache.hadoop.hive.ql.io.RCFileOutputFormat
 columns:struct columns { i32 key, string value}
@@ -162,31 +158,31 @@ totalNumberFiles:3
 totalFileSize:636
 maxFileSize:222
 minFileSize:206
-lastAccessTime:0
-lastUpdateTime:1303856128000
+#### A masked pattern was here ####
 
 PREHOOK: query: select count(1) from src_rc_concatenate_test_part
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src_rc_concatenate_test_part@ds=2011
-PREHOOK: Output: file:/var/folders/6g/6grtCwPMEf4sqHUPpy6xQG9ByHg/-Tmp-/heyongqiang/hive_2011-04-26_15-15-28_709_6508379632697292274/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select count(1) from src_rc_concatenate_test_part
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src_rc_concatenate_test_part@ds=2011
-POSTHOOK: Output: file:/var/folders/6g/6grtCwPMEf4sqHUPpy6xQG9ByHg/-Tmp-/heyongqiang/hive_2011-04-26_15-15-28_709_6508379632697292274/-mr-10000
+#### A masked pattern was here ####
 15
 PREHOOK: query: select sum(hash(key)), sum(hash(value)) from src_rc_concatenate_test_part
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src_rc_concatenate_test_part@ds=2011
-PREHOOK: Output: file:/var/folders/6g/6grtCwPMEf4sqHUPpy6xQG9ByHg/-Tmp-/heyongqiang/hive_2011-04-26_15-15-35_496_4356530739014843487/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select sum(hash(key)), sum(hash(value)) from src_rc_concatenate_test_part
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src_rc_concatenate_test_part@ds=2011
-POSTHOOK: Output: file:/var/folders/6g/6grtCwPMEf4sqHUPpy6xQG9ByHg/-Tmp-/heyongqiang/hive_2011-04-26_15-15-35_496_4356530739014843487/-mr-10000
+#### A masked pattern was here ####
 214	-7678496319
 PREHOOK: query: create index src_rc_concatenate_test_part_index on table src_rc_concatenate_test_part(key) as 'compact' WITH DEFERRED REBUILD IDXPROPERTIES ("prop1"="val1", "prop2"="val2")
 PREHOOK: type: CREATEINDEX
 POSTHOOK: query: create index src_rc_concatenate_test_part_index on table src_rc_concatenate_test_part(key) as 'compact' WITH DEFERRED REBUILD IDXPROPERTIES ("prop1"="val1", "prop2"="val2")
 POSTHOOK: type: CREATEINDEX
+POSTHOOK: Output: default@default__src_rc_concatenate_test_part_src_rc_concatenate_test_part_index__
 PREHOOK: query: show indexes on src_rc_concatenate_test_part
 PREHOOK: type: SHOWINDEXES
 POSTHOOK: query: show indexes on src_rc_concatenate_test_part
@@ -205,37 +201,35 @@ PREHOOK: type: SHOW_TABLESTATUS
 POSTHOOK: query: show table extended like `src_rc_concatenate_test_part` partition (ds='2011')
 POSTHOOK: type: SHOW_TABLESTATUS
 tableName:src_rc_concatenate_test_part
-owner:heyongqiang
-location:pfile:/Users/heyongqiang/Documents/workspace/Hive-3/build/ql/test/data/warehouse/src_rc_concatenate_test_part/ds=2011
+#### A masked pattern was here ####
 inputformat:org.apache.hadoop.hive.ql.io.RCFileInputFormat
 outputformat:org.apache.hadoop.hive.ql.io.RCFileOutputFormat
 columns:struct columns { i32 key, string value}
 partitioned:true
 partitionColumns:struct partition_columns { string ds}
 totalNumberFiles:1
-totalFileSize:334
-maxFileSize:334
-minFileSize:334
-lastAccessTime:0
-lastUpdateTime:1303856144000
+totalFileSize:239
+maxFileSize:239
+minFileSize:239
+#### A masked pattern was here ####
 
 PREHOOK: query: select count(1) from src_rc_concatenate_test_part
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src_rc_concatenate_test_part@ds=2011
-PREHOOK: Output: file:/var/folders/6g/6grtCwPMEf4sqHUPpy6xQG9ByHg/-Tmp-/heyongqiang/hive_2011-04-26_15-15-45_308_2380163877365308340/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select count(1) from src_rc_concatenate_test_part
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src_rc_concatenate_test_part@ds=2011
-POSTHOOK: Output: file:/var/folders/6g/6grtCwPMEf4sqHUPpy6xQG9ByHg/-Tmp-/heyongqiang/hive_2011-04-26_15-15-45_308_2380163877365308340/-mr-10000
+#### A masked pattern was here ####
 15
 PREHOOK: query: select sum(hash(key)), sum(hash(value)) from src_rc_concatenate_test_part
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src_rc_concatenate_test_part@ds=2011
-PREHOOK: Output: file:/var/folders/6g/6grtCwPMEf4sqHUPpy6xQG9ByHg/-Tmp-/heyongqiang/hive_2011-04-26_15-15-51_822_7148108227690658912/-mr-10000
+#### A masked pattern was here ####
 POSTHOOK: query: select sum(hash(key)), sum(hash(value)) from src_rc_concatenate_test_part
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src_rc_concatenate_test_part@ds=2011
-POSTHOOK: Output: file:/var/folders/6g/6grtCwPMEf4sqHUPpy6xQG9ByHg/-Tmp-/heyongqiang/hive_2011-04-26_15-15-51_822_7148108227690658912/-mr-10000
+#### A masked pattern was here ####
 214	-7678496319
 PREHOOK: query: drop index src_rc_concatenate_test_part_index on src_rc_concatenate_test_part
 PREHOOK: type: DROPINDEX
