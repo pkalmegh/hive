@@ -70,7 +70,8 @@ public class TestExecDriver extends TestCase {
   static {
     try {
       conf = new HiveConf(ExecDriver.class);
-
+      conf.set("hive.metastore.warehouse.dir", "/tmp");
+      conf.set("test.data.files","/home/saplabs/Projects/hive/build/dist/examples/files");
       fs = FileSystem.get(conf);
       if (fs.exists(tmppath) && !fs.getFileStatus(tmppath).isDir()) {
         throw new RuntimeException(tmpdir + " exists but is not a directory");

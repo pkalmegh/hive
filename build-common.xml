@@ -112,7 +112,7 @@
 
   <loadproperties srcfile="${ivy.conf.dir}/libraries.properties"/>
 
-  <osfamily property="os.family"/>
+  <!--<osfamily property="os.family"/>-->
 
   <condition property="offline">
     <istrue value="${is-offline}"/>

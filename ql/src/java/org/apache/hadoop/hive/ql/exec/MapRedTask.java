@@ -128,7 +128,7 @@ public class MapRedTask extends ExecDriver implements Serializable {
       }
 
       runningViaChild =
-        "local".equals(conf.getVar(HiveConf.ConfVars.HADOOPJT)) ||
+       // "local".equals(conf.getVar(HiveConf.ConfVars.HADOOPJT)) ||
         conf.getBoolVar(HiveConf.ConfVars.SUBMITVIACHILD);
 
       if(!runningViaChild) {
