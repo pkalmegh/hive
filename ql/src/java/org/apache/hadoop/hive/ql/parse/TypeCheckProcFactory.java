@@ -444,9 +444,11 @@ public final class TypeCheckProcFactory {
           }
         } else {
           // It's a column.
-          return new ExprNodeColumnDesc(colInfo.getType(), colInfo
+          ExprNodeColumnDesc exprNodColDesc = new ExprNodeColumnDesc(colInfo.getType(), colInfo
               .getInternalName(), colInfo.getTabAlias(), colInfo
               .getIsVirtualCol());
+          exprNodColDesc.setSkewedCol(colInfo.isSkewedCol());
+          return exprNodColDesc;
         }
       }
 
@@ -890,6 +892,12 @@ public final class TypeCheckProcFactory {
       // If any of the children contains null, then return a null
       // this is a hack for now to handle the group by case
       if (children.contains(null)) {
+        RowResolver input = ctx.getInputRR();
+        List<String> possibleColumnNames = input.getReferenceableColumnAliases(null, -1);
+        String reason = String.format("(possible column names are: %s)",
+            StringUtils.join(possibleColumnNames, ", "));
+        ctx.setError(ErrorMsg.INVALID_COLUMN.getMsg(expr.getChild(0), reason),
+            expr);
         return null;
       }
 

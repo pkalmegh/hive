@@ -83,7 +83,8 @@ public class JoinOperator extends CommonJoinOperator<JoinDesc> implements
 
       ArrayList<Object> nr = JoinUtil.computeValues(row, joinValues.get(alias),
           joinValuesObjectInspectors.get(alias), joinFilters.get(alias),
-          joinFilterObjectInspectors.get(alias), noOuterJoin);
+          joinFilterObjectInspectors.get(alias),
+          filterMap == null ? null : filterMap[alias]);
 
 
       if (handleSkewJoin) {
@@ -152,7 +153,7 @@ public class JoinOperator extends CommonJoinOperator<JoinDesc> implements
   }
 
   @Override
-  public void jobClose(Configuration hconf, boolean success, JobCloseFeedBack feedBack)
+  public void jobCloseOp(Configuration hconf, boolean success, JobCloseFeedBack feedBack)
       throws HiveException {
     int numAliases = conf.getExprs().size();
     if (conf.getHandleSkewJoin()) {
@@ -189,7 +190,7 @@ public class JoinOperator extends CommonJoinOperator<JoinDesc> implements
         throw new HiveException(e);
       }
     }
-    super.jobClose(hconf, success, feedBack);
+    super.jobCloseOp(hconf, success, feedBack);
   }
 
   private void moveUpFiles(String specPath, Configuration hconf, Log log)
@@ -266,4 +267,11 @@ public class JoinOperator extends CommonJoinOperator<JoinDesc> implements
     }
   }
 
+  @Override
+  public boolean supportSkewJoinOptimization() {
+    // Since skew join optimization makes a copy of the tree above joins, and
+    // there is no multi-query optimization in place, let us not use skew join
+    // optimizations for now.
+    return false;
+  }
 }

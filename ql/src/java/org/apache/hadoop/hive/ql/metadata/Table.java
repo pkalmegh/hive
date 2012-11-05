@@ -528,7 +528,8 @@ public class Table implements Serializable {
   }
 
   public Map<List<String>,String> getSkewedColValueLocationMaps() {
-    return tTable.getSd().getSkewedInfo().getSkewedColValueLocationMaps();
+    return (tTable.getSd().getSkewedInfo() != null) ? tTable.getSd().getSkewedInfo()
+        .getSkewedColValueLocationMaps() : new HashMap<List<String>, String>();
   }
 
   public void setSkewedColValues(List<List<String>> skewedValues) throws HiveException {
@@ -536,7 +537,8 @@ public class Table implements Serializable {
   }
 
   public List<List<String>> getSkewedColValues(){
-    return tTable.getSd().getSkewedInfo().getSkewedColValues();
+    return (tTable.getSd().getSkewedInfo() != null) ? tTable.getSd().getSkewedInfo()
+        .getSkewedColValues() : new ArrayList<List<String>>();
   }
 
   public void setSkewedColNames(List<String> skewedColNames) throws HiveException {
@@ -544,9 +546,17 @@ public class Table implements Serializable {
   }
 
   public List<String> getSkewedColNames() {
-    return tTable.getSd().getSkewedInfo().getSkewedColNames();
+    return (tTable.getSd().getSkewedInfo() != null) ? tTable.getSd().getSkewedInfo()
+        .getSkewedColNames() : new ArrayList<String>();
   }
 
+  public SkewedInfo getSkewedInfo() {
+    return tTable.getSd().getSkewedInfo();
+  }
+
+  public void setSkewedInfo(SkewedInfo skewedInfo) throws HiveException {
+    tTable.getSd().setSkewedInfo(skewedInfo);
+  }
 
   private boolean isField(String col) {
     for (FieldSchema field : getCols()) {
@@ -619,7 +629,7 @@ public class Table implements Serializable {
     FileSystem fs;
     try {
       fs = FileSystem.get(getDataLocation(), Hive.get().getConf());
-      Hive.copyFiles(srcf, new Path(getDataLocation().getPath()), fs);
+      Hive.copyFiles(Hive.get().getConf(), srcf, new Path(getDataLocation().getPath()), fs);
     } catch (IOException e) {
       throw new HiveException("addFiles: filesystem error in check phase", e);
     }

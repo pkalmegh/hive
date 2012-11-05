@@ -50,6 +50,7 @@ import org.apache.hadoop.hive.ql.metadata.Partition;
 import org.apache.hadoop.hive.ql.optimizer.GenMRProcContext.GenMRMapJoinCtx;
 import org.apache.hadoop.hive.ql.optimizer.GenMRProcContext.GenMRUnionCtx;
 import org.apache.hadoop.hive.ql.optimizer.GenMRProcContext.GenMapRedCtx;
+import org.apache.hadoop.hive.ql.optimizer.listbucketingpruner.ListBucketingPruner;
 import org.apache.hadoop.hive.ql.optimizer.ppr.PartitionPruner;
 import org.apache.hadoop.hive.ql.optimizer.unionproc.UnionProcContext;
 import org.apache.hadoop.hive.ql.optimizer.unionproc.UnionProcContext.UnionParseContext;
@@ -59,6 +60,7 @@ import org.apache.hadoop.hive.ql.parse.PrunedPartitionList;
 import org.apache.hadoop.hive.ql.parse.RowResolver;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.plan.BucketMapJoinContext;
+import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.FetchWork;
 import org.apache.hadoop.hive.ql.plan.FileSinkDesc;
 import org.apache.hadoop.hive.ql.plan.FilterDesc.sampleDesc;
@@ -285,8 +287,8 @@ public final class GenMapRedUtils {
         bucketMJCxt.setMapJoinBigTableAlias(currMapJoinOp.getConf().getBigTableAlias());
         bucketMJCxt.setBucketMatcherClass(org.apache.hadoop.hive.ql.exec.DefaultBucketMatcher.class);
         bucketMJCxt.setBigTablePartSpecToFileMapping(
-            currMapJoinOp.getConf().getBigTablePartSpecToFileMapping());
-        plan.setSmbJoin(currMapJoinOp instanceof SMBMapJoinOperator);
+          currMapJoinOp.getConf().getBigTablePartSpecToFileMapping());
+        plan.setUseBucketizedHiveInputFormat(currMapJoinOp instanceof SMBMapJoinOperator);
       }
     }
   }
@@ -399,7 +401,8 @@ public final class GenMapRedUtils {
     List<Task<? extends Serializable>> parTasks = null;
     if (opProcCtx.getRootTasks().contains(currentUnionTask)) {
       opProcCtx.getRootTasks().remove(currentUnionTask);
-      if (!opProcCtx.getRootTasks().contains(existingTask)) {
+      if (!opProcCtx.getRootTasks().contains(existingTask) &&
+          (existingTask.getParentTasks() == null || existingTask.getParentTasks().isEmpty())) {
         opProcCtx.getRootTasks().add(existingTask);
       }
     }
@@ -423,6 +426,7 @@ public final class GenMapRedUtils {
         }
       }
     }
+
     opProcCtx.setCurrTask(existingTask);
   }
 
@@ -707,9 +711,19 @@ public final class GenMapRedUtils {
       Path[] paths = null;
       sampleDesc sampleDescr = parseCtx.getOpToSamplePruner().get(topOp);
 
+      // Lookup list bucketing pruner
+      Map<String, ExprNodeDesc> partToPruner = parseCtx.getOpToPartToSkewedPruner().get(topOp);
+      ExprNodeDesc listBucketingPruner = (partToPruner != null) ? partToPruner.get(part.getName())
+          : null;
+
       if (sampleDescr != null) {
+        assert (listBucketingPruner == null) : "Sampling and list bucketing can't coexit.";
         paths = SamplePruner.prune(part, sampleDescr);
         parseCtx.getGlobalLimitCtx().disableOpt();
+      } else if (listBucketingPruner != null) {
+        assert (sampleDescr == null) : "Sampling and list bucketing can't coexist.";
+        /* Use list bucketing prunner's path. */
+        paths = ListBucketingPruner.prune(parseCtx, part, listBucketingPruner);
       } else {
         // Now we only try the first partition, if the first partition doesn't
         // contain enough size, we change to normal mode.

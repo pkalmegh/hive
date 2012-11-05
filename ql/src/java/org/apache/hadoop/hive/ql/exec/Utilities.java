@@ -205,7 +205,7 @@ public final class Utilities {
       assert jobID != null;
       gWork = gWorkMap.get(jobID);
       if (gWork == null) {
-        String jtConf = HiveConf.getVar(job, HiveConf.ConfVars.HADOOPJT);
+        String jtConf = ShimLoader.getHadoopShims().getJobLauncherRpcAddress(job);
         String path;
         if (jtConf.equals("local")) {
           String planPath = HiveConf.getVar(job, HiveConf.ConfVars.PLAN);
@@ -354,7 +354,7 @@ public final class Utilities {
       // Serialize the plan to the default hdfs instance
       // Except for hadoop local mode execution where we should be
       // able to get the plan directly from the cache
-      if (!HiveConf.getVar(job, HiveConf.ConfVars.HADOOPJT).equals("local")) {
+      if (!ShimLoader.getHadoopShims().isLocalMode(job)) {
         // Set up distributed cache
         DistributedCache.createSymlink(job);
         String uriWithLink = planPath.toUri().toString() + "#HIVE_PLAN" + jobID;
@@ -1135,18 +1135,25 @@ public final class Utilities {
       // move file by file
       FileStatus[] files = fs.listStatus(src);
       for (FileStatus file : files) {
+
         Path srcFilePath = file.getPath();
         String fileName = srcFilePath.getName();
         Path dstFilePath = new Path(dst, fileName);
-        if (fs.exists(dstFilePath)) {
-          int suffix = 0;
-          do {
-            suffix++;
-            dstFilePath = new Path(dst, fileName + "_" + suffix);
-          } while (fs.exists(dstFilePath));
+        if (file.isDir()) {
+          renameOrMoveFiles(fs, srcFilePath, dstFilePath);
         }
-        if (!fs.rename(srcFilePath, dstFilePath)) {
-          throw new HiveException("Unable to move: " + src + " to: " + dst);
+        else {
+          if (fs.exists(dstFilePath)) {
+            int suffix = 0;
+            do {
+              suffix++;
+              dstFilePath = new Path(dst, fileName + "_" + suffix);
+            } while (fs.exists(dstFilePath));
+          }
+
+          if (!fs.rename(srcFilePath, dstFilePath)) {
+            throw new HiveException("Unable to move: " + src + " to: " + dst);
+          }
         }
       }
     }
@@ -1158,13 +1165,20 @@ public final class Utilities {
    * return an integer only - this should match a pure integer as well. {1,3} is used to limit
    * matching for attempts #'s 0-999.
    */
-  private static Pattern fileNameTaskIdRegex = Pattern.compile("^.*?([0-9]+)(_[0-9]{1,3})?(\\..*)?$");
+  private static final Pattern FILE_NAME_TO_TASK_ID_REGEX =
+      Pattern.compile("^.*?([0-9]+)(_[0-9]{1,3})?(\\..*)?$");
 
   /**
    * This retruns prefix part + taskID for bucket join for partitioned table
    */
-  private static Pattern fileNamePrefixedTaskIdRegex =
+  private static final Pattern FILE_NAME_PREFIXED_TASK_ID_REGEX =
       Pattern.compile("^.*?((\\(.*\\))?[0-9]+)(_[0-9]{1,3})?(\\..*)?$");
+
+  /**
+   * This breaks a prefixed bucket number into the prefix and the taskID
+   */
+  private static final Pattern PREFIXED_TASK_ID_REGEX =
+      Pattern.compile("^(.*?\\(.*\\))?([0-9]+)$");
 
   /**
    * Get the task id from the filename. It is assumed that the filename is derived from the output
@@ -1174,7 +1188,7 @@ public final class Utilities {
    *          filename to extract taskid from
    */
   public static String getTaskIdFromFilename(String filename) {
-    return getIdFromFilename(filename, fileNameTaskIdRegex);
+    return getIdFromFilename(filename, FILE_NAME_TO_TASK_ID_REGEX);
   }
 
   /**
@@ -1185,7 +1199,7 @@ public final class Utilities {
    *          filename to extract taskid from
    */
   public static String getPrefixedTaskIdFromFilename(String filename) {
-    return getIdFromFilename(filename, fileNamePrefixedTaskIdRegex);
+    return getIdFromFilename(filename, FILE_NAME_PREFIXED_TASK_ID_REGEX);
   }
 
   private static String getIdFromFilename(String filename, Pattern pattern) {
@@ -1204,6 +1218,14 @@ public final class Utilities {
     }
     LOG.debug("TaskId for " + filename + " = " + taskId);
     return taskId;
+  }
+
+  public static String getFileNameFromDirName(String dirName) {
+    int dirEnd = dirName.lastIndexOf(Path.SEPARATOR);
+    if (dirEnd != -1) {
+      return dirName.substring(dirEnd + 1);
+    }
+    return dirName;
   }
 
   /**
@@ -1228,14 +1250,41 @@ public final class Utilities {
     return replaceTaskId(taskId, String.valueOf(bucketNum));
   }
 
+  /**
+   * Returns strBucketNum with enough 0's prefixing the task ID portion of the String to make it
+   * equal in length to taskId
+   *
+   * @param taskId - the taskId used as a template for length
+   * @param strBucketNum - the bucket number of the output, may or may not be prefixed
+   * @return
+   */
   private static String replaceTaskId(String taskId, String strBucketNum) {
-    int bucketNumLen = strBucketNum.length();
+    Matcher m = PREFIXED_TASK_ID_REGEX.matcher(strBucketNum);
+    if (!m.matches()) {
+      LOG.warn("Unable to determine bucket number from file ID: " + strBucketNum + ". Using " +
+          "file ID as bucket number.");
+      return adjustBucketNumLen(strBucketNum, taskId);
+    } else {
+      String adjustedBucketNum = adjustBucketNumLen(m.group(2), taskId);
+      return (m.group(1) == null ? "" : m.group(1)) + adjustedBucketNum;
+    }
+  }
+
+  /**
+   * Adds 0's to the beginning of bucketNum until bucketNum and taskId are the same length.
+   *
+   * @param bucketNum - the bucket number, should not be prefixed
+   * @param taskId - the taskId used as a template for length
+   * @return
+   */
+  private static String adjustBucketNumLen(String bucketNum, String taskId) {
+    int bucketNumLen = bucketNum.length();
     int taskIdLen = taskId.length();
     StringBuffer s = new StringBuffer();
     for (int i = 0; i < taskIdLen - bucketNumLen; i++) {
       s.append("0");
     }
-    return s.toString() + strBucketNum;
+    return s.toString() + bucketNum;
   }
 
   /**
@@ -2060,13 +2109,16 @@ public final class Utilities {
    *     restriction by the current JDO filtering implementation.
    * @param tab The table that contains the partition columns.
    * @param expr the partition pruning expression
-   * @return true if the partition pruning expression can be pushed down to JDO filtering.
+   * @return null if the partition pruning expression can be pushed down to JDO filtering.
    */
-  public static boolean checkJDOPushDown(Table tab, ExprNodeDesc expr) {
+  public static String checkJDOPushDown(Table tab, ExprNodeDesc expr) {
     if (expr instanceof ExprNodeConstantDesc) {
       // JDO filter now only support String typed literal -- see Filter.g and ExpressionTree.java
       Object value = ((ExprNodeConstantDesc)expr).getValue();
-      return (value instanceof String);
+      if (value instanceof String) {
+        return null;
+      }
+      return "Constant " + value + " is not string type";
     } else if (expr instanceof ExprNodeColumnDesc) {
       // JDO filter now only support String typed literal -- see Filter.g and ExpressionTree.java
       TypeInfo type = expr.getTypeInfo();
@@ -2074,28 +2126,32 @@ public final class Utilities {
         String colName = ((ExprNodeColumnDesc)expr).getColumn();
         for (FieldSchema fs: tab.getPartCols()) {
           if (fs.getName().equals(colName)) {
-            return fs.getType().equals(Constants.STRING_TYPE_NAME);
+            if (fs.getType().equals(Constants.STRING_TYPE_NAME)) {
+              return null;
+            }
+            return "Partition column " + fs.getName() + " is not string type";
           }
         }
         assert(false); // cannot find the partition column!
      } else {
-       return false;
+        return "Column " + expr.getExprString() + " is not string type";
      }
     } else if (expr instanceof ExprNodeGenericFuncDesc) {
       ExprNodeGenericFuncDesc funcDesc = (ExprNodeGenericFuncDesc) expr;
       GenericUDF func = funcDesc.getGenericUDF();
       if (!supportedJDOFuncs(func)) {
-        return false;
+        return "Expression " + expr.getExprString() + " cannot be evaluated";
       }
       List<ExprNodeDesc> children = funcDesc.getChildExprs();
       for (ExprNodeDesc child: children) {
-        if (!checkJDOPushDown(tab, child)) {
-          return false;
+        String message = checkJDOPushDown(tab, child);
+        if (message != null) {
+          return message;
         }
       }
-      return true;
+      return null;
     }
-    return false;
+    return "Expression " + expr.getExprString() + " cannot be evaluated";
   }
 
   /**

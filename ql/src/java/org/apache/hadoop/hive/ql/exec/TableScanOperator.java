@@ -207,6 +207,10 @@ public class TableScanOperator extends Operator<TableScanDesc> implements
    **/
   @Override
   public String getName() {
+    return getOperatorName();
+  }
+
+  static public String getOperatorName() {
     return "TS";
   }
 
@@ -273,5 +277,10 @@ public class TableScanOperator extends Operator<TableScanDesc> implements
         throw new HiveException(ErrorMsg.STATSPUBLISHER_CLOSING_ERROR.getErrorCodedMsg());
       }
     }
+  }
+
+  @Override
+  public boolean supportSkewJoinOptimization() {
+    return true;
   }
 }

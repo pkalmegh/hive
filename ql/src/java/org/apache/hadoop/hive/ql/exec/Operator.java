@@ -103,6 +103,8 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
     seqId = 0;
   }
 
+  private boolean useBucketizedHiveInputFormat;
+
   public Operator() {
     id = String.valueOf(seqId++);
   }
@@ -546,11 +548,9 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
     state = State.CLOSE;
     LOG.info(id + " finished. closing... ");
 
-    if (counterNameToEnum != null) {
-      incrCounter(numInputRowsCntr, inputRows);
-      incrCounter(numOutputRowsCntr, outputRows);
-      incrCounter(timeTakenCntr, totalTime);
-    }
+    incrCounter(numInputRowsCntr, inputRows);
+    incrCounter(numOutputRowsCntr, outputRows);
+    incrCounter(timeTakenCntr, totalTime);
 
     LOG.info(id + " forwarded " + cntr + " rows");
 
@@ -581,6 +581,13 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
   protected void closeOp(boolean abort) throws HiveException {
   }
 
+  private boolean jobCloseDone = false;
+
+  // Operator specific logic goes here
+  public void jobCloseOp(Configuration conf, boolean success, JobCloseFeedBack feedBack)
+      throws HiveException {
+  }
+
   /**
    * Unlike other operator interfaces which are called from map or reduce task,
    * jobClose is called from the jobclient side once the job has completed.
@@ -592,12 +599,18 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
    */
   public void jobClose(Configuration conf, boolean success, JobCloseFeedBack feedBack)
       throws HiveException {
-    if (childOperators == null) {
+    // JobClose has already been performed on this operator
+    if (jobCloseDone) {
       return;
     }
 
-    for (Operator<? extends OperatorDesc> op : childOperators) {
-      op.jobClose(conf, success, feedBack);
+    jobCloseOp(conf, success, feedBack);
+    jobCloseDone = true;
+
+    if (childOperators != null) {
+      for (Operator<? extends OperatorDesc> op : childOperators) {
+        op.jobClose(conf, success, feedBack);
+      }
     }
   }
 
@@ -695,6 +708,31 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
     }
   }
 
+  // Remove the operators till a certain depth.
+  // Return true if the remove was successful, false otherwise
+  public boolean removeChildren(int depth) {
+    Operator<? extends OperatorDesc> currOp = this;
+    for (int i = 0; i < depth; i++) {
+      // If there are more than 1 children at any level, don't do anything
+      if ((currOp.getChildOperators() == null) ||
+          (currOp.getChildOperators().size() > 1)) {
+        return false;
+      }
+      currOp = currOp.getChildOperators().get(0);
+    }
+
+    setChildOperators(currOp.getChildOperators());
+
+    List<Operator<? extends OperatorDesc>> parentOps =
+      new ArrayList<Operator<? extends OperatorDesc>>();
+    parentOps.add(this);
+
+    for (Operator<? extends OperatorDesc> op : currOp.getChildOperators()) {
+      op.setParentOperators(parentOps);
+    }
+    return true;
+  }
+
   /**
    * Replace one parent with another at the same position. Chilren of the new
    * parent are not updated
@@ -726,10 +764,8 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
       throws HiveException {
 
     if ((++outputRows % 1000) == 0) {
-      if (counterNameToEnum != null) {
-        incrCounter(numOutputRowsCntr, outputRows);
-        outputRows = 0;
-      }
+      incrCounter(numOutputRowsCntr, outputRows);
+      outputRows = 0;
     }
 
     if (isLogInfoEnabled) {
@@ -816,6 +852,10 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
    * @return the name of the operator
    */
   public String getName() {
+    return getOperatorName();
+  }
+
+  static public String getOperatorName() {
     return "OP";
   }
 
@@ -1063,16 +1103,13 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
    */
   private void preProcessCounter() {
     inputRows++;
-
-    if (counterNameToEnum != null) {
-      if ((inputRows % 1000) == 0) {
-        incrCounter(numInputRowsCntr, inputRows);
-        incrCounter(timeTakenCntr, totalTime);
-        inputRows = 0;
-        totalTime = 0;
-      }
-      beginTime = System.currentTimeMillis();
+    if ((inputRows % 1000) == 0) {
+      incrCounter(numInputRowsCntr, inputRows);
+      incrCounter(timeTakenCntr, totalTime);
+      inputRows = 0;
+      totalTime = 0;
     }
+    beginTime = System.currentTimeMillis();
   }
 
   /**
@@ -1091,7 +1128,11 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
    * @param amount
    */
   protected void incrCounter(String name, long amount) {
-    String counterName = "CNTR_NAME_" + getOperatorId() + "_" + name;
+    if(counterNameToEnum == null) {
+      return;
+    }
+
+    String counterName = getWrappedCounterName(name);
     ProgressCounter pc = counterNameToEnum.get(counterName);
 
     // Currently, we maintain fixed number of counters per plan - in case of a
@@ -1115,6 +1156,10 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
 
   public String getOperatorId() {
     return operatorId;
+  }
+
+  public final String getWrappedCounterName(String ctrName) {
+    return String.format(counterNameFormat, getOperatorId(), ctrName);
   }
 
   public void initOperatorId() {
@@ -1172,7 +1217,7 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
       return false;
     }
 
-    String counterName = "CNTR_NAME_" + getOperatorId() + "_" + fatalErrorCntr;
+    String counterName = getWrappedCounterName(fatalErrorCntr);
     ProgressCounter pc = counterNameToEnum.get(counterName);
 
     // Currently, we maintain fixed number of counters per plan - in case of a
@@ -1248,14 +1293,16 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
   protected static String numOutputRowsCntr = "NUM_OUTPUT_ROWS";
   protected static String timeTakenCntr = "TIME_TAKEN";
   protected static String fatalErrorCntr = "FATAL_ERROR";
+  private static String counterNameFormat = "CNTR_NAME_%s_%s";
 
   public void initializeCounters() {
     initOperatorId();
     counterNames = new ArrayList<String>();
-    counterNames.add("CNTR_NAME_" + getOperatorId() + "_" + numInputRowsCntr);
-    counterNames.add("CNTR_NAME_" + getOperatorId() + "_" + numOutputRowsCntr);
-    counterNames.add("CNTR_NAME_" + getOperatorId() + "_" + timeTakenCntr);
-    counterNames.add("CNTR_NAME_" + getOperatorId() + "_" + fatalErrorCntr);
+    counterNames.add(getWrappedCounterName(numInputRowsCntr));
+    counterNames.add(getWrappedCounterName(numOutputRowsCntr));
+    counterNames.add(getWrappedCounterName(timeTakenCntr));
+    counterNames.add(getWrappedCounterName(fatalErrorCntr));
+    /* getAdditionalCounter should return Wrapped counters */
     List<String> newCntrs = getAdditionalCounters();
     if (newCntrs != null) {
       counterNames.addAll(newCntrs);
@@ -1264,9 +1311,11 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
 
   /*
    * By default, the list is empty - if an operator wants to add more counters,
-   * it should override this method and provide the new list.
+   * it should override this method and provide the new list. Counter names returned
+   * by this method should be wrapped counter names (i.e the strings should be passed
+   * through getWrappedCounterName).
    */
-  private List<String> getAdditionalCounters() {
+  protected List<String> getAdditionalCounters() {
     return null;
   }
 
@@ -1334,6 +1383,10 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
   public void cleanUpInputFileChangedOp() throws HiveException {
   }
 
+  public boolean supportSkewJoinOptimization() {
+    return false;
+  }
+
   @Override
   public Operator<? extends OperatorDesc> clone()
     throws CloneNotSupportedException {
@@ -1354,5 +1407,26 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
         descClone, getSchema(), parentClones);
 
     return ret;
+  }
+
+  /*
+   * True only for operators which produce atmost 1 output row per input
+   * row to it. This will allow the output column names to be directly
+   * translated to input column names.
+   */
+  public boolean columnNamesRowResolvedCanBeObtained() {
+    return false;
+  }
+
+  public boolean isUseBucketizedHiveInputFormat() {
+    return useBucketizedHiveInputFormat;
+  }
+
+  public void setUseBucketizedHiveInputFormat(boolean useBucketizedHiveInputFormat) {
+    this.useBucketizedHiveInputFormat = useBucketizedHiveInputFormat;
+  }
+
+  public boolean supportUnionRemoveOptimization() {
+    return false;
   }
 }

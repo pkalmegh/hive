@@ -74,6 +74,8 @@ TOK_SERDEPROPS;
 TOK_EXPLIST;
 TOK_ALIASLIST;
 TOK_GROUPBY;
+TOK_ROLLUP_GROUPBY;
+TOK_CUBE_GROUPBY;
 TOK_HAVING;
 TOK_ORDERBY;
 TOK_CLUSTERBY;
@@ -145,6 +147,7 @@ TOK_SHOWTABLES;
 TOK_SHOWCOLUMNS;
 TOK_SHOWFUNCTIONS;
 TOK_SHOWPARTITIONS;
+TOK_SHOW_CREATETABLE;
 TOK_SHOW_TABLESTATUS;
 TOK_SHOW_TBLPROPERTIES;
 TOK_SHOWLOCKS;
@@ -263,6 +266,11 @@ TOK_TABLESKEWED;
 TOK_TABCOLVALUE;
 TOK_TABCOLVALUE_PAIR;
 TOK_TABCOLVALUES;
+TOK_ALTERTABLE_SKEWED;
+TOK_ALTERTBLPART_SKEWED_LOCATION;
+TOK_SKEWED_LOCATIONS;
+TOK_SKEWED_LOCATION_LIST;
+TOK_SKEWED_LOCATION_MAP;
 }
 
 
@@ -293,7 +301,7 @@ statement
 explainStatement
 @init { msgs.push("explain statement"); }
 @after { msgs.pop(); }
-	: KW_EXPLAIN (explainOptions=KW_EXTENDED|explainOptions=KW_FORMATTED)? execStatement
+	: KW_EXPLAIN (explainOptions=KW_EXTENDED|explainOptions=KW_FORMATTED|explainOptions=KW_DEPENDENCY)? execStatement
       -> ^(TOK_EXPLAIN execStatement $explainOptions?)
 	;
 
@@ -586,6 +594,7 @@ alterTableStatementSuffix
     | alterStatementSuffixProperties
     | alterTblPartitionStatement
     | alterStatementSuffixClusterbySortby
+    | alterStatementSuffixSkewedby
     ;
 
 alterViewStatementSuffix
@@ -745,6 +754,7 @@ alterTblPartitionStatementSuffix
   | alterStatementSuffixMergeFiles
   | alterStatementSuffixSerdeProperties
   | alterStatementSuffixRenamePart
+  | alterTblPartitionStatementSuffixSkewedLocation
   ;
 
 alterStatementSuffixFileFormat
@@ -754,12 +764,51 @@ alterStatementSuffixFileFormat
 	-> ^(TOK_ALTERTABLE_FILEFORMAT fileFormat)
 	;
 
+alterTblPartitionStatementSuffixSkewedLocation
+@init {msgs.push("alter partition skewed location");}
+@after {msgs.pop();}
+  : KW_SET KW_SKEWED KW_LOCATION skewedLocations
+  -> ^(TOK_ALTERTBLPART_SKEWED_LOCATION skewedLocations)
+  ;
+  
+skewedLocations
+@init { msgs.push("skewed locations"); }
+@after { msgs.pop(); }
+    :
+      LPAREN skewedLocationsList RPAREN -> ^(TOK_SKEWED_LOCATIONS skewedLocationsList)
+    ;
+
+skewedLocationsList
+@init { msgs.push("skewed locations list"); }
+@after { msgs.pop(); }
+    :
+      skewedLocationMap (COMMA skewedLocationMap)* -> ^(TOK_SKEWED_LOCATION_LIST skewedLocationMap+)
+    ;
+
+skewedLocationMap
+@init { msgs.push("specifying skewed location map"); }
+@after { msgs.pop(); }
+    :
+      key=skewedValueLocationElement EQUAL value=StringLiteral -> ^(TOK_SKEWED_LOCATION_MAP $key $value)
+    ;
+
 alterStatementSuffixLocation
 @init {msgs.push("alter location");}
 @after {msgs.pop();}
   : KW_SET KW_LOCATION newLoc=StringLiteral
   -> ^(TOK_ALTERTABLE_LOCATION $newLoc)
   ;
+
+	
+alterStatementSuffixSkewedby
+@init {msgs.push("alter skewed by statement");}
+@after{msgs.pop();}
+	:name=Identifier tableSkewed
+	->^(TOK_ALTERTABLE_SKEWED $name tableSkewed)
+	|
+	name=Identifier KW_NOT KW_SKEWED
+	->^(TOK_ALTERTABLE_SKEWED $name)
+	;
 
 alterStatementSuffixProtectMode
 @init { msgs.push("alter partition protect mode statement"); }
@@ -855,6 +904,7 @@ showStatement
     -> ^(TOK_SHOWCOLUMNS $db_name? $tabname)
     | KW_SHOW KW_FUNCTIONS showStmtIdentifier?  -> ^(TOK_SHOWFUNCTIONS showStmtIdentifier?)
     | KW_SHOW KW_PARTITIONS Identifier partitionSpec? -> ^(TOK_SHOWPARTITIONS Identifier partitionSpec?)
+    | KW_SHOW KW_CREATE KW_TABLE tabName=tableName -> ^(TOK_SHOW_CREATETABLE $tabName)
     | KW_SHOW KW_TABLE KW_EXTENDED ((KW_FROM|KW_IN) db_name=Identifier)? KW_LIKE showStmtIdentifier partitionSpec?
     -> ^(TOK_SHOW_TABLESTATUS showStmtIdentifier $db_name? partitionSpec?)
     | KW_SHOW KW_TBLPROPERTIES tblName=Identifier (LPAREN prptyName=StringLiteral RPAREN)? -> ^(TOK_SHOW_TBLPROPERTIES $tblName $prptyName?)
@@ -1290,6 +1340,14 @@ skewedColumnValue
       constant
     ;
 
+skewedValueLocationElement
+@init { msgs.push("skewed value location element"); }
+@after { msgs.pop(); }
+    : 
+      skewedColumnValue
+     | skewedColumnValuePair
+    ;
+    
 columnNameOrder
 @init { msgs.push("column name order"); }
 @after { msgs.pop(); }
@@ -1792,6 +1850,9 @@ groupByClause
     KW_GROUP KW_BY
     groupByExpression
     ( COMMA groupByExpression )*
+    ((rollup=KW_WITH KW_ROLLUP) | (cube=KW_WITH KW_CUBE)) ?
+    -> {rollup != null}? ^(TOK_ROLLUP_GROUPBY groupByExpression+)
+    -> {cube != null}? ^(TOK_CUBE_GROUPBY groupByExpression+)
     -> ^(TOK_GROUPBY groupByExpression+)
     ;
 
@@ -1822,6 +1883,10 @@ orderByClause
 @after { msgs.pop(); }
     :
     KW_ORDER KW_BY
+    LPAREN columnRefOrder
+    ( COMMA columnRefOrder)* RPAREN -> ^(TOK_ORDERBY columnRefOrder+)
+    |
+    KW_ORDER KW_BY
     columnRefOrder
     ( COMMA columnRefOrder)* -> ^(TOK_ORDERBY columnRefOrder+)
     ;
@@ -1830,6 +1895,9 @@ clusterByClause
 @init { msgs.push("cluster by clause"); }
 @after { msgs.pop(); }
     :
+    KW_CLUSTER KW_BY
+    LPAREN expression (COMMA expression)* RPAREN -> ^(TOK_CLUSTERBY expression+)
+    |
     KW_CLUSTER KW_BY
     expression
     ( COMMA expression )* -> ^(TOK_CLUSTERBY expression+)
@@ -1840,6 +1908,9 @@ distributeByClause
 @after { msgs.pop(); }
     :
     KW_DISTRIBUTE KW_BY
+    LPAREN expression (COMMA expression)* RPAREN -> ^(TOK_DISTRIBUTEBY expression+)
+    |
+    KW_DISTRIBUTE KW_BY
     expression (COMMA expression)* -> ^(TOK_DISTRIBUTEBY expression+)
     ;
 
@@ -1847,6 +1918,10 @@ sortByClause
 @init { msgs.push("sort by clause"); }
 @after { msgs.pop(); }
     :
+    KW_SORT KW_BY
+    LPAREN columnRefOrder
+    ( COMMA columnRefOrder)* RPAREN -> ^(TOK_SORTBY columnRefOrder+)
+    |
     KW_SORT KW_BY
     columnRefOrder
     ( COMMA columnRefOrder)* -> ^(TOK_SORTBY columnRefOrder+)
@@ -2340,6 +2415,7 @@ KW_FUNCTION: 'FUNCTION';
 KW_EXPLAIN: 'EXPLAIN';
 KW_EXTENDED: 'EXTENDED';
 KW_FORMATTED: 'FORMATTED';
+KW_DEPENDENCY: 'DEPENDENCY';
 KW_SERDE: 'SERDE';
 KW_WITH: 'WITH';
 KW_DEFERRED: 'DEFERRED';
@@ -2417,6 +2493,8 @@ KW_UPDATE: 'UPDATE';
 KW_RESTRICT: 'RESTRICT';
 KW_CASCADE: 'CASCADE';
 KW_SKEWED: 'SKEWED';
+KW_ROLLUP: 'ROLLUP';
+KW_CUBE: 'CUBE';
 
 
 // Operators

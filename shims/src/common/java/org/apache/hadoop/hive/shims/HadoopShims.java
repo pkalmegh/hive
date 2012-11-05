@@ -21,6 +21,8 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.security.PrivilegedExceptionAction;
 import java.util.List;
 
@@ -159,6 +161,9 @@ public interface HadoopShims {
 
   int createHadoopArchive(Configuration conf, Path parentDir, Path destDir,
       String archiveName) throws Exception;
+
+  public URI getHarUri(URI original, URI base, URI originalBase)
+        throws URISyntaxException;
   /**
    * Hive uses side effect files exclusively for it's output. It also manages
    * the setup/cleanup/commit of output from the hive client. As a result it does
@@ -183,6 +188,9 @@ public interface HadoopShims {
    * In secure versions of Hadoop, this simply returns the current
    * access control context's user, ignoring the configuration.
    */
+
+  public void closeAllForUGI(UserGroupInformation ugi);
+
   public UserGroupInformation getUGIForConf(Configuration conf) throws LoginException, IOException;
 
   /**
@@ -249,6 +257,37 @@ public interface HadoopShims {
   public TaskAttemptContext newTaskAttemptContext(Configuration conf, final Progressable progressable);
 
   public JobContext newJobContext(Job job);
+
+  /**
+   * Check wether MR is configured to run in local-mode
+   * @param conf
+   * @return
+   */
+  public boolean isLocalMode(Configuration conf);
+
+  /**
+   * All retrieval of jobtracker/resource manager rpc address
+   * in the configuration should be done through this shim
+   * @param conf
+   * @return
+   */
+  public String getJobLauncherRpcAddress(Configuration conf);
+
+  /**
+   * All updates to jobtracker/resource manager rpc address
+   * in the configuration should be done through this shim
+   * @param conf
+   * @return
+   */
+  public void setJobLauncherRpcAddress(Configuration conf, String val);
+
+  /**
+   * All references to jobtracker/resource manager http address
+   * in the configuration should be done through this shim
+   * @param conf
+   * @return
+   */
+  public String getJobLauncherHttpAddress(Configuration conf);
 
   /**
    * InputSplitShim.

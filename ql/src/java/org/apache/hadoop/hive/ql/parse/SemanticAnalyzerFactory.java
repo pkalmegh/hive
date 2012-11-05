@@ -62,6 +62,7 @@ public final class SemanticAnalyzerFactory {
     commandType.put(HiveParser.TOK_SHOWCOLUMNS, HiveOperation.SHOWCOLUMNS);
     commandType.put(HiveParser.TOK_SHOW_TABLESTATUS, HiveOperation.SHOW_TABLESTATUS);
     commandType.put(HiveParser.TOK_SHOW_TBLPROPERTIES, HiveOperation.SHOW_TBLPROPERTIES);
+    commandType.put(HiveParser.TOK_SHOW_CREATETABLE, HiveOperation.SHOW_CREATETABLE);
     commandType.put(HiveParser.TOK_SHOWFUNCTIONS, HiveOperation.SHOWFUNCTIONS);
     commandType.put(HiveParser.TOK_SHOWINDEXES, HiveOperation.SHOWINDEXES);
     commandType.put(HiveParser.TOK_SHOWPARTITIONS, HiveOperation.SHOWPARTITIONS);
@@ -90,6 +91,7 @@ public final class SemanticAnalyzerFactory {
     commandType.put(HiveParser.TOK_SHOW_ROLE_GRANT, HiveOperation.SHOW_ROLE_GRANT);
     commandType.put(HiveParser.TOK_ALTERDATABASE_PROPERTIES, HiveOperation.ALTERDATABASE);
     commandType.put(HiveParser.TOK_DESCDATABASE, HiveOperation.DESCDATABASE);
+    commandType.put(HiveParser.TOK_ALTERTABLE_SKEWED, HiveOperation.ALTERTABLE_SKEWED);
   }
 
   static {
@@ -114,6 +116,9 @@ public final class SemanticAnalyzerFactory {
             HiveOperation.ALTERPARTITION_SERDEPROPERTIES });
     tablePartitionCommandType.put(HiveParser.TOK_ALTERTABLE_RENAMEPART,
         new HiveOperation[] {null, HiveOperation.ALTERTABLE_RENAMEPART});
+    tablePartitionCommandType.put(HiveParser.TOK_ALTERTBLPART_SKEWED_LOCATION,
+        new HiveOperation[] {HiveOperation.ALTERTBLPART_SKEWED_LOCATION,
+            HiveOperation.ALTERTBLPART_SKEWED_LOCATION });
   }
 
   public static BaseSemanticAnalyzer get(HiveConf conf, ASTNode tree)
@@ -161,6 +166,7 @@ public final class SemanticAnalyzerFactory {
       case HiveParser.TOK_SHOWCOLUMNS:
       case HiveParser.TOK_SHOW_TABLESTATUS:
       case HiveParser.TOK_SHOW_TBLPROPERTIES:
+      case HiveParser.TOK_SHOW_CREATETABLE:
       case HiveParser.TOK_SHOWFUNCTIONS:
       case HiveParser.TOK_SHOWPARTITIONS:
       case HiveParser.TOK_SHOWINDEXES:
@@ -182,6 +188,7 @@ public final class SemanticAnalyzerFactory {
       case HiveParser.TOK_REVOKE_ROLE:
       case HiveParser.TOK_SHOW_ROLE_GRANT:
       case HiveParser.TOK_ALTERDATABASE_PROPERTIES:
+      case HiveParser.TOK_ALTERTABLE_SKEWED:
         return new DDLSemanticAnalyzer(conf);
       case HiveParser.TOK_ALTERTABLE_PARTITION:
         HiveOperation commandType = null;

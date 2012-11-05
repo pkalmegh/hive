@@ -20,6 +20,8 @@ package org.apache.hadoop.hive.metastore;
 
 import static org.apache.commons.lang.StringUtils.join;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -1925,7 +1927,7 @@ public class ObjectStore implements RawStore, Configurable {
       oldt.setOwner(newt.getOwner());
       // Fully copy over the contents of the new SD into the old SD,
       // so we don't create an extra SD in the metastore db that has no references.
-      fullCopyMSD(newt.getSd(), oldt.getSd());
+      copyMSD(newt.getSd(), oldt.getSd());
       oldt.setDatabase(newt.getDatabase());
       oldt.setRetention(newt.getRetention());
       oldt.setPartitionKeys(newt.getPartitionKeys());
@@ -1973,27 +1975,53 @@ public class ObjectStore implements RawStore, Configurable {
     }
   }
 
+  private void alterPartitionNoTxn(String dbname, String name, List<String> part_vals,
+      Partition newPart) throws InvalidObjectException, MetaException {
+    name = name.toLowerCase();
+    dbname = dbname.toLowerCase();
+    MPartition oldp = getMPartition(dbname, name, part_vals);
+    MPartition newp = convertToMPart(newPart, false);
+    if (oldp == null || newp == null) {
+      throw new InvalidObjectException("partition does not exist.");
+    }
+    oldp.setValues(newp.getValues());
+    oldp.setPartitionName(newp.getPartitionName());
+    oldp.setParameters(newPart.getParameters());
+    copyMSD(newp.getSd(), oldp.getSd());
+    if (newp.getCreateTime() != oldp.getCreateTime()) {
+      oldp.setCreateTime(newp.getCreateTime());
+    }
+    if (newp.getLastAccessTime() != oldp.getLastAccessTime()) {
+      oldp.setLastAccessTime(newp.getLastAccessTime());
+    }
+  }
+
   public void alterPartition(String dbname, String name, List<String> part_vals, Partition newPart)
       throws InvalidObjectException, MetaException {
     boolean success = false;
     try {
       openTransaction();
-      name = name.toLowerCase();
-      dbname = dbname.toLowerCase();
-      MPartition oldp = getMPartition(dbname, name, part_vals);
-      MPartition newp = convertToMPart(newPart, false);
-      if (oldp == null || newp == null) {
-        throw new InvalidObjectException("partition does not exist.");
+      alterPartitionNoTxn(dbname, name, part_vals, newPart);
+      // commit the changes
+      success = commitTransaction();
+    } finally {
+      if (!success) {
+        rollbackTransaction();
+        throw new MetaException(
+            "The transaction for alter partition did not commit successfully.");
       }
-      oldp.setValues(newp.getValues());
-      oldp.setPartitionName(newp.getPartitionName());
-      oldp.setParameters(newPart.getParameters());
-      copyMSD(newp.getSd(), oldp.getSd());
-      if (newp.getCreateTime() != oldp.getCreateTime()) {
-        oldp.setCreateTime(newp.getCreateTime());
-      }
-      if (newp.getLastAccessTime() != oldp.getLastAccessTime()) {
-        oldp.setLastAccessTime(newp.getLastAccessTime());
+    }
+  }
+
+  public void alterPartitions(String dbname, String name, List<List<String>> part_vals,
+      List<Partition> newParts) throws InvalidObjectException, MetaException {
+    boolean success = false;
+    try {
+      openTransaction();
+      Iterator<List<String>> part_val_itr = part_vals.iterator();
+      for (Partition tmpPart: newParts) {
+        List<String> tmpPartVals = part_val_itr.next();
+        alterPartitionNoTxn(dbname, name, tmpPartVals, tmpPart);
       }
       // commit the changes
       success = commitTransaction();
@@ -2039,15 +2067,6 @@ public class ObjectStore implements RawStore, Configurable {
     oldSd.setSkewedColNames(newSd.getSkewedColNames());
     oldSd.setSkewedColValues(newSd.getSkewedColValues());
     oldSd.setSkewedColValueLocationMaps(newSd.getSkewedColValueLocationMaps());
-  }
-
-  /**
-   * copy over all fields from newSd to oldSd
-   * @param newSd the new storage descriptor
-   * @param oldSd the old descriptor that gets copied over
-   */
-  private void fullCopyMSD(MStorageDescriptor newSd, MStorageDescriptor oldSd) {
-    copyMSD(newSd, oldSd);
     oldSd.setSortCols(newSd.getSortCols());
     oldSd.setParameters(newSd.getParameters());
   }
@@ -3972,6 +3991,459 @@ public class ObjectStore implements RawStore, Configurable {
       storedVals.add(partVal);
     }
     return join(storedVals,',');
+  }
+
+  /** The following API
+   *
+   *  - executeJDOQLSelect
+   *
+   * is used by HiveMetaTool. This API **shouldn't** be exposed via Thrift.
+   *
+   */
+  public Collection<?> executeJDOQLSelect(String query) {
+    boolean committed = false;
+    Collection<?> result = null;
+
+    try {
+      openTransaction();
+      Query q = pm.newQuery(query);
+      result = (Collection<?>) q.execute();
+      committed = commitTransaction();
+      if (committed) {
+        return result;
+      } else {
+        return null;
+      }
+    } finally {
+      if (!committed) {
+        rollbackTransaction();
+      }
+    }
+  }
+
+  /** The following API
+  *
+  *  - executeJDOQLUpdate
+  *
+  * is used by HiveMetaTool. This API **shouldn't** be exposed via Thrift.
+  *
+  */
+  public long executeJDOQLUpdate(String query) {
+    boolean committed = false;
+    long numUpdated = 0;
+
+    try {
+      openTransaction();
+      Query q = pm.newQuery(query);
+      numUpdated = (Long) q.execute();
+      committed = commitTransaction();
+      if (committed) {
+        return numUpdated;
+      } else {
+        return -1;
+      }
+    } finally {
+      if (!committed) {
+        rollbackTransaction();
+      }
+    }
+  }
+
+  /** The following API
+  *
+  *  - listFSRoots
+  *
+  * is used by HiveMetaTool. This API **shouldn't** be exposed via Thrift.
+  *
+  */
+  public Set<String> listFSRoots() {
+    boolean committed = false;
+    Set<String> fsRoots = new HashSet<String>();
+
+    try {
+      openTransaction();
+      Query query = pm.newQuery(MDatabase.class);
+      List<MDatabase> mDBs = (List<MDatabase>) query.execute();
+      pm.retrieveAll(mDBs);
+
+      for (MDatabase mDB:mDBs) {
+        fsRoots.add(mDB.getLocationUri());
+      }
+      committed = commitTransaction();
+      if (committed) {
+        return fsRoots;
+      } else {
+        return null;
+      }
+    } finally {
+      if (!committed) {
+        rollbackTransaction();
+      }
+    }
+  }
+
+  private boolean shouldUpdateURI(URI onDiskUri, URI inputUri) {
+    String onDiskHost = onDiskUri.getHost();
+    String inputHost = inputUri.getHost();
+
+    int onDiskPort = onDiskUri.getPort();
+    int inputPort = inputUri.getPort();
+
+    String onDiskScheme = onDiskUri.getScheme();
+    String inputScheme = inputUri.getScheme();
+
+    //compare ports
+    if (inputPort != -1) {
+      if (inputPort != onDiskPort) {
+        return false;
+      }
+    }
+    //compare schemes
+    if (inputScheme != null) {
+      if (onDiskScheme == null) {
+        return false;
+      }
+      if (!inputScheme.equalsIgnoreCase(onDiskScheme)) {
+        return false;
+      }
+    }
+    //compare hosts
+    if (onDiskHost != null) {
+      if (!inputHost.equalsIgnoreCase(onDiskHost)) {
+        return false;
+      }
+    } else {
+      return false;
+    }
+    return true;
+  }
+
+  public class UpdateMDatabaseURIRetVal {
+    private List<String> badRecords;
+    private Map<String, String> updateLocations;
+
+    UpdateMDatabaseURIRetVal(List<String> badRecords, Map<String, String> updateLocations) {
+      this.badRecords = badRecords;
+      this.updateLocations = updateLocations;
+    }
+
+    public List<String> getBadRecords() {
+      return badRecords;
+    }
+
+    public void setBadRecords(List<String> badRecords) {
+      this.badRecords = badRecords;
+    }
+
+    public Map<String, String> getUpdateLocations() {
+      return updateLocations;
+    }
+
+    public void setUpdateLocations(Map<String, String> updateLocations) {
+      this.updateLocations = updateLocations;
+    }
+  }
+
+  /** The following APIs
+  *
+  *  - updateMDatabaseURI
+  *
+  * is used by HiveMetaTool. This API **shouldn't** be exposed via Thrift.
+  *
+  */
+  public UpdateMDatabaseURIRetVal updateMDatabaseURI(URI oldLoc, URI newLoc, boolean dryRun) {
+    boolean committed = false;
+    Map<String, String> updateLocations = new HashMap<String, String>();
+    List<String> badRecords = new ArrayList<String>();
+    UpdateMDatabaseURIRetVal retVal = null;
+
+    try {
+      openTransaction();
+      Query query = pm.newQuery(MDatabase.class);
+      List<MDatabase> mDBs = (List<MDatabase>) query.execute();
+      pm.retrieveAll(mDBs);
+
+      for(MDatabase mDB:mDBs) {
+        URI locationURI = null;
+        String location = mDB.getLocationUri();
+        try {
+          locationURI = new URI(location);
+        } catch(URISyntaxException e) {
+          badRecords.add(location);
+        } catch (NullPointerException e) {
+          badRecords.add(location);
+        }
+        if (locationURI == null) {
+          badRecords.add(location);
+        } else {
+          if (shouldUpdateURI(locationURI, oldLoc)) {
+            String dbLoc = mDB.getLocationUri().replaceAll(oldLoc.toString(), newLoc.toString());
+            updateLocations.put(locationURI.toString(), dbLoc);
+            if (!dryRun) {
+              mDB.setLocationUri(dbLoc);
+            }
+          }
+        }
+      }
+      committed = commitTransaction();
+      if (committed) {
+        retVal = new UpdateMDatabaseURIRetVal(badRecords, updateLocations);
+      }
+      return retVal;
+    } finally {
+      if (!committed) {
+        rollbackTransaction();
+      }
+    }
+  }
+
+  public class UpdateMStorageDescriptorTblPropURIRetVal {
+    private List<String> badRecords;
+    private Map<String, String> updateLocations;
+
+    UpdateMStorageDescriptorTblPropURIRetVal(List<String> badRecords,
+      Map<String, String> updateLocations) {
+      this.badRecords = badRecords;
+      this.updateLocations = updateLocations;
+    }
+
+    public List<String> getBadRecords() {
+      return badRecords;
+    }
+
+    public void setBadRecords(List<String> badRecords) {
+      this.badRecords = badRecords;
+    }
+
+    public Map<String, String> getUpdateLocations() {
+      return updateLocations;
+    }
+
+    public void setUpdateLocations(Map<String, String> updateLocations) {
+      this.updateLocations = updateLocations;
+    }
+  }
+
+  /** The following APIs
+  *
+  *  - updateMStorageDescriptorTblPropURI
+  *
+  * is used by HiveMetaTool. This API **shouldn't** be exposed via Thrift.
+  *
+  */
+  public UpdateMStorageDescriptorTblPropURIRetVal updateMStorageDescriptorTblPropURI(URI oldLoc,
+      URI newLoc, String tblPropKey, boolean isDryRun) {
+    boolean committed = false;
+    Map<String, String> updateLocations = new HashMap<String, String>();
+    List<String> badRecords = new ArrayList<String>();
+    UpdateMStorageDescriptorTblPropURIRetVal retVal = null;
+
+    try {
+      openTransaction();
+      Query query = pm.newQuery(MStorageDescriptor.class);
+      List<MStorageDescriptor> mSDSs = (List<MStorageDescriptor>) query.execute();
+      pm.retrieveAll(mSDSs);
+
+      for(MStorageDescriptor mSDS:mSDSs) {
+        URI tablePropLocationURI = null;
+        if (mSDS.getParameters().containsKey(tblPropKey)) {
+          String tablePropLocation = mSDS.getParameters().get(tblPropKey);
+          try {
+              tablePropLocationURI = new URI(tablePropLocation);
+            } catch (URISyntaxException e) {
+              badRecords.add(tablePropLocation);
+            } catch (NullPointerException e) {
+              badRecords.add(tablePropLocation);
+            }
+            // if tablePropKey that was passed in lead to a valid URI resolution, update it if
+            //parts of it match the old-NN-loc, else add to badRecords
+            if (tablePropLocationURI == null) {
+              badRecords.add(tablePropLocation);
+            } else {
+              if (shouldUpdateURI(tablePropLocationURI, oldLoc)) {
+                String tblPropLoc = mSDS.getParameters().get(tblPropKey).replaceAll(oldLoc.toString(),
+                    newLoc.toString());
+                updateLocations.put(tablePropLocationURI.toString(), tblPropLoc);
+                if (!isDryRun) {
+                  mSDS.getParameters().put(tblPropKey, tblPropLoc);
+                }
+             }
+           }
+         }
+      }
+      committed = commitTransaction();
+      if (committed) {
+        retVal = new UpdateMStorageDescriptorTblPropURIRetVal(badRecords, updateLocations);
+      }
+      return retVal;
+     } finally {
+        if (!committed) {
+          rollbackTransaction();
+        }
+     }
+  }
+
+  public class UpdateMStorageDescriptorTblURIRetVal {
+    private List<String> badRecords;
+    private Map<String, String> updateLocations;
+
+    UpdateMStorageDescriptorTblURIRetVal(List<String> badRecords,
+      Map<String, String> updateLocations) {
+      this.badRecords = badRecords;
+      this.updateLocations = updateLocations;
+    }
+
+    public List<String> getBadRecords() {
+      return badRecords;
+    }
+
+    public void setBadRecords(List<String> badRecords) {
+      this.badRecords = badRecords;
+    }
+
+    public Map<String, String> getUpdateLocations() {
+      return updateLocations;
+    }
+
+    public void setUpdateLocations(Map<String, String> updateLocations) {
+      this.updateLocations = updateLocations;
+    }
+  }
+
+  /** The following APIs
+  *
+  *  - updateMStorageDescriptorTblURI
+  *
+  * is used by HiveMetaTool. This API **shouldn't** be exposed via Thrift.
+  *
+  */
+  public UpdateMStorageDescriptorTblURIRetVal updateMStorageDescriptorTblURI(URI oldLoc, URI newLoc,
+    boolean isDryRun) {
+    boolean committed = false;
+    Map<String, String> updateLocations = new HashMap<String, String>();
+    List<String> badRecords = new ArrayList<String>();
+    UpdateMStorageDescriptorTblURIRetVal retVal = null;
+
+    try {
+      openTransaction();
+      Query query = pm.newQuery(MStorageDescriptor.class);
+      List<MStorageDescriptor> mSDSs = (List<MStorageDescriptor>) query.execute();
+      pm.retrieveAll(mSDSs);
+
+      for(MStorageDescriptor mSDS:mSDSs) {
+        URI locationURI = null;
+        String location = mSDS.getLocation();
+        try {
+          locationURI = new URI(location);
+        } catch (URISyntaxException e) {
+          badRecords.add(location);
+        } catch (NullPointerException e) {
+          badRecords.add(location);
+        }
+        if (locationURI == null) {
+          badRecords.add(location);
+        } else {
+          if (shouldUpdateURI(locationURI, oldLoc)) {
+            String tblLoc = mSDS.getLocation().replaceAll(oldLoc.toString(), newLoc.toString());
+            updateLocations.put(locationURI.toString(), tblLoc);
+            if (!isDryRun) {
+              mSDS.setLocation(tblLoc);
+            }
+          }
+        }
+      }
+      committed = commitTransaction();
+      if (committed) {
+        retVal = new UpdateMStorageDescriptorTblURIRetVal(badRecords, updateLocations);
+      }
+      return retVal;
+    } finally {
+        if (!committed) {
+          rollbackTransaction();
+        }
+     }
+  }
+
+  public class UpdateSerdeURIRetVal {
+    private List<String> badRecords;
+    private Map<String, String> updateLocations;
+
+    UpdateSerdeURIRetVal(List<String> badRecords, Map<String, String> updateLocations) {
+      this.badRecords = badRecords;
+      this.updateLocations = updateLocations;
+    }
+
+    public List<String> getBadRecords() {
+      return badRecords;
+    }
+
+    public void setBadRecords(List<String> badRecords) {
+      this.badRecords = badRecords;
+    }
+
+    public Map<String, String> getUpdateLocations() {
+      return updateLocations;
+    }
+
+    public void setUpdateLocations(Map<String, String> updateLocations) {
+      this.updateLocations = updateLocations;
+    }
+  }
+
+  /** The following APIs
+  *
+  *  - updateSerdeURI
+  *
+  * is used by HiveMetaTool. This API **shouldn't** be exposed via Thrift.
+  *
+  */
+  public UpdateSerdeURIRetVal updateSerdeURI(URI oldLoc, URI newLoc, String serdeProp,
+    boolean isDryRun) {
+    boolean committed = false;
+    Map<String, String> updateLocations = new HashMap<String, String>();
+    List<String> badRecords = new ArrayList<String>();
+    UpdateSerdeURIRetVal retVal = null;
+
+    try {
+      openTransaction();
+      Query query = pm.newQuery(MSerDeInfo.class);
+      List<MSerDeInfo> mSerdes = (List<MSerDeInfo>) query.execute();
+      pm.retrieveAll(mSerdes);
+
+      for(MSerDeInfo mSerde:mSerdes) {
+        if (mSerde.getParameters().containsKey(serdeProp)) {
+          String schemaLoc = mSerde.getParameters().get(serdeProp);
+          URI schemaLocURI = null;
+          try {
+            schemaLocURI = new URI(schemaLoc);
+          } catch (URISyntaxException e) {
+            badRecords.add(schemaLoc);
+          } catch (NullPointerException e) {
+            badRecords.add(schemaLoc);
+          }
+          if (schemaLocURI == null) {
+            badRecords.add(schemaLoc);
+          } else {
+            if (shouldUpdateURI(schemaLocURI, oldLoc)) {
+              String newSchemaLoc = schemaLoc.replaceAll(oldLoc.toString(), newLoc.toString());
+              updateLocations.put(schemaLocURI.toString(), newSchemaLoc);
+              if (!isDryRun) {
+                mSerde.getParameters().put(serdeProp, newSchemaLoc);
+              }
+            }
+          }
+        }
+      }
+      committed = commitTransaction();
+      if (committed) {
+        retVal = new UpdateSerdeURIRetVal(badRecords, updateLocations);
+      }
+      return retVal;
+    } finally {
+      if (!committed) {
+        rollbackTransaction();
+      }
+    }
   }
 
   @Override

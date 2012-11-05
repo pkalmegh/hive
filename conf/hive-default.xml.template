@@ -256,6 +256,24 @@
 </property>
 
 <property>
+  <name>hive.metadata.export.location</name>
+  <value></value>
+  <description>When used in conjunction with the org.apache.hadoop.hive.ql.parse.MetaDataExportListener pre event listener, it is the location to which the metadata will be exported. The default is an empty string, which results in the metadata being exported to the current user's home directory on HDFS.</description>
+</property>
+
+<property>
+  <name>hive.metadata.move.exported.metadata.to.trash</name>
+  <value></value>
+  <description>When used in conjunction with the org.apache.hadoop.hive.ql.parse.MetaDataExportListener pre event listener, this setting determines if the metadata that is exported will subsequently be moved to the user's trash directory alongside the dropped table data. This ensures that the metadata will be cleaned up along with the dropped table data.</description>
+</property>
+
+<property>
+  <name>hive.metastore.partition.name.whitelist.pattern</name>
+  <value></value>
+  <description>Partition names will be checked against this regex pattern and rejected if not matched.  To use, enable hive.metastore.pre.event.listeners=org.apache.hadoop.hive.metastore.PartitionNameWhitelistPreEventListener  Listener will not register if this property value is empty.</description>
+</property>
+
+<property>
   <name>hive.metastore.end.function.listeners</name>
   <value></value>
   <description>list of comma separated listeners for the end of metastore functions.</description>
@@ -414,12 +432,66 @@
 </property>
 
 <property>
+  <name>hive.optimize.skewjoin.compiletime</name>
+  <value>false</value>
+  <description>Whether to create a separate plan for skewed keys for the tables in the join.
+    This is based on the skewed keys stored in the metadata. At compile time, the plan is broken
+    into different joins: one for the skewed keys, and the other for the remaining keys. And then,
+    a union is performed for the 2 joins generated above. So unless the same skewed key is present
+    in both the joined tables, the join for the skewed key will be performed as a map-side join.
+
+    The main difference between this paramater and hive.optimize.skewjoin is that this parameter
+    uses the skew information stored in the metastore to optimize the plan at compile time itself.
+    If there is no skew information in the metadata, this parameter will not have any affect. 
+    Both hive.optimize.skewjoin.compiletime and hive.optimize.skewjoin should be set to true.
+    Ideally, hive.optimize.skewjoin should be renamed as hive.optimize.skewjoin.runtime, but not doing
+    so for backward compatibility.
+
+    If the skew information is correctly stored in the metadata, hive.optimize.skewjoin.compiletime
+    would change the query plan to take care of it, and hive.optimize.skewjoin will be a no-op.
+  </description>
+</property>
+
+<property>
+  <name>hive.optimize.union.remove</name>
+  <value>false</value>
+  <description>
+    Whether to remove the union and push the operators between union and the filesink above
+    union. This avoids an extra scan of the output by union. This is independently useful for union 
+    queries, and specially useful when hive.optimize.skewjoin.compiletime is set to true, since an
+    extra union is inserted.
+
+    The merge is triggered if either of hive.merge.mapfiles or hive.merge.mapredfiles is set to true.
+    If the user has set hive.merge.mapfiles to true and hive.merge.mapredfiles to false, the idea was the
+    number of reducers are few, so the number of files anyway are small. However, with this optimization,
+    we are increasing the number of files possibly by a big margin. So, we merge aggresively.
+</property>
+
+<property>
+  <name>hive.mapred.supports.subdirectories</name>
+  <value>false</value>
+  <description>Whether the version of hadoop which is running supports sub-directories for tables/partitions.
+    Many hive optimizations can be applied if the hadoop version supports sub-directories for 
+    tables/partitions. It was added by MAPREDUCE-1501
+</property>
+
+<property>
   <name>hive.multigroupby.singlemr</name>
   <value>false</value>
   <description>Whether to optimize multi group by query to generate single M/R
   job plan. If the multi group by query has common group by keys, it will be
   optimized to generate single M/R job.</description>
 </property>
+
+<property>
+  <name>hive.map.groupby.sorted</name>
+  <value>false</value>
+  <description>If the bucketing/sorting properties of the table exactly match the grouping key, whether to 
+    perform the group by in the mapper by using BucketizedHiveInputFormat. The only downside to this
+    is that it limits the number of mappers to the number of files. 
+  </description>
+</property>
+
 <property>
   <name>hive.join.emit.interval</name>
   <value>1000</value>
@@ -447,7 +519,30 @@
 <property>
   <name>hive.optimize.skewjoin</name>
   <value>false</value>
-  <description>Whether to enable skew join optimization. </description>
+  <description>Whether to enable skew join optimization.
+    The algorithm is as follows: At runtime, detect the keys with a large skew. Instead of
+    processing those keys, store them temporarily in a hdfs directory. In a follow-up map-reduce
+    job, process those skewed keys. The same key need not be skewed for all the tables, and so,
+    the follow-up map-reduce job (for the skewed keys) would be much faster, since it would be a 
+    map-join.
+</description>
+</property>
+
+<property>
+  <name>hive.exec.list.bucketing.default.dir</name>
+  <value>HIVE_DEFAULT_LIST_BUCKETING_DIR_NAME</value>
+  <description>Default directory name used in list bucketing.
+    List bucketing feature will create sub-directory for each skewed-value and a default directory
+    for non-skewed value. This config specifies the default name for the default directory.
+    Sub-directory is created by list bucketing DML and under partition directory. User doesn't need 
+    to know how to construct the canonical path. It just gives user choice if they want to change 
+    the default directory name.
+    For example, there are 2 skewed column c1 and c2. 2 skewed value: (1,a) and (2,b). subdirectory:
+    <partition-dir>/c1=1/c2=a/
+    <partition-dir>/c1=2/c2=b/
+    <partition-dir>/HIVE_DEFAULT_LIST_BUCKETING_DIR_NAME/HIVE_DEFAULT_LIST_BUCKETING_DIR_NAME/
+    Note: This config won't impact users if they don't list bucketing.
+</description>
 </property>
 
 <property>
@@ -978,6 +1073,14 @@
 </property>
 
 <property>
+  <name>hive.stats.collect.tablekeys</name>
+  <value>false</value>
+  <description>Whether join and group by keys on tables are derived and maintained in the QueryPlan.
+    This is useful to identify how tables are accessed and to determine if they should be bucketed.
+  </description>
+</property>
+
+<property>
   <name>hive.support.concurrency</name>
   <value>false</value>
   <description>Whether hive supports concurrency or not. A zookeeper instance must be up and running for the default hive lock manager to support read-write locks.</description>
@@ -1044,14 +1147,6 @@
 </property>
 
 <property>
-  <name>hive.archive.har.parentdir.settable</name>
-  <value>false</value>
-  <description>In new Hadoop versions, the parent directory must be set while
-  creating a HAR. Because this functionality is hard to detect with just version
-  numbers, this conf var needs to be set manually.</description>
-</property>
-
-<property>
   <name>hive.fetch.output.serde</name>
   <value>org.apache.hadoop.hive.serde2.DelimitedJSONSerDe</value>
   <description>The serde used by FetchTask to serialize the fetch output.</description>
@@ -1101,6 +1196,12 @@
   <name>hive.table.parameters.default</name>
   <value></value>
   <description>Default property values for newly created tables</description>
+</property>
+
+<property>
+  <name>hive.entity.separator</name>
+  <value>@</value>
+  <description>Separator used to construct names of tables and partitions. For example, dbname@tablename@partitionname</description>
 </property>
 
 <property>
@@ -1423,6 +1524,32 @@
     2. more    : SELECT, FILTER, LIMIT only (+TABLESAMPLE, virtual columns)
   </description>
 </property>
+
+<property>
+  <name>hive.hmshandler.retry.attempts</name>
+  <value>1</value>
+  <description>The number of times to retry a HMSHandler call if there were a connection error</description>
+</property>
+
+<property>
+   <name>hive.hmshandler.retry.interval</name>
+   <value>1000</value>
+   <description>The number of miliseconds between HMSHandler retry attempts</description>
+</property>
+
+
+<property>
+   <name>hive.server.read.socket.timeout</name>
+   <value>10</value>
+   <description>Timeout for the HiveServer to close the connection if no response from the client in N seconds, defaults to 10 seconds.</description>
+</property>
+
+<property>
+   <name>hive.server.tcp.keepalive</name>
+   <value>true</value>
+   <description>Whether to enable TCP keepalive for the Hive server. Keepalive will prevent accumulation of half-open connections.</description>
+</property>
+
 
 </configuration>
 

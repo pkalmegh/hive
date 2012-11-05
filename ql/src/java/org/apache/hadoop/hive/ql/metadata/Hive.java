@@ -31,13 +31,13 @@ import static org.apache.hadoop.hive.serde.Constants.STRING_TYPE_NAME;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.HashSet;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -63,7 +63,6 @@ import org.apache.hadoop.hive.metastore.api.HiveObjectPrivilege;
 import org.apache.hadoop.hive.metastore.api.HiveObjectRef;
 import org.apache.hadoop.hive.metastore.api.HiveObjectType;
 import org.apache.hadoop.hive.metastore.api.Index;
-import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
@@ -432,6 +431,37 @@ public class Hive {
     }
   }
 
+  /**
+   * Updates the existing table metadata with the new metadata.
+   *
+   * @param tblName
+   *          name of the existing table
+   * @param newParts
+   *          new partitions
+   * @throws InvalidOperationException
+   *           if the changes in metadata is not acceptable
+   * @throws TException
+   */
+  public void alterPartitions(String tblName, List<Partition> newParts)
+      throws InvalidOperationException, HiveException {
+    Table t = newTable(tblName);
+    List<org.apache.hadoop.hive.metastore.api.Partition> newTParts =
+      new ArrayList<org.apache.hadoop.hive.metastore.api.Partition>();
+    try {
+      // Remove the DDL time so that it gets refreshed
+      for (Partition tmpPart: newParts) {
+        if (tmpPart.getParameters() != null) {
+          tmpPart.getParameters().remove(Constants.DDL_TIME);
+        }
+        newTParts.add(tmpPart.getTPartition());
+      }
+      getMSC().alter_partitions(t.getDbName(), t.getTableName(), newTParts);
+    } catch (MetaException e) {
+      throw new HiveException("Unable to alter partition.", e);
+    } catch (TException e) {
+      throw new HiveException("Unable to alter partition.", e);
+    }
+  }
   /**
    * Rename a old partition to new partition
    *
@@ -1150,7 +1180,7 @@ public class Hive {
         Hive.replaceFiles(loadPath, newPartPath, oldPartPath, getConf());
       } else {
         FileSystem fs = FileSystem.get(tbl.getDataLocation(), getConf());
-        Hive.copyFiles(loadPath, newPartPath, fs);
+        Hive.copyFiles(conf, loadPath, newPartPath, fs);
       }
 
       // recreate the partition if it existed before
@@ -1194,7 +1224,9 @@ public class Hive {
       FileStatus[] leafStatus = Utilities.getFileStatusRecurse(loadPath, numDP+1, fs);
       // Check for empty partitions
       for (FileStatus s : leafStatus) {
-        if (s.isDir()) {
+        // Check if the hadoop version supports sub-directories for tables/partitions
+        if (s.isDir() &&
+          !conf.getBoolVar(HiveConf.ConfVars.HIVE_HADOOP_SUPPORTS_SUBDIRECTORIES)) {
           // No leaves in this directory
           LOG.info("NOT moving empty directory: " + s.getPath());
         } else {
@@ -1434,6 +1466,11 @@ public class Hive {
             tpart.getSd().setOutputFormat(tbl.getTTable().getSd().getOutputFormat());
             tpart.getSd().setInputFormat(tbl.getTTable().getSd().getInputFormat());
             tpart.getSd().getSerdeInfo().setSerializationLib(tbl.getSerializationLib());
+            tpart.getSd().getSerdeInfo().setParameters(
+                tbl.getTTable().getSd().getSerdeInfo().getParameters());
+            tpart.getSd().setBucketCols(tbl.getBucketCols());
+            tpart.getSd().setNumBuckets(tbl.getNumBuckets());
+            tpart.getSd().setSortCols(tbl.getSortCols());
           }
           if (partPath == null || partPath.trim().equals("")) {
             throw new HiveException("new partition path should not be null or empty.");
@@ -1853,8 +1890,9 @@ public class Hive {
     }
   }
 
-  static private void checkPaths(FileSystem fs, FileStatus[] srcs, Path destf,
-      boolean replace) throws HiveException {
+  static private void checkPaths(HiveConf conf,
+    FileSystem fs, FileStatus[] srcs, Path destf,
+    boolean replace) throws HiveException {
     try {
       for (FileStatus src : srcs) {
         FileStatus[] items = fs.listStatus(src.getPath());
@@ -1868,7 +1906,9 @@ public class Hive {
             fs.delete(itemStaging, true);
             continue;
           }
-          if (item.isDir()) {
+
+          if (!conf.getBoolVar(HiveConf.ConfVars.HIVE_HADOOP_SUPPORTS_SUBDIRECTORIES) &&
+            item.isDir()) {
             throw new HiveException("checkPaths: " + src.getPath()
                 + " has nested directory" + itemStaging);
           }
@@ -1928,7 +1968,7 @@ public class Hive {
     }
   }
 
-  static protected void copyFiles(Path srcf, Path destf, FileSystem fs)
+  static protected void copyFiles(HiveConf conf, Path srcf, Path destf, FileSystem fs)
       throws HiveException {
     try {
       // create the destination if it does not exist
@@ -1954,7 +1994,7 @@ public class Hive {
       // srcs = new FileStatus[0]; Why is this needed?
     }
     // check that source and target paths exist
-    checkPaths(fs, srcs, destf, false);
+    checkPaths(conf, fs, srcs, destf, false);
 
     // move it, move it
     try {
@@ -1989,7 +2029,7 @@ public class Hive {
    *          The directory where the old data location, need to be cleaned up.
    */
   static protected void replaceFiles(Path srcf, Path destf, Path oldPath,
-      Configuration conf) throws HiveException {
+      HiveConf conf) throws HiveException {
 
     try {
       FileSystem fs = srcf.getFileSystem(conf);
@@ -2005,7 +2045,7 @@ public class Hive {
         LOG.info("No sources specified to move: " + srcf);
         return;
       }
-      checkPaths(fs, srcs, destf, true);
+      checkPaths(conf, fs, srcs, destf, true);
 
       // point of no return -- delete oldPath
       if (oldPath != null) {

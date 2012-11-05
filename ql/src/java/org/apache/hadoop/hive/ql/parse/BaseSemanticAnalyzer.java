@@ -34,6 +34,7 @@ import org.antlr.runtime.tree.Tree;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Order;
 import org.apache.hadoop.hive.ql.Context;
@@ -48,6 +49,7 @@ import org.apache.hadoop.hive.ql.hooks.WriteEntity;
 import org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat;
 import org.apache.hadoop.hive.ql.io.RCFileInputFormat;
 import org.apache.hadoop.hive.ql.io.RCFileOutputFormat;
+import org.apache.hadoop.hive.ql.lib.Node;
 import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.InvalidTableException;
@@ -92,6 +94,7 @@ public abstract class BaseSemanticAnalyzer {
    * Lineage information for the query.
    */
   protected LineageInfo linfo;
+  protected TableAccessInfo tableAccessInfo;
 
   protected static final String TEXTFILE_INPUT = TextInputFormat.class
       .getName();
@@ -315,14 +318,21 @@ public abstract class BaseSemanticAnalyzer {
    * @return if DB name is give, db.tab is returned. Otherwise, tab.
    */
   public static String getUnescapedName(ASTNode tableNameNode) {
+    return getUnescapedName(tableNameNode, false);
+  }
+
+  public static String getUnescapedName(ASTNode tableNameNode, boolean prependDefaultDB) {
     if (tableNameNode.getToken().getType() == HiveParser.TOK_TABNAME) {
       if (tableNameNode.getChildCount() == 2) {
         String dbName = unescapeIdentifier(tableNameNode.getChild(0).getText());
         String tableName = unescapeIdentifier(tableNameNode.getChild(1).getText());
         return dbName + "." + tableName;
-      } else {
-        return unescapeIdentifier(tableNameNode.getChild(0).getText());
       }
+      String tableName = unescapeIdentifier(tableNameNode.getChild(0).getText());
+      if (prependDefaultDB) {
+        return MetaStoreUtils.DEFAULT_DATABASE_NAME + "." + tableName;
+      }
+      return tableName;
     }
     return unescapeIdentifier(tableNameNode.getText());
   }
@@ -788,6 +798,24 @@ public abstract class BaseSemanticAnalyzer {
     this.linfo = linfo;
   }
 
+  /**
+   * Gets the table access information.
+   *
+   * @return TableAccessInfo associated with the query.
+   */
+  public TableAccessInfo getTableAccessInfo() {
+    return tableAccessInfo;
+  }
+
+  /**
+   * Sets the table access information.
+   *
+   * @param taInfo The TableAccessInfo structure that is set in the optimization phase.
+   */
+  public void setTableAccessInfo(TableAccessInfo tableAccessInfo) {
+    this.tableAccessInfo = tableAccessInfo;
+  }
+
   protected HashMap<String, String> extractPartitionSpecs(Tree partspec)
       throws SemanticException {
     HashMap<String, String> partSpec = new LinkedHashMap<String, String>();
@@ -872,5 +900,49 @@ public abstract class BaseSemanticAnalyzer {
 
   public QueryProperties getQueryProperties() {
     return queryProperties;
+  }
+
+  /**
+   * Given a ASTNode, return list of values.
+   *
+   * use case:
+   *   create table xyz list bucketed (col1) with skew (1,2,5)
+   *   AST Node is for (1,2,5)
+   * @param ast
+   * @return
+   */
+  protected List<String> getSkewedValueFromASTNode(ASTNode ast) {
+    List<String> colList = new ArrayList<String>();
+    int numCh = ast.getChildCount();
+    for (int i = 0; i < numCh; i++) {
+      ASTNode child = (ASTNode) ast.getChild(i);
+      colList.add(stripQuotes(child.getText()).toLowerCase());
+    }
+    return colList;
+  }
+
+  /**
+   * Retrieve skewed values from ASTNode.
+   *
+   * @param node
+   * @return
+   * @throws SemanticException
+   */
+  protected List<String> getSkewedValuesFromASTNode(Node node) throws SemanticException {
+    List<String> result = null;
+    Tree leafVNode = ((ASTNode) node).getChild(0);
+    if (leafVNode == null) {
+      throw new SemanticException(
+          ErrorMsg.SKEWED_TABLE_NO_COLUMN_VALUE.getMsg());
+    } else {
+      ASTNode lVAstNode = (ASTNode) leafVNode;
+      if (lVAstNode.getToken().getType() != HiveParser.TOK_TABCOLVALUE) {
+        throw new SemanticException(
+            ErrorMsg.SKEWED_TABLE_NO_COLUMN_VALUE.getMsg());
+      } else {
+        result = new ArrayList<String>(getSkewedValueFromASTNode(lVAstNode));
+      }
+    }
+    return result;
   }
 }

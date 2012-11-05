@@ -131,6 +131,9 @@ public class HiveConf extends Configuration {
       HiveConf.ConfVars.METASTORE_PART_INHERIT_TBL_PROPS,
       HiveConf.ConfVars.METASTORE_BATCH_RETRIEVE_TABLE_PARTITION_MAX,
       HiveConf.ConfVars.METASTORE_PRE_EVENT_LISTENERS,
+      HiveConf.ConfVars.HMSHANDLERATTEMPTS,
+      HiveConf.ConfVars.HMSHANDLERINTERVAL,
+      HiveConf.ConfVars.HMSHANDLERFORCERELOADCONF,
       };
 
   /**
@@ -257,9 +260,18 @@ public class HiveConf extends Configuration {
     METASTOREINTERVAL("hive.metastore.ds.retry.interval", 1000),
     // Whether to force reloading of the metastore configuration (including
     // the connection URL, before the next metastore query that accesses the
-    // datastore. Once reloaded, the  this value is reset to false. Used for
+    // datastore. Once reloaded, this value is reset to false. Used for
     // testing only.
     METASTOREFORCERELOADCONF("hive.metastore.force.reload.conf", false),
+    // Number of attempts to retry connecting after there is a JDO datastore err
+    HMSHANDLERATTEMPTS("hive.hmshandler.retry.attempts", 1),
+    // Number of miliseconds to wait between attepting
+    HMSHANDLERINTERVAL("hive.hmshandler.retry.interval", 1000),
+    // Whether to force reloading of the HMSHandler configuration (including
+    // the connection URL, before the next metastore query that accesses the
+    // datastore. Once reloaded, this value is reset to false. Used for
+    // testing only.
+    HMSHANDLERFORCERELOADCONF("hive.hmshandler.force.reload.conf", false),
     METASTORESERVERMINTHREADS("hive.metastore.server.min.threads", 200),
     METASTORESERVERMAXTHREADS("hive.metastore.server.max.threads", 100000),
     METASTORE_TCP_KEEP_ALIVE("hive.metastore.server.tcp.keepalive", true),
@@ -308,6 +320,9 @@ public class HiveConf extends Configuration {
     METASTORE_EVENT_CLEAN_FREQ("hive.metastore.event.clean.freq",0L),
     METASTORE_EVENT_EXPIRY_DURATION("hive.metastore.event.expiry.duration",0L),
     METASTORE_EXECUTE_SET_UGI("hive.metastore.execute.setugi", false),
+    METASTORE_PARTITION_NAME_WHITELIST_PATTERN(
+        "hive.metastore.partition.name.whitelist.pattern", ""),
+
 
     // Default parameters for creating tables
     NEWTABLEDEFAULTPARA("hive.table.parameters.default", ""),
@@ -324,6 +339,11 @@ public class HiveConf extends Configuration {
     METASTORE_CONNECTION_USER_NAME("javax.jdo.option.ConnectionUserName", "APP"),
     METASTORE_END_FUNCTION_LISTENERS("hive.metastore.end.function.listeners", ""),
     METASTORE_PART_INHERIT_TBL_PROPS("hive.metastore.partition.inherit.table.properties",""),
+
+    // Parameters for exporting metadata on table drop (requires the use of the)
+    // org.apache.hadoop.hive.ql.parse.MetaDataExportListener preevent listener
+    METADATA_EXPORT_LOCATION("hive.metadata.export.location", ""),
+    MOVE_EXPORTED_METADATA_TO_TRASH("hive.metadata.move.exported.metadata.to.trash", true),
 
     // CLI
     CLIIGNOREERRORS("hive.cli.errors.ignore", false),
@@ -380,6 +400,7 @@ public class HiveConf extends Configuration {
     HIVEMAPAGGRMEMORYTHRESHOLD("hive.map.aggr.hash.force.flush.memory.threshold", (float) 0.9),
     HIVEMAPAGGRHASHMINREDUCTION("hive.map.aggr.hash.min.reduction", (float) 0.5),
     HIVEMULTIGROUPBYSINGLEREDUCER("hive.multigroupby.singlereducer", true),
+    HIVE_MAP_GROUPBY_SORT("hive.map.groupby.sorted", false),
 
     // for hive udtf operator
     HIVEUDTFAUTOPROGRESS("hive.udtf.auto.progress", false),
@@ -489,6 +510,18 @@ public class HiveConf extends Configuration {
     HIVEOPTBUCKETMAPJOIN("hive.optimize.bucketmapjoin", false), // optimize bucket map join
     HIVEOPTSORTMERGEBUCKETMAPJOIN("hive.optimize.bucketmapjoin.sortedmerge", false), // try to use sorted merge bucket map join
     HIVEOPTREDUCEDEDUPLICATION("hive.optimize.reducededuplication", true),
+    // whether to optimize union followed by select followed by filesink
+    // It creates sub-directories in the final output, so should not be turned on in systems
+    // where MAPREDUCE-1501 is not present
+    HIVE_OPTIMIZE_UNION_REMOVE("hive.optimize.union.remove", false),
+
+    // whether hadoop map-reduce supports sub-directories. It was added by MAPREDUCE-1501.
+    // Some optimizations can only be performed if the version of hadoop being used supports
+    // sub-directories
+    HIVE_HADOOP_SUPPORTS_SUBDIRECTORIES("hive.mapred.supports.subdirectories", false),
+
+    // optimize skewed join by changing the query plan at compile time
+    HIVE_OPTIMIZE_SKEWJOIN_COMPILETIME("hive.optimize.skewjoin.compiletime", false),
 
     // Indexes
     HIVEOPTINDEXFILTER_COMPACT_MINSIZE("hive.optimize.index.filter.compact.minsize", (long) 5 * 1024 * 1024 * 1024), // 5G
@@ -518,10 +551,12 @@ public class HiveConf extends Configuration {
     HIVE_STATS_RETRIES_WAIT("hive.stats.retries.wait",
         3000),  // # milliseconds to wait before the next retry
     HIVE_STATS_COLLECT_RAWDATASIZE("hive.stats.collect.rawdatasize", true),
-    // should the raw data size be collected when analayzing tables
+    // should the raw data size be collected when analyzing tables
     CLIENT_STATS_COUNTERS("hive.client.stats.counters", ""),
     //Subset of counters that should be of interest for hive.client.stats.publishers (when one wants to limit their publishing). Non-display names should be used".
     HIVE_STATS_RELIABLE("hive.stats.reliable", false),
+    // Collect table access keys information for operators that can benefit from bucketing
+    HIVE_STATS_COLLECT_TABLEKEYS("hive.stats.collect.tablekeys", false),
 
     // Concurrency
     HIVE_SUPPORT_CONCURRENCY("hive.support.concurrency", false),
@@ -542,7 +577,6 @@ public class HiveConf extends Configuration {
 
     // For har files
     HIVEARCHIVEENABLED("hive.archive.enabled", false),
-    HIVEHARPARENTDIRSETTABLE("hive.archive.har.parentdir.settable", false),
 
     //Enable/Disable gbToIdx rewrite rule
     HIVEOPTGBYUSINGINDEX("hive.optimize.index.groupby", false),
@@ -610,18 +644,30 @@ public class HiveConf extends Configuration {
     // beginning and end of Driver.run, these will be run in the order specified
     HIVE_DRIVER_RUN_HOOKS("hive.exec.driver.run.hooks", ""),
     HIVE_DDL_OUTPUT_FORMAT("hive.ddl.output.format", null),
+    HIVE_ENTITY_SEPARATOR("hive.entity.separator", "@"),
 
     // If this is set all move tasks at the end of a multi-insert query will only begin once all
     // outputs are ready
     HIVE_MULTI_INSERT_MOVE_TASKS_SHARE_DEPENDENCIES(
         "hive.multi.insert.move.tasks.share.dependencies", false),
 
-    /**
-     * Enable list bucketing DDL. Default value is false so that we disable it by default.
-     *
-     * This will be removed once the rest of the DML changes are committed.
-     */
+    /* The following section contains all configurations used for list bucketing feature.*/
+    // Enable list bucketing DDL. Default value is false so that we disable it by default.
+    // This will be removed once the rest of the DML changes are committed.
     HIVE_INTERNAL_DDL_LIST_BUCKETING_ENABLE("hive.internal.ddl.list.bucketing.enable", false),
+
+    // Default list bucketing directory name.
+    HIVE_LIST_BUCKETING_DEFAULT_DIR_NAME("hive.exec.list.bucketing.default.dir",
+        "HIVE_DEFAULT_LIST_BUCKETING_DIR_NAME"),
+    // Enable list bucketing optimizer. Default value is false so that we disable it by default.
+    // This will be removed once the rest of the DML changes are committed.
+    HIVEOPTLISTBUCKETING("hive.optimize.listbucketing", false),
+
+    // Allow TCP Keep alive socket option for for HiveServer or a maximum timeout for the socket.
+
+    SERVER_READ_SOCKET_TIMEOUT("hive.server.read.socket.timeout", 10),
+    SERVER_TCP_KEEP_ALIVE("hive.server.tcp.keepalive", true),
+
     ;
 
     public final String varname;

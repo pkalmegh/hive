@@ -45,6 +45,9 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import org.antlr.stringtemplate.StringTemplate;
+import org.apache.commons.lang.StringEscapeUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -73,6 +76,9 @@ import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.hive.metastore.api.PrivilegeBag;
 import org.apache.hadoop.hive.metastore.api.PrivilegeGrantInfo;
 import org.apache.hadoop.hive.metastore.api.Role;
+import org.apache.hadoop.hive.metastore.api.SerDeInfo;
+import org.apache.hadoop.hive.metastore.api.SkewedInfo;
+import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.ql.Context;
 import org.apache.hadoop.hive.ql.DriverContext;
 import org.apache.hadoop.hive.ql.QueryPlan;
@@ -100,6 +106,7 @@ import org.apache.hadoop.hive.ql.metadata.formatting.MetaDataFormatUtils;
 import org.apache.hadoop.hive.ql.metadata.formatting.MetaDataFormatter;
 import org.apache.hadoop.hive.ql.metadata.formatting.TextMetaDataFormatter;
 import org.apache.hadoop.hive.ql.parse.AlterTablePartMergeFilesDesc;
+import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer;
 import org.apache.hadoop.hive.ql.plan.AddPartitionDesc;
 import org.apache.hadoop.hive.ql.plan.AlterDatabaseDesc;
 import org.apache.hadoop.hive.ql.plan.AlterIndexDesc;
@@ -130,6 +137,7 @@ import org.apache.hadoop.hive.ql.plan.RenamePartitionDesc;
 import org.apache.hadoop.hive.ql.plan.RevokeDesc;
 import org.apache.hadoop.hive.ql.plan.RoleDDLDesc;
 import org.apache.hadoop.hive.ql.plan.ShowColumnsDesc;
+import org.apache.hadoop.hive.ql.plan.ShowCreateTableDesc;
 import org.apache.hadoop.hive.ql.plan.ShowDatabasesDesc;
 import org.apache.hadoop.hive.ql.plan.ShowFunctionsDesc;
 import org.apache.hadoop.hive.ql.plan.ShowGrantDesc;
@@ -364,6 +372,11 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       ShowPartitionsDesc showParts = work.getShowPartsDesc();
       if (showParts != null) {
         return showPartitions(db, showParts);
+      }
+
+      ShowCreateTableDesc showCreateTbl = work.getShowCreateTblDesc();
+      if (showCreateTbl != null) {
+        return showCreateTable(db, showCreateTbl);
       }
 
       RoleDDLDesc roleDDLDesc = work.getRoleDDLDesc();
@@ -1324,6 +1337,7 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
     // ARCHIVE_INTERMEDIATE_DIR_SUFFIX that's the same level as the partition,
     // if it does not already exist. If it does exist, we assume the dir is good
     // to use as the move operation that created it is atomic.
+    HadoopShims shim = ShimLoader.getHadoopShims();
     if (!pathExists(intermediateArchivedDir) &&
         !pathExists(intermediateOriginalDir)) {
 
@@ -1338,7 +1352,6 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       console.printInfo("Please wait... (this may take a while)");
 
       // Create the Hadoop archive
-      HadoopShims shim = ShimLoader.getHadoopShims();
       int ret=0;
       try {
         int maxJobNameLen = conf.getIntVar(HiveConf.ConfVars.HIVEJOBNAMELENGTH);
@@ -1353,6 +1366,7 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       if (ret != 0) {
         throw new HiveException("Error while creating HAR");
       }
+
       // Move from the tmp dir to an intermediate directory, in the same level as
       // the partition directory. e.g. .../hr=12-intermediate-archived
       try {
@@ -1406,7 +1420,8 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
     try {
       for(Partition p: partitions) {
         URI originalPartitionUri = ArchiveUtils.addSlash(p.getPartitionPath().toUri());
-        URI harPartitionDir = harHelper.getHarUri(originalPartitionUri);
+        URI test = p.getPartitionPath().toUri();
+        URI harPartitionDir = harHelper.getHarUri(originalPartitionUri, shim);
         Path harPath = new Path(harPartitionDir.getScheme(),
             harPartitionDir.getAuthority(),
             harPartitionDir.getPath()); // make in Path to ensure no slash at the end
@@ -1508,7 +1523,8 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
     URI archiveUri = archivePath.toUri();
     ArchiveUtils.HarPathHelper harHelper = new ArchiveUtils.HarPathHelper(conf,
         archiveUri, originalUri);
-    URI sourceUri = harHelper.getHarUri(originalUri);
+    HadoopShims shim = ShimLoader.getHadoopShims();
+    URI sourceUri = harHelper.getHarUri(originalUri, shim);
     Path sourceDir = new Path(sourceUri.getScheme(), sourceUri.getAuthority(), sourceUri.getPath());
 
     if(!pathExists(intermediateArchivedDir) && !pathExists(archivePath)) {
@@ -1825,6 +1841,239 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
         formatter.logWarn(outStream, "show partitions: " + stringifyException(e),
                           MetaDataFormatter.ERROR);
         return 1;
+    } catch (Exception e) {
+      throw new HiveException(e);
+    } finally {
+      IOUtils.closeStream((FSDataOutputStream) outStream);
+    }
+
+    return 0;
+  }
+
+  /**
+   * Write a statement of how to create a table to a file.
+   *
+   * @param db
+   *          The database in question.
+   * @param showCreateTbl
+   *          This is the table we're interested in.
+   * @return Returns 0 when execution succeeds and above 0 if it fails.
+   * @throws HiveException
+   *           Throws this exception if an unexpected error occurs.
+   */
+  private int showCreateTable(Hive db, ShowCreateTableDesc showCreateTbl) throws HiveException {
+    // get the create table statement for the table and populate the output
+    final String EXTERNAL = "external";
+    final String LIST_COLUMNS = "columns";
+    final String TBL_COMMENT = "tbl_comment";
+    final String LIST_PARTITIONS = "partitions";
+    final String SORT_BUCKET = "sort_bucket";
+    final String ROW_FORMAT = "row_format";
+    final String TBL_LOCATION = "tbl_location";
+    final String TBL_PROPERTIES = "tbl_properties";
+
+    String tableName = showCreateTbl.getTableName();
+    Table tbl = db.getTable(tableName, false);
+    DataOutput outStream = null;
+    List<String> duplicateProps = new ArrayList<String>();
+    try {
+      Path resFile = new Path(showCreateTbl.getResFile());
+      FileSystem fs = resFile.getFileSystem(conf);
+      outStream = fs.create(resFile);
+
+      if (tbl.isView()) {
+        String createTab_stmt = "CREATE VIEW " + tableName + " AS " + tbl.getViewExpandedText();
+        outStream.writeBytes(createTab_stmt.toString());
+        ((FSDataOutputStream) outStream).close();
+        outStream = null;
+        return 0;
+      }
+
+      StringTemplate createTab_stmt = new StringTemplate("CREATE $" + EXTERNAL + "$ TABLE " +
+          tableName + "(\n" +
+          "$" + LIST_COLUMNS + "$)\n" +
+          "$" + TBL_COMMENT + "$\n" +
+          "$" + LIST_PARTITIONS + "$\n" +
+          "$" + SORT_BUCKET + "$\n" +
+          "$" + ROW_FORMAT + "$\n" +
+          "LOCATION\n" +
+          "$" + TBL_LOCATION + "$\n" +
+          "TBLPROPERTIES (\n" +
+          "$" + TBL_PROPERTIES + "$)\n");
+
+      // For cases where the table is external
+      String tbl_external = "";
+      if (tbl.getTableType() == TableType.EXTERNAL_TABLE) {
+        duplicateProps.add("EXTERNAL");
+        tbl_external = "EXTERNAL";
+      }
+
+      // Columns
+      String tbl_columns = "";
+      List<FieldSchema> cols = tbl.getCols();
+      List<String> columns = new ArrayList<String>();
+      for (FieldSchema col : cols) {
+        String columnDesc = "  " + col.getName() + " " + col.getType();
+        if (col.getComment() != null) {
+          columnDesc = columnDesc + " COMMENT '" + escapeHiveCommand(col.getComment()) + "'";
+        }
+        columns.add(columnDesc);
+      }
+      tbl_columns = StringUtils.join(columns, ", \n");
+
+      // Table comment
+      String tbl_comment = "";
+      String tabComment = tbl.getProperty("comment");
+      if (tabComment != null) {
+        duplicateProps.add("comment");
+        tbl_comment = "COMMENT '" + escapeHiveCommand(tabComment) + "'";
+      }
+
+      // Partitions
+      String tbl_partitions = "";
+      List<FieldSchema> partKeys = tbl.getPartitionKeys();
+      if (partKeys.size() > 0) {
+        tbl_partitions += "PARTITIONED BY ( \n";
+        List<String> partCols = new ArrayList<String>();
+        for (FieldSchema partKey : partKeys) {
+          String partColDesc = "  " + partKey.getName() + " " + partKey.getType();
+          if (partKey.getComment() != null) {
+            partColDesc = partColDesc + " COMMENT '" +
+                escapeHiveCommand(partKey.getComment()) + "'";
+          }
+          partCols.add(partColDesc);
+        }
+        tbl_partitions += StringUtils.join(partCols, ", \n");
+        tbl_partitions += ")";
+      }
+
+      // Clusters (Buckets)
+      String tbl_sort_bucket = "";
+      List<String> buckCols = tbl.getBucketCols();
+      if (buckCols.size() > 0) {
+        duplicateProps.add("SORTBUCKETCOLSPREFIX");
+        tbl_sort_bucket += "CLUSTERED BY ( \n  ";
+        tbl_sort_bucket += StringUtils.join(buckCols, ", \n  ");
+        tbl_sort_bucket += ") \n";
+        List<Order> sortCols = tbl.getSortCols();
+        if (sortCols.size() > 0) {
+          tbl_sort_bucket += "SORTED BY ( \n";
+          // Order
+          List<String> sortKeys = new ArrayList<String>();
+          for (Order sortCol : sortCols) {
+            String sortKeyDesc = "  " + sortCol.getCol() + " ";
+            if (sortCol.getOrder() == BaseSemanticAnalyzer.HIVE_COLUMN_ORDER_ASC) {
+              sortKeyDesc = sortKeyDesc + "ASC";
+            }
+            else if (sortCol.getOrder() == BaseSemanticAnalyzer.HIVE_COLUMN_ORDER_DESC) {
+              sortKeyDesc = sortKeyDesc + "DESC";
+            }
+            sortKeys.add(sortKeyDesc);
+          }
+          tbl_sort_bucket += StringUtils.join(sortKeys, ", \n");
+          tbl_sort_bucket += ") \n";
+        }
+        tbl_sort_bucket += "INTO " + tbl.getNumBuckets() + " BUCKETS";
+      }
+
+      // Row format (SerDe)
+      String tbl_row_format = "";
+      StorageDescriptor sd = tbl.getTTable().getSd();
+      SerDeInfo serdeInfo = sd.getSerdeInfo();
+      tbl_row_format += "ROW FORMAT";
+      if (tbl.getStorageHandler() == null) {
+        if (serdeInfo.getParametersSize() > 1) {
+          // There is a "serialization.format" property by default,
+          // even with a delimited row format.
+          // But our result will only cover the following four delimiters.
+          tbl_row_format += " DELIMITED \n";
+          Map<String, String> delims = serdeInfo.getParameters();
+          // Warn:
+          // If the four delimiters all exist in a CREATE TABLE query,
+          // this following order needs to be strictly followed,
+          // or the query will fail with a ParseException.
+          if (delims.containsKey(Constants.FIELD_DELIM)) {
+            tbl_row_format += "  FIELDS TERMINATED BY '" +
+                escapeHiveCommand(StringEscapeUtils.escapeJava(delims.get(
+                Constants.FIELD_DELIM))) + "' \n";
+          }
+          if (delims.containsKey(Constants.COLLECTION_DELIM)) {
+            tbl_row_format += "  COLLECTION ITEMS TERMINATED BY '" +
+                escapeHiveCommand(StringEscapeUtils.escapeJava(delims.get(
+                Constants.COLLECTION_DELIM))) + "' \n";
+          }
+          if (delims.containsKey(Constants.MAPKEY_DELIM)) {
+            tbl_row_format += "  MAP KEYS TERMINATED BY '" +
+                escapeHiveCommand(StringEscapeUtils.escapeJava(delims.get(
+                Constants.MAPKEY_DELIM))) + "' \n";
+          }
+          if (delims.containsKey(Constants.LINE_DELIM)) {
+            tbl_row_format += "  LINES TERMINATED BY '" +
+                escapeHiveCommand(StringEscapeUtils.escapeJava(delims.get(
+                Constants.LINE_DELIM))) + "' \n";
+          }
+        }
+        else {
+          tbl_row_format += " SERDE \n  '" +
+              escapeHiveCommand(serdeInfo.getSerializationLib()) + "' \n";
+        }
+        tbl_row_format += "STORED AS INPUTFORMAT \n  '" +
+            escapeHiveCommand(sd.getInputFormat()) + "' \n";
+        tbl_row_format += "OUTPUTFORMAT \n  '" +
+            escapeHiveCommand(sd.getOutputFormat()) + "'";
+      }
+      else {
+        duplicateProps.add(org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_STORAGE);
+        tbl_row_format += " SERDE \n  '" +
+            escapeHiveCommand(serdeInfo.getSerializationLib()) + "' \n";
+        tbl_row_format += "STORED BY \n  '" + escapeHiveCommand(tbl.getParameters().get(
+            org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_STORAGE)) + "' \n";
+        // SerDe Properties
+        if (serdeInfo.getParametersSize() > 0) {
+          tbl_row_format += "WITH SERDEPROPERTIES ( \n";
+          List<String> serdeCols = new ArrayList<String>();
+          for (Map.Entry<String, String> entry : serdeInfo.getParameters().entrySet()) {
+            serdeCols.add("  '" + entry.getKey() + "'='"
+                + escapeHiveCommand(StringEscapeUtils.escapeJava(entry.getValue())) + "'");
+          }
+          tbl_row_format += StringUtils.join(serdeCols, ", \n");
+          tbl_row_format += ")";
+        }
+      }
+      String tbl_location = "  '" + escapeHiveCommand(sd.getLocation()) + "'";
+
+      // Table properties
+      String tbl_properties = "";
+      Map<String, String> properties = tbl.getParameters();
+      if (properties.size() > 0) {
+        List<String> realProps = new ArrayList<String>();
+        for (String key : properties.keySet()) {
+          if (properties.get(key) != null && !duplicateProps.contains(key)) {
+            realProps.add("  '" + key + "'='" +
+                escapeHiveCommand(StringEscapeUtils.escapeJava(properties.get(key))) + "'");
+          }
+        }
+        tbl_properties += StringUtils.join(realProps, ", \n");
+      }
+
+      createTab_stmt.setAttribute(EXTERNAL, tbl_external);
+      createTab_stmt.setAttribute(LIST_COLUMNS, tbl_columns);
+      createTab_stmt.setAttribute(TBL_COMMENT, tbl_comment);
+      createTab_stmt.setAttribute(LIST_PARTITIONS, tbl_partitions);
+      createTab_stmt.setAttribute(SORT_BUCKET, tbl_sort_bucket);
+      createTab_stmt.setAttribute(ROW_FORMAT, tbl_row_format);
+      createTab_stmt.setAttribute(TBL_LOCATION, tbl_location);
+      createTab_stmt.setAttribute(TBL_PROPERTIES, tbl_properties);
+
+      outStream.writeBytes(createTab_stmt.toString());
+      ((FSDataOutputStream) outStream).close();
+      outStream = null;
+    } catch (FileNotFoundException e) {
+      LOG.info("show create table: " + stringifyException(e));
+      return 1;
+    } catch (IOException e) {
+      LOG.info("show create table: " + stringifyException(e));
+      return 1;
     } catch (Exception e) {
       throw new HiveException(e);
     } finally {
@@ -2660,6 +2909,17 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
     outStream.write(separator);
   }
 
+  private void setAlterProtectMode(boolean protectModeEnable,
+      AlterTableDesc.ProtectModeType protectMode,
+      ProtectMode mode) {
+    if (protectMode == AlterTableDesc.ProtectModeType.OFFLINE) {
+      mode.offline = protectModeEnable;
+    } else if (protectMode == AlterTableDesc.ProtectModeType.NO_DROP) {
+      mode.noDrop = protectModeEnable;
+    } else if (protectMode == AlterTableDesc.ProtectModeType.NO_DROP_CASCADE) {
+      mode.noDropCascade = protectModeEnable;
+    }
+  }
   /**
    * Alter a given table.
    *
@@ -2676,14 +2936,20 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
     Table tbl = db.getTable(alterTbl.getOldName());
 
     Partition part = null;
-    if(alterTbl.getPartSpec() != null) {
-      part = db.getPartition(tbl, alterTbl.getPartSpec(), false);
-      if(part == null) {
-        formatter.consoleError(console,
-                               "Partition : " + alterTbl.getPartSpec().toString()
-                               + " does not exist.",
-                               formatter.MISSING);
-        return 1;
+    List<Partition> allPartitions = null;
+    if (alterTbl.getPartSpec() != null) {
+      if (alterTbl.getOp() != AlterTableDesc.AlterTableTypes.ALTERPROTECTMODE) {
+        part = db.getPartition(tbl, alterTbl.getPartSpec(), false);
+        if (part == null) {
+          formatter.consoleError(console,
+                                 "Partition : " + alterTbl.getPartSpec().toString()
+                                 + " does not exist.",
+                                 formatter.MISSING);
+          return 1;
+        }
+      }
+      else {
+        allPartitions = db.getPartitions(tbl, alterTbl.getPartSpec());
       }
     }
 
@@ -2860,38 +3126,17 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       AlterTableDesc.ProtectModeType protectMode = alterTbl.getProtectModeType();
 
       ProtectMode mode = null;
-      if(part != null) {
-        mode = part.getProtectMode();
+      if (allPartitions != null) {
+        for (Partition tmpPart: allPartitions) {
+          mode = tmpPart.getProtectMode();
+          setAlterProtectMode(protectModeEnable, protectMode, mode);
+          tmpPart.setProtectMode(mode);
+        }
       } else {
         mode = tbl.getProtectMode();
-      }
-
-      if (protectModeEnable
-          && protectMode == AlterTableDesc.ProtectModeType.OFFLINE) {
-        mode.offline = true;
-      } else if (protectModeEnable
-          && protectMode == AlterTableDesc.ProtectModeType.NO_DROP) {
-        mode.noDrop = true;
-      } else if (protectModeEnable
-          && protectMode == AlterTableDesc.ProtectModeType.NO_DROP_CASCADE) {
-        mode.noDropCascade = true;
-      } else if (!protectModeEnable
-          && protectMode == AlterTableDesc.ProtectModeType.OFFLINE) {
-        mode.offline = false;
-      } else if (!protectModeEnable
-          && protectMode == AlterTableDesc.ProtectModeType.NO_DROP) {
-        mode.noDrop = false;
-      } else if (!protectModeEnable
-          && protectMode == AlterTableDesc.ProtectModeType.NO_DROP_CASCADE) {
-        mode.noDropCascade = false;
-      }
-
-      if (part != null) {
-        part.setProtectMode(mode);
-      } else {
+        setAlterProtectMode(protectModeEnable,protectMode, mode);
         tbl.setProtectMode(mode);
       }
-
     } else if (alterTbl.getOp() == AlterTableDesc.AlterTableTypes.ADDCLUSTERSORTCOLUMN) {
       // validate sort columns and bucket columns
       List<String> columns = Utilities.getColumnNamesFromFieldSchema(tbl
@@ -2938,6 +3183,49 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       } catch (URISyntaxException e) {
         throw new HiveException(e);
       }
+    } else if (alterTbl.getOp() == AlterTableDesc.AlterTableTypes.ADDSKEWEDBY) {
+      /* Validation's been done at compile time. no validation is needed here. */
+      List<String> skewedColNames = null;
+      List<List<String>> skewedValues = null;
+
+      if (alterTbl.isTurnOffSkewed()) {
+        /* Convert skewed table to non-skewed table. */
+        skewedColNames = new ArrayList<String>();
+        skewedValues = new ArrayList<List<String>>();
+      } else {
+        skewedColNames = alterTbl.getSkewedColNames();
+        skewedValues = alterTbl.getSkewedColValues();
+      }
+
+      if ( null == tbl.getSkewedInfo()) {
+        /* Convert non-skewed table to skewed table. */
+        SkewedInfo skewedInfo = new SkewedInfo();
+        skewedInfo.setSkewedColNames(skewedColNames);
+        skewedInfo.setSkewedColValues(skewedValues);
+        tbl.setSkewedInfo(skewedInfo);
+      } else {
+        tbl.setSkewedColNames(skewedColNames);
+        tbl.setSkewedColValues(skewedValues);
+      }
+    } else if (alterTbl.getOp() == AlterTableDesc.AlterTableTypes.ALTERSKEWEDLOCATION) {
+      // process location one-by-one
+      Map<List<String>,String> locMaps = alterTbl.getSkewedLocations();
+      Set<List<String>> keys = locMaps.keySet();
+      for(List<String> key:keys){
+        String newLocation = locMaps.get(key);
+        try {
+          URI locUri = new URI(newLocation);
+          if (part != null) {
+            List<String> slk = new ArrayList<String>(key);
+            part.setSkewedValueLocationMap(slk, locUri.toString());
+          } else {
+            List<String> slk = new ArrayList<String>(key);
+            tbl.setSkewedValueLocationMap(slk, locUri.toString());
+          }
+        } catch (URISyntaxException e) {
+          throw new HiveException(e);
+        }
+      }
     } else {
       formatter.consoleError(console,
                              "Unsupported Alter commnad",
@@ -2945,7 +3233,7 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       return 1;
     }
 
-    if(part == null) {
+    if (part == null && allPartitions == null) {
       if (!updateModifiedParameters(tbl.getTTable().getParameters(), conf)) {
         return 1;
       }
@@ -2957,17 +3245,27 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
                                formatter.ERROR);
         return 1;
       }
-    } else {
+    } else if (part != null) {
       if (!updateModifiedParameters(part.getParameters(), conf)) {
         return 1;
       }
     }
+    else {
+      for (Partition tmpPart: allPartitions) {
+        if (!updateModifiedParameters(tmpPart.getParameters(), conf)) {
+          return 1;
+        }
+      }
+    }
 
     try {
-      if (part == null) {
+      if (part == null && allPartitions == null) {
         db.alterTable(alterTbl.getOldName(), tbl);
-      } else {
+      } else if (part != null) {
         db.alterPartition(tbl.getTableName(), part);
+      }
+      else {
+        db.alterPartitions(tbl.getTableName(), allPartitions);
       }
     } catch (InvalidOperationException e) {
       console.printError("Invalid alter operation: " + e.getMessage());
@@ -2985,7 +3283,14 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
     if(part != null) {
       work.getInputs().add(new ReadEntity(part));
       work.getOutputs().add(new WriteEntity(part));
-    } else {
+    }
+    else if (allPartitions != null ){
+      for (Partition tmpPart: allPartitions) {
+        work.getInputs().add(new ReadEntity(tmpPart));
+        work.getOutputs().add(new WriteEntity(tmpPart));
+      }
+    }
+    else {
       work.getInputs().add(new ReadEntity(oldTbl));
       work.getOutputs().add(new WriteEntity(tbl));
     }
@@ -3584,6 +3889,18 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
     // set create time
     tbl.setCreateTime((int) (System.currentTimeMillis() / 1000));
     return 0;
+  }
+
+  private String escapeHiveCommand(String str) {
+    StringBuilder sb = new StringBuilder();
+    for (int i = 0; i < str.length(); i ++) {
+      char c = str.charAt(i);
+      if (c == '\'' || c == ';') {
+        sb.append('\\');
+      }
+      sb.append(c);
+    }
+    return sb.toString();
   }
 
   @Override

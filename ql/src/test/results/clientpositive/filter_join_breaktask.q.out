@@ -67,7 +67,7 @@ STAGE PLANS:
             Filter Operator
               isSamplingPred: false
               predicate:
-                  expr: (value is not null and (value <> ''))
+                  expr: ((key is not null and value is not null) and (value <> ''))
                   type: boolean
               Reduce Output Operator
                 key expressions:
@@ -157,6 +157,8 @@ STAGE PLANS:
             TotalFiles: 1
             GatherStats: false
             MultiFileSpray: false
+      Truncated Path -> Alias:
+        /filter_join_breaktask/ds=2008-04-08 [f, m]
 
   Stage: Stage-2
     Map Reduce
@@ -178,18 +180,23 @@ STAGE PLANS:
           TableScan
             alias: g
             GatherStats: false
-            Reduce Output Operator
-              key expressions:
-                    expr: value
-                    type: string
-              sort order: +
-              Map-reduce partition columns:
-                    expr: value
-                    type: string
-              tag: 1
-              value expressions:
-                    expr: value
-                    type: string
+            Filter Operator
+              isSamplingPred: false
+              predicate:
+                  expr: (value <> '')
+                  type: boolean
+              Reduce Output Operator
+                key expressions:
+                      expr: value
+                      type: string
+                sort order: +
+                Map-reduce partition columns:
+                      expr: value
+                      type: string
+                tag: 1
+                value expressions:
+                      expr: value
+                      type: string
       Needs Tagging: true
       Path -> Alias:
 #### A masked pattern was here ####
@@ -289,6 +296,9 @@ STAGE PLANS:
               TotalFiles: 1
               GatherStats: false
               MultiFileSpray: false
+      Truncated Path -> Alias:
+        /filter_join_breaktask/ds=2008-04-08 [g]
+#### A masked pattern was here ####
 
   Stage: Stage-0
     Fetch Operator

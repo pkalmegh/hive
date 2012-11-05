@@ -74,7 +74,7 @@ public class SortedMergeBucketMapJoinOptimizer implements Transform {
     Map<Rule, NodeProcessor> opRules = new LinkedHashMap<Rule, NodeProcessor>();
     // go through all map joins and find out all which have enabled bucket map
     // join.
-    opRules.put(new RuleRegExp("R1", "MAPJOIN%"),
+    opRules.put(new RuleRegExp("R1", MapJoinOperator.getOperatorName() + "%"),
         getSortedMergeBucketMapjoinProc(pctx));
     // The dispatcher fires the processor corresponding to the closest matching
     // rule and passes the context along
@@ -241,15 +241,6 @@ public class SortedMergeBucketMapJoinOptimizer implements Transform {
       TableScanOperator tso = (TableScanOperator) topOps.get(alias);
       if (tso == null) {
         return false;
-      }
-      if (pos != op.getConf().getPosBigTable()) {
-        // currently, a file from a big table can be joined with only 1 file from a small table
-        for (List<String> files :
-            op.getConf().getAliasBucketFileNameMapping().get(alias).values()) {
-          if (files != null && files.size() > 1) {
-            return false;
-          }
-        }
       }
 
       List<ExprNodeDesc> keys = op.getConf().getKeys().get((byte) pos);

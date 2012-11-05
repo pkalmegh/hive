@@ -96,6 +96,16 @@ public class ColumnInfo implements Serializable {
     this.isHiddenVirtualCol = isHiddenVirtualCol;
   }
 
+  public ColumnInfo(ColumnInfo columnInfo) {
+    this.internalName = columnInfo.getInternalName();
+    this.alias = columnInfo.getAlias();
+    this.isSkewedCol = columnInfo.isSkewedCol();
+    this.tabAlias = columnInfo.getTabAlias();
+    this.isVirtualCol = columnInfo.getIsVirtualCol();
+    this.isHiddenVirtualCol = columnInfo.isHiddenVirtualCol();
+    this.setType(columnInfo.getType());
+  }
+
   public TypeInfo getType() {
     return TypeInfoUtils.getTypeInfoFromObjectInspector(objectInspector);
   }
@@ -169,5 +179,28 @@ public class ColumnInfo implements Serializable {
    */
   public void setSkewedCol(boolean isSkewedCol) {
     this.isSkewedCol = isSkewedCol;
+  }
+
+  private boolean checkEquals(Object obj1, Object obj2) {
+    return obj1 == null ? obj2 == null : obj1.equals(obj2);
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (!(obj instanceof ColumnInfo) || (obj == null)) {
+      return false;
+    }
+
+    ColumnInfo dest = (ColumnInfo)obj;
+    if ((!checkEquals(internalName, dest.getInternalName())) ||
+        (!checkEquals(alias, dest.getAlias())) ||
+        (!checkEquals(getType(), dest.getType())) ||
+        (isSkewedCol != dest.isSkewedCol()) ||
+        (isVirtualCol != dest.getIsVirtualCol()) ||
+        (isHiddenVirtualCol != dest.isHiddenVirtualCol())) {
+      return false;
+    }
+
+    return true;
   }
 }

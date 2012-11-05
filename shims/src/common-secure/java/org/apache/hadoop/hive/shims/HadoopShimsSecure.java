@@ -21,10 +21,17 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -64,6 +71,9 @@ import org.apache.hadoop.util.ToolRunner;
  * Base implemention for shims against secure Hadoop 0.20.3/0.23.
  */
 public abstract class HadoopShimsSecure implements HadoopShims {
+
+  static final Log LOG = LogFactory.getLog(HadoopShimsSecure.class);
+
   public boolean usesJobShell() {
     return false;
   }
@@ -158,8 +168,15 @@ public abstract class HadoopShimsSecure implements HadoopShims {
     }
 
     public InputSplitShim(CombineFileSplit old) throws IOException {
-      super(old);
+      super(old.getJob(), old.getPaths(), old.getStartOffsets(),
+          old.getLengths(), dedup(old.getLocations()));
       _isShrinked = false;
+    }
+
+    private static String[] dedup(String[] locations) {
+      Set<String> dedup = new HashSet<String>();
+      Collections.addAll(dedup, locations);
+      return dedup.toArray(new String[dedup.size()]);
     }
 
     @Override
@@ -438,26 +455,31 @@ public abstract class HadoopShimsSecure implements HadoopShims {
     HadoopArchives har = new HadoopArchives(conf);
     List<String> args = new ArrayList<String>();
 
-    if (conf.get("hive.archive.har.parentdir.settable") == null) {
-      throw new RuntimeException("hive.archive.har.parentdir.settable is not set");
-    }
-    boolean parentSettable =
-      conf.getBoolean("hive.archive.har.parentdir.settable", false);
-
-    if (parentSettable) {
-      args.add("-archiveName");
-      args.add(archiveName);
-      args.add("-p");
-      args.add(sourceDir.toString());
-      args.add(destDir.toString());
-    } else {
-      args.add("-archiveName");
-      args.add(archiveName);
-      args.add(sourceDir.toString());
-      args.add(destDir.toString());
-    }
+    args.add("-archiveName");
+    args.add(archiveName);
+    args.add("-p");
+    args.add(sourceDir.toString());
+    args.add(destDir.toString());
 
     return ToolRunner.run(har, args.toArray(new String[0]));
+  }
+  
+  /*
+   * This particular instance is for Hadoop 1.0 which creates an archive
+   * with only the relative path of the archived directory stored within
+   * the archive as compared to the full path in case of earlier versions.
+   * See this api in Hadoop20Shims for comparison.
+   */
+  public URI getHarUri(URI original, URI base, URI originalBase) 
+    throws URISyntaxException {
+    URI relative = originalBase.relativize(original);
+    if (relative.isAbsolute()) {
+      throw new URISyntaxException("Couldn't create URI for location.",
+                                   "Relative: " + relative + " Base: " 
+                                   + base + " OriginalBase: " + originalBase);
+    }
+
+    return base.resolve(relative);
   }
 
   public static class NullOutputCommitter extends OutputCommitter {
@@ -526,6 +548,15 @@ public abstract class HadoopShimsSecure implements HadoopShims {
   }
 
   @Override
+  public void closeAllForUGI(UserGroupInformation ugi) {
+    try {
+      FileSystem.closeAllForUGI(ugi);
+    } catch (IOException e) {
+      LOG.error("Could not clean up file-system handles for UGI: " + ugi, e);
+    }
+  }
+
+  @Override
   abstract public JobTrackerState getJobTrackerState(ClusterStatus clusterStatus) throws Exception;
 
   @Override
@@ -533,4 +564,16 @@ public abstract class HadoopShimsSecure implements HadoopShims {
 
   @Override
   abstract public org.apache.hadoop.mapreduce.JobContext newJobContext(Job job);
+
+  @Override
+  abstract public boolean isLocalMode(Configuration conf);
+
+  @Override
+  abstract public void setJobLauncherRpcAddress(Configuration conf, String val);
+
+  @Override
+  abstract public String getJobLauncherHttpAddress(Configuration conf);
+
+  @Override
+  abstract public String getJobLauncherRpcAddress(Configuration conf);
 }

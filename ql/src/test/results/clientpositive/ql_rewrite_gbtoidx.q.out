@@ -294,7 +294,7 @@ STAGE PLANS:
               Group By Operator
                 aggregations:
                       expr: sum(_count_of_l_shipdate)
-                bucketGroup: false
+                bucketGroup: true
                 keys:
                       expr: l_shipdate
                       type: string
@@ -1136,7 +1136,7 @@ STAGE PLANS:
               Group By Operator
                 aggregations:
                       expr: sum(_count_of_l_shipdate)
-                bucketGroup: false
+                bucketGroup: true
                 keys:
                       expr: l_shipdate
                       type: string
@@ -1207,20 +1207,27 @@ STAGE PLANS:
                     expr: l_orderkey
                     type: int
               outputColumnNames: _col0, _col1
-              Union
-                Select Operator
-                  expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: bigint
-                  outputColumnNames: _col0, _col1
-                  File Output Operator
-                    compressed: false
-                    GlobalTableId: 0
-                    table:
-                        input format: org.apache.hadoop.mapred.TextInputFormat
-                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+              Select Operator
+                expressions:
+                      expr: _col0
+                      type: string
+                      expr: UDFToLong(_col1)
+                      type: bigint
+                outputColumnNames: _col0, _col1
+                Union
+                  Select Operator
+                    expressions:
+                          expr: _col0
+                          type: string
+                          expr: _col1
+                          type: bigint
+                    outputColumnNames: _col0, _col1
+                    File Output Operator
+                      compressed: false
+                      GlobalTableId: 0
+                      table:
+                          input format: org.apache.hadoop.mapred.TextInputFormat
+                          output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
 
   Stage: Stage-0
     Fetch Operator
@@ -1301,7 +1308,7 @@ STAGE PLANS:
                 Group By Operator
                   aggregations:
                         expr: sum(_count_of_key)
-                  bucketGroup: false
+                  bucketGroup: true
                   keys:
                         expr: key
                         type: int
@@ -1384,7 +1391,7 @@ STAGE PLANS:
               Group By Operator
                 aggregations:
                       expr: sum(_count_of_key)
-                bucketGroup: false
+                bucketGroup: true
                 keys:
                       expr: key
                       type: int
@@ -3909,7 +3916,7 @@ STAGE PLANS:
               Group By Operator
                 aggregations:
                       expr: sum(_count_of_key)
-                bucketGroup: false
+                bucketGroup: true
                 keys:
                       expr: key
                       type: int

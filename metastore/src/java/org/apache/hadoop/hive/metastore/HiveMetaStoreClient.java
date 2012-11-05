@@ -19,6 +19,7 @@
 package org.apache.hadoop.hive.metastore;
 
 import static org.apache.hadoop.hive.metastore.MetaStoreUtils.DEFAULT_DATABASE_NAME;
+import static org.apache.hadoop.hive.metastore.MetaStoreUtils.isIndexTable;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
@@ -113,7 +114,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
     if (localMetaStore) {
       // instantiate the metastore server handler directly instead of connecting
       // through the network
-      client = new HiveMetaStore.HMSHandler("hive client", conf);
+      client = HiveMetaStore.newHMSHandler("hive client", conf);
       isConnected = true;
       return;
     }
@@ -463,7 +464,11 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
     if (cascade) {
        List<String> tableList = getAllTables(name);
        for (String table : tableList) {
+         try {
             dropTable(name, table, deleteData, false);
+         } catch (UnsupportedOperationException e) {
+           // Ignore Index tables, those will be dropped with parent tables
+         }
         }
     }
     client.drop_database(name, deleteData, cascade);
@@ -546,7 +551,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
    */
   public void dropTable(String dbname, String name, boolean deleteData,
       boolean ignoreUknownTab) throws MetaException, TException,
-      NoSuchObjectException {
+      NoSuchObjectException, UnsupportedOperationException {
 
     Table tbl;
     try {
@@ -556,6 +561,9 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
         throw e;
       }
       return;
+    }
+    if (isIndexTable(tbl)) {
+      throw new UnsupportedOperationException("Cannot drop index tables");
     }
     HiveMetaHook hook = getHook(tbl);
     if (hook != null) {
@@ -833,6 +841,11 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
       throws InvalidOperationException, MetaException, TException {
     client.alter_partition(dbName, tblName, newPart);
   }
+
+  public void alter_partitions(String dbName, String tblName, List<Partition> newParts)
+  throws InvalidOperationException, MetaException, TException {
+    client.alter_partitions(dbName, tblName, newParts);
+}
 
   public void alterDatabase(String dbName, Database db)
       throws MetaException, NoSuchObjectException, TException {

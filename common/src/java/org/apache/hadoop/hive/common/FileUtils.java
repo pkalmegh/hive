@@ -22,11 +22,14 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.BitSet;
 import java.util.List;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.conf.HiveConf;
+
+import org.apache.hadoop.util.Shell;
+
 
 /**
  * Collection of file manipulation utilities common across Hive.
@@ -127,6 +130,12 @@ public final class FileUtils {
   // won't be corrupt, because the full path name in metastore is stored.
   // In that case, Hive will continue to read the old data, but when it creates
   // new partitions, it will use new names.
+  // edit : There are some use cases for which adding new chars does not seem
+  // to be backward compatible - Eg. if partition was created with name having
+  // a special char that you want to start escaping, and then you try dropping
+  // the partition with a hive version that now escapes the special char using
+  // the list below, then the drop partition fails to work.
+
   static BitSet charToEscape = new BitSet(128);
   static {
     for (char c = 0; c < ' '; c++) {
@@ -144,9 +153,19 @@ public final class FileUtils {
         '\u001A', '\u001B', '\u001C', '\u001D', '\u001E', '\u001F',
         '"', '#', '%', '\'', '*', '/', ':', '=', '?', '\\', '\u007F', '{',
         '[', ']', '^'};
+
     for (char c : clist) {
       charToEscape.set(c);
     }
+    
+    if(Shell.WINDOWS){
+      //On windows, following chars need to be escaped as well
+      char [] winClist = {' ', '<','>','|'};
+      for (char c : winClist) {
+        charToEscape.set(c);
+      }
+    }
+
   }
 
   static boolean needsEscaping(char c) {
@@ -237,4 +256,28 @@ public final class FileUtils {
       results.add(fileStatus);
     }
   }
+
+  /**
+   * default directory will have the same depth as number of skewed columns
+   * this will make future operation easy like DML merge, concatenate merge
+   * @param skewedCols
+   * @param hconf
+   * @return
+   */
+  public static String makeDefaultListBucketingDirName(List<String> skewedCols,
+      Configuration hconf) {
+    String lbDirName;
+    String defaultDir = FileUtils.escapePathName(HiveConf.getVar(hconf,
+        HiveConf.ConfVars.HIVE_LIST_BUCKETING_DEFAULT_DIR_NAME));
+    StringBuilder defaultDirPath = new StringBuilder();
+    for (int i = 0; i < skewedCols.size(); i++) {
+      if (i > 0) {
+        defaultDirPath.append(Path.SEPARATOR);
+      }
+      defaultDirPath.append(defaultDir);
+    }
+    lbDirName = defaultDirPath.toString();
+    return lbDirName;
+  }
+
 }

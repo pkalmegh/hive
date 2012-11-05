@@ -216,9 +216,6 @@ public enum ErrorMsg {
   UDAF_INVALID_LOCATION(10128, "Not yet supported place for UDAF"),
   DROP_PARTITION_NON_STRING_PARTCOLS_NONEQUALITY(10129,
     "Drop partitions for a non string partition columns is not allowed using non-equality"),
-  NUM_BUCKETS_CHANGE_NOT_ALLOWED(10130, "Changing the number of buckets for a " +
-    "partitioned table is not allowed. It may lead to wrong results for " +
-    "older partitions"),
   ALTER_COMMAND_FOR_VIEWS(10131, "To alter a view you need to use the ALTER VIEW command."),
   ALTER_COMMAND_FOR_TABLES(10132, "To alter a base table you need to use the ALTER TABLE command."),
   ALTER_VIEW_DISALLOWED_OP(10133, "Cannot use this form of ALTER on a view"),
@@ -236,37 +233,57 @@ public enum ErrorMsg {
     "If you really want to perform the operation, either remove the " +
     "mapjoin hint from your query or set hive.enforce.bucketmapjoin to false."),
 
-  EXPRESSIONS_NOT_ALLOWED_CLUSTERBY(10137,
-    "Expressions are not allowed in a cluster by clause. Use a column alias instead"),
-  EXPRESSIONS_NOT_ALLOWED_DISTRIBUTEBY(10138,
-    "Expressions are not allowed in a distribute by clause. Use a column alias instead"),
-  EXPRESSIONS_NOT_ALLOWED_ORDERBY(10139,
-    "Expressions are not allowed in an order by clause. Use a column alias instead"),
-  EXPRESSIONS_NOT_ALLOWED_SORTBY(10140,
-    "Expressions are not allowed in a sort by clause. Use a column alias instead"),
-
   BUCKETED_TABLE_METADATA_INCORRECT(10141,
    "Bucketed table metadata is not correct. " +
     "Fix the metadata or don't use bucketed mapjoin, by setting " +
     "hive.enforce.bucketmapjoin to false."),
 
-  CREATE_SKEWED_TABLE_NO_COLUMN_NAME(10200, "No skewed column name."),
-  CREATE_SKEWED_TABLE_NO_COLUMN_VALUE(10201, "No skewed values."),
-  CREATE_SKEWED_TABLE_DUPLICATE_COLUMN_NAMES(10202,
+  JOINNODE_OUTERJOIN_MORETHAN_8(10142, "Single join node containing outer join(s) " +
+      "cannot have more than 8 aliases"),
+
+  INVALID_JDO_FILTER_EXPRESSION(10043, "Invalid expression for JDO filter"),
+
+  SHOW_CREATETABLE_INDEX(10144, "SHOW CREATE TABLE does not support tables of type INDEX_TABLE."),
+
+
+  ALTER_TBL_SKEWED_LOC_NO_LOC(10197, "Alter table skewed location doesn't have locations."),
+  ALTER_TBL_SKEWED_LOC_NO_MAP(10198, "Alter table skewed location doesn't have location map."),
+  SUPPORT_DIR_MUST_TRUE_FOR_LIST_BUCKETING(
+      10199,
+      "hive.mapred.supports.subdirectories must be true"
+          + " if any one of following is true: hive.internal.ddl.list.bucketing.enable,"
+          + " hive.optimize.listbucketing and mapred.input.dir.recursive"),
+  SKEWED_TABLE_NO_COLUMN_NAME(10200, "No skewed column name."),
+  SKEWED_TABLE_NO_COLUMN_VALUE(10201, "No skewed values."),
+  SKEWED_TABLE_DUPLICATE_COLUMN_NAMES(10202,
       "Duplicate skewed column name:"),
-  CREATE_SKEWED_TABLE_INVALID_COLUMN(10203,
+  SKEWED_TABLE_INVALID_COLUMN(10203,
       "Invalid skewed column name:"),
-  CREATE_SKEWED_TABLE_SKEWED_COL_NAME_VALUE_MISMATCH_1(10204,
+  SKEWED_TABLE_SKEWED_COL_NAME_VALUE_MISMATCH_1(10204,
       "Skewed column name is empty but skewed value is not."),
-  CREATE_SKEWED_TABLE_SKEWED_COL_NAME_VALUE_MISMATCH_2(10205,
+  SKEWED_TABLE_SKEWED_COL_NAME_VALUE_MISMATCH_2(10205,
       "Skewed column value is empty but skewed name is not."),
-  CREATE_SKEWED_TABLE_SKEWED_COL_NAME_VALUE_MISMATCH_3(10206,
+  SKEWED_TABLE_SKEWED_COL_NAME_VALUE_MISMATCH_3(10206,
       "The number of skewed column names and the number of " +
       "skewed column values are different: "),
   ALTER_TABLE_NOT_ALLOWED_RENAME_SKEWED_COLUMN(10207,
-          " is a skewed column. It's not allowed to rename skewed column."),
-  HIVE_INTERNAL_DDL_LIST_BUCKETING_DISABLED(10208,
+      " is a skewed column. It's not allowed to rename skewed column"
+          + " or change skewed column type."),
+ HIVE_INTERNAL_DDL_LIST_BUCKETING_DISABLED(10208,
               "List Bucketing DDL is not allowed to use since feature is not completed yet."),
+
+  HIVE_GROUPING_SETS_AGGR_NOMAPAGGR(10209,
+    "Grouping sets aggregations (with rollups or cubes) are not allowed if map-side " +
+    " aggregation is turned off. Set hive.map.aggr=true if you want to use grouping sets"),
+  HIVE_GROUPING_SETS_AGGR_EXPRESSION_INVALID(10210,
+    "Grouping sets aggregations (with rollups or cubes) are not allowed if aggregation function " +
+    "parameters overlap with the aggregation functions columns"),
+
+  HIVE_UNION_REMOVE_OPTIMIZATION_NEEDS_SUBDIRECTORIES(10212,
+    "In order to use hive.optimize.union.remove, the hadoop version that you are using " +
+    "should support sub-directories for tables/partitions. If that is true, set " +
+    "hive.hadoop.supports.subdirectories to true. Otherwise, set hive.optimize.union.remove " +
+    "to false"),
 
   SCRIPT_INIT_ERROR(20000, "Unable to initialize custom script."),
   SCRIPT_IO_ERROR(20001, "An error occurred while reading or writing to your custom script. "

@@ -37,19 +37,12 @@ import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator;
 import org.apache.hadoop.hive.ql.exec.FunctionRegistry;
 import org.apache.hadoop.hive.ql.exec.Utilities;
-import org.apache.hadoop.hive.ql.lib.DefaultGraphWalker;
-import org.apache.hadoop.hive.ql.lib.DefaultRuleDispatcher;
-import org.apache.hadoop.hive.ql.lib.Dispatcher;
-import org.apache.hadoop.hive.ql.lib.GraphWalker;
-import org.apache.hadoop.hive.ql.lib.Node;
-import org.apache.hadoop.hive.ql.lib.NodeProcessor;
-import org.apache.hadoop.hive.ql.lib.Rule;
-import org.apache.hadoop.hive.ql.lib.RuleRegExp;
 import org.apache.hadoop.hive.ql.log.PerfLogger;
 import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.Partition;
 import org.apache.hadoop.hive.ql.metadata.Table;
+import org.apache.hadoop.hive.ql.optimizer.PrunerUtils;
 import org.apache.hadoop.hive.ql.optimizer.Transform;
 import org.apache.hadoop.hive.ql.parse.ParseContext;
 import org.apache.hadoop.hive.ql.parse.PrunedPartitionList;
@@ -73,7 +66,7 @@ public class PartitionPruner implements Transform {
 
   // The log
   private static final Log LOG = LogFactory
-      .getLog("hive.ql.optimizer.ppr.PartitionPruner");
+    .getLog("hive.ql.optimizer.ppr.PartitionPruner");
 
   /*
    * (non-Javadoc)
@@ -88,20 +81,9 @@ public class PartitionPruner implements Transform {
     // create a the context for walking operators
     OpWalkerCtx opWalkerCtx = new OpWalkerCtx(pctx.getOpToPartPruner());
 
-    Map<Rule, NodeProcessor> opRules = new LinkedHashMap<Rule, NodeProcessor>();
-    opRules.put(new RuleRegExp("R1", "(TS%FIL%)|(TS%FIL%FIL%)"), OpProcFactory
-        .getFilterProc());
-
-    // The dispatcher fires the processor corresponding to the closest matching
-    // rule and passes the context along
-    Dispatcher disp = new DefaultRuleDispatcher(OpProcFactory.getDefaultProc(),
-        opRules, opWalkerCtx);
-    GraphWalker ogw = new DefaultGraphWalker(disp);
-
-    // Create a list of topop nodes
-    ArrayList<Node> topNodes = new ArrayList<Node>();
-    topNodes.addAll(pctx.getTopOps().values());
-    ogw.startWalking(topNodes, null);
+    /* Move logic to PrunerUtils.walkOperatorTree() so that it can be reused. */
+    PrunerUtils.walkOperatorTree(pctx, opWalkerCtx, OpProcFactory.getFilterProc(),
+        OpProcFactory.getDefaultProc());
     pctx.setHasNonPartCols(opWalkerCtx.getHasNonPartCols());
 
     return pctx;
@@ -218,19 +200,25 @@ public class PartitionPruner implements Transform {
             // This could happen when hive.mapred.mode=nonstrict and all the predicates
             // are on non-partition columns.
             unkn_parts.addAll(Hive.get().getPartitions(tab));
-          } else if (Utilities.checkJDOPushDown(tab, compactExpr)) {
-            String filter = compactExpr.getExprString();
-            String oldFilter = prunerExpr.getExprString();
-
-            if (filter.equals(oldFilter)) {
-              // pruneExpr contains only partition columns
-              pruneByPushDown(tab, true_parts, filter);
-            } else {
-              // pruneExpr contains non-partition columns
-              pruneByPushDown(tab, unkn_parts, filter);
-            }
           } else {
-            pruneBySequentialScan(tab, true_parts, unkn_parts, denied_parts, prunerExpr, rowObjectInspector);
+            String message = Utilities.checkJDOPushDown(tab, compactExpr);
+            if (message == null) {
+              String filter = compactExpr.getExprString();
+              String oldFilter = prunerExpr.getExprString();
+
+              if (filter.equals(oldFilter)) {
+                // pruneExpr contains only partition columns
+                pruneByPushDown(tab, true_parts, filter);
+              } else {
+                // pruneExpr contains non-partition columns
+                pruneByPushDown(tab, unkn_parts, filter);
+              }
+            } else {
+              LOG.info(ErrorMsg.INVALID_JDO_FILTER_EXPRESSION.getMsg("by condition '"
+                  + message + "'"));
+              pruneBySequentialScan(tab, true_parts, unkn_parts, denied_parts,
+                  prunerExpr, rowObjectInspector);
+            }
           }
         }
         LOG.debug("tabname = " + tab.getTableName() + " is partitioned");

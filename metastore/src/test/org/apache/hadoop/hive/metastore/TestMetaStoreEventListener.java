@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.hive.metastore;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -82,9 +83,9 @@ public class TestMetaStoreEventListener extends TestCase {
   protected void setUp() throws Exception {
 
     super.setUp();
-    System.setProperty(ConfVars.METASTORE_EVENT_LISTENERS.varname,
+    System.setProperty("hive.metastore.event.listeners",
         DummyListener.class.getName());
-    System.setProperty(ConfVars.METASTORE_PRE_EVENT_LISTENERS.varname,
+    System.setProperty("hive.metastore.pre.event.listeners",
         DummyPreListener.class.getName());
     Thread t = new Thread(new RunMS());
     t.start();
@@ -246,6 +247,22 @@ public class TestMetaStoreEventListener extends TestCase {
         preAlterPartEvent.getTableName(), preAlterPartEvent.getNewPartition().getValues(),
         preAlterPartEvent.getNewPartition());
 
+    List<String> part_vals = new ArrayList<String>();
+    part_vals.add("c=2012");
+    Partition newPart = msc.appendPartition(dbName, tblName, part_vals);
+
+    listSize++;
+    assertEquals(notifyList.size(), listSize);
+    assertEquals(preNotifyList.size(), listSize);
+
+    AddPartitionEvent appendPartEvent =
+        (AddPartitionEvent)(notifyList.get(listSize-1));
+    validateAddPartition(newPart, appendPartEvent.getPartition());
+
+    PreAddPartitionEvent preAppendPartEvent =
+        (PreAddPartitionEvent)(preNotifyList.get(listSize-1));
+    validateAddPartition(newPart, preAppendPartEvent.getPartition());
+
     driver.run(String.format("alter table %s rename to %s", tblName, renamed));
     listSize++;
     assertEquals(notifyList.size(), listSize);
@@ -336,4 +353,5 @@ public class TestMetaStoreEventListener extends TestCase {
     assert dropDB.getStatus();
     validateDropDb(db, preDropDB.getDatabase());
   }
+
 }
