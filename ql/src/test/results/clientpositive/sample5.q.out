@@ -70,7 +70,6 @@ STAGE PLANS:
                   TotalFiles: 1
                   GatherStats: true
                   MultiFileSpray: false
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -80,6 +79,7 @@ STAGE PLANS:
             input format: org.apache.hadoop.mapred.TextInputFormat
             output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
             properties:
+              COLUMN_STATS_ACCURATE true
               bucket_count 2
               bucket_field_name key
               columns key,value
@@ -87,7 +87,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.srcbucket
               numFiles 2
-              numPartitions 0
               numRows 0
               rawDataSize 0
               serialization.ddl struct srcbucket { i32 key, string value}
@@ -100,6 +99,7 @@ STAGE PLANS:
               input format: org.apache.hadoop.mapred.TextInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
               properties:
+                COLUMN_STATS_ACCURATE true
                 bucket_count 2
                 bucket_field_name key
                 columns key,value
@@ -107,7 +107,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
                 name default.srcbucket
                 numFiles 2
-                numPartitions 0
                 numRows 0
                 rawDataSize 0
                 serialization.ddl struct srcbucket { i32 key, string value}
@@ -160,6 +159,8 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
+            GatherStats: false
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -183,7 +184,6 @@ STAGE PLANS:
               TotalFiles: 1
               GatherStats: false
               MultiFileSpray: false
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -226,6 +226,8 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
+            GatherStats: false
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -249,7 +251,6 @@ STAGE PLANS:
               TotalFiles: 1
               GatherStats: false
               MultiFileSpray: false
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:

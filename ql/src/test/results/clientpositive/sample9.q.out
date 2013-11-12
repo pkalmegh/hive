@@ -33,31 +33,26 @@ STAGE PLANS:
                       expr: value
                       type: string
                 outputColumnNames: _col0, _col1
-                Select Operator
-                  expressions:
-                        expr: _col0
-                        type: int
-                        expr: _col1
-                        type: string
-                  outputColumnNames: _col0, _col1
-                  File Output Operator
-                    compressed: false
-                    GlobalTableId: 0
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 0
 #### A masked pattern was here ####
-                    NumFilesPerFileSink: 1
+                  NumFilesPerFileSink: 1
 #### A masked pattern was here ####
-                    table:
-                        input format: org.apache.hadoop.mapred.TextInputFormat
-                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                        properties:
-                          columns _col0,_col1
-                          columns.types int:string
-                          escape.delim \
-                          serialization.format 1
-                    TotalFiles: 1
-                    GatherStats: false
-                    MultiFileSpray: false
-      Needs Tagging: false
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      properties:
+                        columns _col0,_col1
+                        columns.types int:string
+                        escape.delim \
+                        hive.serialization.extend.nesting.levels true
+                        serialization.format 1
+                        serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  TotalFiles: 1
+                  GatherStats: false
+                  MultiFileSpray: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -67,6 +62,7 @@ STAGE PLANS:
             input format: org.apache.hadoop.mapred.TextInputFormat
             output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
             properties:
+              COLUMN_STATS_ACCURATE true
               bucket_count 2
               bucket_field_name key
               columns key,value
@@ -74,7 +70,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.srcbucket
               numFiles 2
-              numPartitions 0
               numRows 0
               rawDataSize 0
               serialization.ddl struct srcbucket { i32 key, string value}
@@ -87,6 +82,7 @@ STAGE PLANS:
               input format: org.apache.hadoop.mapred.TextInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
               properties:
+                COLUMN_STATS_ACCURATE true
                 bucket_count 2
                 bucket_field_name key
                 columns key,value
@@ -94,7 +90,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
                 name default.srcbucket
                 numFiles 2
-                numPartitions 0
                 numRows 0
                 rawDataSize 0
                 serialization.ddl struct srcbucket { i32 key, string value}

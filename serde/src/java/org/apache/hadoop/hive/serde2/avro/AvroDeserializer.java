@@ -17,8 +17,21 @@
  */
 package org.apache.hadoop.hive.serde2.avro;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.rmi.server.UID;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.avro.Schema;
+import org.apache.avro.Schema.Type;
 import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericData.Fixed;
 import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
@@ -32,23 +45,28 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.StandardUnionObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.ListTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.MapTypeInfo;
+import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
-import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.hive.serde2.typeinfo.UnionTypeInfo;
 import org.apache.hadoop.io.Writable;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 class AvroDeserializer {
   private static final Log LOG = LogFactory.getLog(AvroDeserializer.class);
+  /**
+   * Set of already seen and valid record readers IDs which doesn't need re-encoding
+   */
+  private final HashSet<UID> noEncodingNeeded = new HashSet<UID>();
+  /**
+   * Map of record reader ID and the associated re-encoder. It contains only the record readers
+   *  that record needs to be re-encoded.
+   */
+  private final HashMap<UID, SchemaReEncoder> reEncoderCache = new HashMap<UID, SchemaReEncoder>();
+  /**
+   * Flag to print the re-encoding warning message only once. Avoid excessive logging for each
+   * record encoding.
+   */
+  private static boolean warnedOnce = false;
   /**
    * When encountering a record with an older schema than the one we're trying
    * to read, it is necessary to re-encode with a reader against the newer schema.
@@ -62,16 +80,15 @@ class AvroDeserializer {
     private final ByteArrayOutputStream baos = new ByteArrayOutputStream();
     private final GenericDatumWriter<GenericRecord> gdw = new GenericDatumWriter<GenericRecord>();
     private BinaryDecoder binaryDecoder = null;
-    private InstanceCache<ReaderWriterSchemaPair, GenericDatumReader<GenericRecord>> gdrCache
-        = new InstanceCache<ReaderWriterSchemaPair, GenericDatumReader<GenericRecord>>() {
-            @Override
-            protected GenericDatumReader<GenericRecord> makeInstance(ReaderWriterSchemaPair hv) {
-              return new GenericDatumReader<GenericRecord>(hv.getWriter(), hv.getReader());
-            }
-          };
 
-    public GenericRecord reencode(GenericRecord r, Schema readerSchema)
-            throws AvroSerdeException {
+    GenericDatumReader<GenericRecord> gdr = null;
+
+    public SchemaReEncoder(Schema writer, Schema reader) {
+      gdr = new GenericDatumReader<GenericRecord>(writer, reader);
+    }
+
+    public GenericRecord reencode(GenericRecord r)
+        throws AvroSerdeException {
       baos.reset();
 
       BinaryEncoder be = EncoderFactory.get().directBinaryEncoder(baos, null);
@@ -82,8 +99,6 @@ class AvroDeserializer {
 
         binaryDecoder = DecoderFactory.defaultFactory().createBinaryDecoder(bais, binaryDecoder);
 
-        ReaderWriterSchemaPair pair = new ReaderWriterSchemaPair(r.getSchema(), readerSchema);
-        GenericDatumReader<GenericRecord> gdr = gdrCache.retrieve(pair);
         return gdr.read(r, binaryDecoder);
 
       } catch (IOException e) {
@@ -93,7 +108,6 @@ class AvroDeserializer {
   }
 
   private List<Object> row;
-  private SchemaReEncoder reEncoder;
 
   /**
    * Deserialize an Avro record, recursing into its component fields and
@@ -112,23 +126,44 @@ class AvroDeserializer {
    */
   public Object deserialize(List<String> columnNames, List<TypeInfo> columnTypes,
                             Writable writable, Schema readerSchema) throws AvroSerdeException {
-    if(!(writable instanceof AvroGenericRecordWritable))
+    if(!(writable instanceof AvroGenericRecordWritable)) {
       throw new AvroSerdeException("Expecting a AvroGenericRecordWritable");
+    }
 
-    if(row == null || row.size() != columnNames.size())
+    if(row == null || row.size() != columnNames.size()) {
       row = new ArrayList<Object>(columnNames.size());
-    else
+    } else {
       row.clear();
+    }
 
     AvroGenericRecordWritable recordWritable = (AvroGenericRecordWritable) writable;
     GenericRecord r = recordWritable.getRecord();
 
-    // Check if we're working with an evolved schema
-    if(!r.getSchema().equals(readerSchema)) {
-      LOG.warn("Received different schemas.  Have to re-encode: " +
-              r.getSchema().toString(false));
-      if(reEncoder == null) reEncoder = new SchemaReEncoder();
-      r = reEncoder.reencode(r, readerSchema);
+   UID recordReaderId = recordWritable.getRecordReaderID();
+   //If the record reader (from which the record is originated) is already seen and valid,
+    //no need to re-encode the record.
+    if(!noEncodingNeeded.contains(recordReaderId)) {
+      SchemaReEncoder reEncoder = null;
+      //Check if the record record is already encoded once. If it does
+      //reuse the encoder.
+      if(reEncoderCache.containsKey(recordReaderId)) {
+        reEncoder = reEncoderCache.get(recordReaderId); //Reuse the re-encoder
+      } else if (!r.getSchema().equals(readerSchema)) { //Evolved schema?
+        //Create and store new encoder in the map for re-use
+        reEncoder = new SchemaReEncoder(r.getSchema(), readerSchema);
+        reEncoderCache.put(recordReaderId, reEncoder);
+      } else{
+        LOG.info("Adding new valid RRID :" +  recordReaderId);
+        noEncodingNeeded.add(recordReaderId);
+      }
+      if(reEncoder != null) {
+        if (!warnedOnce) {
+          LOG.warn("Received different schemas.  Have to re-encode: " +
+              r.getSchema().toString(false) + "\nSIZE" + reEncoderCache + " ID " + recordReaderId);
+          warnedOnce = true;
+        }
+        r = reEncoder.reencode(r);
+      }
     }
 
     workerBase(row, columnNames, columnTypes, r);
@@ -156,25 +191,49 @@ class AvroDeserializer {
     // Klaxon! Klaxon! Klaxon!
     // Avro requires NULLable types to be defined as unions of some type T
     // and NULL.  This is annoying and we're going to hide it from the user.
-    if(AvroSerdeUtils.isNullableType(recordSchema))
+    if(AvroSerdeUtils.isNullableType(recordSchema)) {
       return deserializeNullableUnion(datum, recordSchema, columnType);
+    }
 
-    if(columnType == TypeInfoFactory.stringTypeInfo)
-      return datum.toString(); // To workaround AvroUTF8
-      // This also gets us around the Enum issue since we just take the value
-      // and convert it to a string. Yay!
 
     switch(columnType.getCategory()) {
     case STRUCT:
       return deserializeStruct((GenericData.Record) datum, (StructTypeInfo) columnType);
-     case UNION:
+    case UNION:
       return deserializeUnion(datum, recordSchema, (UnionTypeInfo) columnType);
     case LIST:
       return deserializeList(datum, recordSchema, (ListTypeInfo) columnType);
     case MAP:
       return deserializeMap(datum, recordSchema, (MapTypeInfo) columnType);
+    case PRIMITIVE:
+      return deserializePrimitive(datum, recordSchema, (PrimitiveTypeInfo) columnType);
     default:
-      return datum; // Simple type.
+      throw new AvroSerdeException("Unknown TypeInfo: " + columnType.getCategory());
+    }
+  }
+
+  private Object deserializePrimitive(Object datum, Schema recordSchema,
+      PrimitiveTypeInfo columnType) throws AvroSerdeException {
+    switch (columnType.getPrimitiveCategory()){
+    case STRING:
+      return datum.toString(); // To workaround AvroUTF8
+      // This also gets us around the Enum issue since we just take the value
+      // and convert it to a string. Yay!
+    case BINARY:
+      if (recordSchema.getType() == Type.FIXED){
+        Fixed fixed = (Fixed) datum;
+        return fixed.bytes();
+      } else if (recordSchema.getType() == Type.BYTES){
+        ByteBuffer bb = (ByteBuffer) datum;
+        bb.rewind();
+        byte[] result = new byte[bb.limit()];
+        bb.get(result);
+        return result;
+      } else {
+        throw new AvroSerdeException("Unexpected Avro schema for Binary TypeInfo: " + recordSchema.getType());
+      }
+    default:
+      return datum;
     }
   }
 
@@ -186,8 +245,9 @@ class AvroDeserializer {
                                           TypeInfo columnType) throws AvroSerdeException {
     int tag = GenericData.get().resolveUnion(recordSchema, datum); // Determine index of value
     Schema schema = recordSchema.getTypes().get(tag);
-    if(schema.getType().equals(Schema.Type.NULL))
+    if(schema.getType().equals(Schema.Type.NULL)) {
       return null;
+    }
     return worker(datum, schema, SchemaToTypeInfo.generateTypeInfo(schema));
 
   }
@@ -257,4 +317,13 @@ class AvroDeserializer {
 
     return map;
   }
+
+  public HashSet<UID> getNoEncodingNeeded() {
+    return noEncodingNeeded;
+  }
+
+  public HashMap<UID, SchemaReEncoder> getReEncoderCache() {
+    return reEncoderCache;
+  }
+
 }

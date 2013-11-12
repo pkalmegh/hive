@@ -32,7 +32,6 @@ import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.plan.JoinDesc;
 import org.apache.hadoop.hive.ql.plan.api.OperatorType;
 import org.apache.hadoop.hive.serde2.SerDeUtils;
-import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.io.LongWritable;
@@ -76,30 +75,22 @@ public class JoinOperator extends CommonJoinOperator<JoinDesc> implements
       // get alias
       alias = (byte) tag;
 
-      if ((lastAlias == null) || (!lastAlias.equals(alias))) {
-        nextSz = joinEmitInterval;
-      }
-
-
-      ArrayList<Object> nr = JoinUtil.computeValues(row, joinValues.get(alias),
-          joinValuesObjectInspectors.get(alias), joinFilters.get(alias),
-          joinFilterObjectInspectors.get(alias),
-          filterMap == null ? null : filterMap[alias]);
-
+      List<Object> nr = getFilteredValue(alias, row);
 
       if (handleSkewJoin) {
         skewJoinKeyContext.handleSkew(tag);
       }
 
       // number of rows for the key in the given table
-      int sz = storage.get(alias).size();
+      long sz = storage[alias].size();
       StructObjectInspector soi = (StructObjectInspector) inputObjInspectors[tag];
       StructField sf = soi.getStructFieldRef(Utilities.ReduceField.KEY
           .toString());
       List keyObject = (List) soi.getStructFieldData(row, sf);
       // Are we consuming too much memory
-      if (alias == numAliases - 1 && !(handleSkewJoin && skewJoinKeyContext.currBigKeyTag >= 0)) {
-        if (sz == joinEmitInterval) {
+      if (alias == numAliases - 1 && !(handleSkewJoin && skewJoinKeyContext.currBigKeyTag >= 0) &&
+          !hasLeftSemiJoin) {
+        if (sz == joinEmitInterval && !hasFilter(alias)) {
           // The input is sorted by alias, so if we are already in the last join
           // operand,
           // we can emit some results now.
@@ -107,7 +98,7 @@ public class JoinOperator extends CommonJoinOperator<JoinDesc> implements
           // storage,
           // to preserve the correctness for outer joins.
           checkAndGenObject();
-          storage.get(alias).clear();
+          storage[alias].clear();
         }
       } else {
         if (sz == nextSz) {
@@ -122,13 +113,13 @@ public class JoinOperator extends CommonJoinOperator<JoinDesc> implements
 
       // Add the value to the vector
       // if join-key is null, process each row in different group.
-      StandardStructObjectInspector inspector =
-          (StandardStructObjectInspector) sf.getFieldObjectInspector();
+      StructObjectInspector inspector =
+          (StructObjectInspector) sf.getFieldObjectInspector();
       if (SerDeUtils.hasAnyNullObject(keyObject, inspector, nullsafes)) {
         endGroup();
         startGroup();
       }
-      storage.get(alias).add(nr);
+      storage[alias].add(nr);
     } catch (Exception e) {
       e.printStackTrace();
       throw new HiveException(e);
@@ -272,6 +263,16 @@ public class JoinOperator extends CommonJoinOperator<JoinDesc> implements
     // Since skew join optimization makes a copy of the tree above joins, and
     // there is no multi-query optimization in place, let us not use skew join
     // optimizations for now.
+    return false;
+  }
+
+  @Override
+  public boolean opAllowedBeforeSortMergeJoin() {
+    // If a join occurs before the sort-merge join, it is not useful to convert the the sort-merge
+    // join to a mapjoin. It might be simpler to perform the join and then a sort-merge join
+    // join. By converting the sort-merge join to a map-join, the job will be executed in 2
+    // mapjoins in the best case. The number of inputs for the join is more than 1 so it would
+    // be difficult to figure out the big table for the mapjoin.
     return false;
   }
 }

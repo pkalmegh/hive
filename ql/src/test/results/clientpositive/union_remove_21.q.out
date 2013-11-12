@@ -30,10 +30,10 @@ PREHOOK: type: CREATETABLE
 POSTHOOK: query: create table outputTbl1(key string) stored as textfile
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@outputTbl1
-PREHOOK: query: load data local inpath '../data/files/T1.txt' into table inputTbl1
+PREHOOK: query: load data local inpath '../../data/files/T1.txt' into table inputTbl1
 PREHOOK: type: LOAD
 PREHOOK: Output: default@inputtbl1
-POSTHOOK: query: load data local inpath '../data/files/T1.txt' into table inputTbl1
+POSTHOOK: query: load data local inpath '../../data/files/T1.txt' into table inputTbl1
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@inputtbl1
 PREHOOK: query: explain
@@ -109,22 +109,15 @@ STAGE PLANS:
             expressions:
                   expr: _col0
                   type: string
-                  expr: _col1
-                  type: bigint
-            outputColumnNames: _col0, _col1
-            Select Operator
-              expressions:
-                    expr: _col0
-                    type: string
-              outputColumnNames: _col0
-              File Output Operator
-                compressed: false
-                GlobalTableId: 1
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.outputtbl1
+            outputColumnNames: _col0
+            File Output Operator
+              compressed: false
+              GlobalTableId: 1
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.outputtbl1
 
   Stage: Stage-0
     Move Operator
@@ -182,22 +175,15 @@ STAGE PLANS:
             expressions:
                   expr: _col0
                   type: string
-                  expr: _col1
-                  type: bigint
-            outputColumnNames: _col0, _col1
-            Select Operator
-              expressions:
-                    expr: _col0
-                    type: string
-              outputColumnNames: _col0
-              File Output Operator
-                compressed: false
-                GlobalTableId: 1
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.outputtbl1
+            outputColumnNames: _col0
+            File Output Operator
+              compressed: false
+              GlobalTableId: 1
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.outputtbl1
 
 
 PREHOOK: query: insert overwrite table outputTbl1

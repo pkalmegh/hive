@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -31,6 +32,7 @@ import java.util.Properties;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.common.JavaUtils;
@@ -47,7 +49,7 @@ import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.ql.io.HiveFileFormatUtils;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
 import org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.Deserializer;
 import org.apache.hadoop.hive.serde2.MetadataTypedColumnsetSerDe;
 import org.apache.hadoop.hive.serde2.SerDeException;
@@ -136,7 +138,7 @@ public class Table implements Serializable {
       // We have to use MetadataTypedColumnsetSerDe because LazySimpleSerDe does
       // not support a table with no columns.
       sd.getSerdeInfo().setSerializationLib(MetadataTypedColumnsetSerDe.class.getName());
-      sd.getSerdeInfo().getParameters().put(Constants.SERIALIZATION_FORMAT, "1");
+      sd.getSerdeInfo().getParameters().put(serdeConstants.SERIALIZATION_FORMAT, "1");
       sd.setInputFormat(SequenceFileInputFormat.class.getName());
       sd.setOutputFormat(HiveSequenceFileOutputFormat.class.getName());
       SkewedInfo skewInfo = new SkewedInfo();
@@ -193,6 +195,10 @@ public class Table implements Serializable {
     List<String> colNames = new ArrayList<String>();
     while (iterCols.hasNext()) {
       String colName = iterCols.next().getName();
+      if (!MetaStoreUtils.validateName(colName)) {
+        throw new HiveException("Invalid column name '" + colName
+            + "' in the table definition");
+      }
       Iterator<String> iter = colNames.iterator();
       while (iter.hasNext()) {
         String oldColName = iter.next();
@@ -228,8 +234,8 @@ public class Table implements Serializable {
     tTable.getSd().setOutputFormat(outputFormatClass.getName());
   }
 
-  final public Properties getSchema() {
-    return MetaStoreUtils.getSchema(tTable);
+  final public Properties getMetadata() {
+    return MetaStoreUtils.getTableMetadata(tTable);
   }
 
   final public Path getPath() {
@@ -279,7 +285,7 @@ public class Table implements Serializable {
       storageHandler = HiveUtils.getStorageHandler(
         Hive.get().getConf(),
         getProperty(
-          org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_STORAGE));
+          org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.META_TABLE_STORAGE));
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -308,7 +314,7 @@ public class Table implements Serializable {
 
   final public Class<? extends HiveOutputFormat> getOutputFormatClass() {
     // Replace FileOutputFormat for backward compatibility
-
+    boolean storagehandler = false;
     if (outputFormatClass == null) {
       try {
         String className = tTable.getSd().getOutputFormat();
@@ -323,7 +329,13 @@ public class Table implements Serializable {
             JavaUtils.getClassLoader());
         }
         if (!HiveOutputFormat.class.isAssignableFrom(c)) {
-          outputFormatClass = HiveFileFormatUtils.getOutputFormatSubstitute(c);
+          if (getStorageHandler() != null) {
+            storagehandler = true;
+          }
+          else {
+            storagehandler = false;
+          }
+          outputFormatClass = HiveFileFormatUtils.getOutputFormatSubstitute(c,storagehandler);
         } else {
           outputFormatClass = (Class<? extends HiveOutputFormat>)c;
         }
@@ -558,6 +570,14 @@ public class Table implements Serializable {
     tTable.getSd().setSkewedInfo(skewedInfo);
   }
 
+  public boolean isStoredAsSubDirectories() {
+    return tTable.getSd().isStoredAsSubDirectories();
+  }
+
+  public void setStoredAsSubDirectories(boolean storedAsSubDirectories) throws HiveException {
+    tTable.getSd().setStoredAsSubDirectories(storedAsSubDirectories);
+  }
+
   private boolean isField(String col) {
     for (FieldSchema field : getCols()) {
       if (field.getName().equals(col)) {
@@ -658,7 +678,7 @@ public class Table implements Serializable {
     try {
       Class<?> origin = Class.forName(name, true, JavaUtils.getClassLoader());
       setOutputFormatClass(HiveFileFormatUtils
-          .getOutputFormatSubstitute(origin));
+          .getOutputFormatSubstitute(origin,false));
     } catch (ClassNotFoundException e) {
       throw new HiveException("Class not found: " + name, e);
     }
@@ -845,7 +865,7 @@ public class Table implements Serializable {
 
   public boolean isNonNative() {
     return getProperty(
-      org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_STORAGE)
+      org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.META_TABLE_STORAGE)
       != null;
   }
 
@@ -916,5 +936,31 @@ public class Table implements Serializable {
   public List<Index> getAllIndexes(short max) throws HiveException {
     Hive hive = Hive.get();
     return hive.getIndexes(getTTable().getDbName(), getTTable().getTableName(), max);
+  }
+
+  @SuppressWarnings("nls")
+  public FileStatus[] getSortedPaths() {
+    try {
+      // Previously, this got the filesystem of the Table, which could be
+      // different from the filesystem of the partition.
+      FileSystem fs = FileSystem.get(getPath().toUri(), Hive.get()
+          .getConf());
+      String pathPattern = getPath().toString();
+      if (getNumBuckets() > 0) {
+        pathPattern = pathPattern + "/*";
+      }
+      LOG.info("Path pattern = " + pathPattern);
+      FileStatus srcs[] = fs.globStatus(new Path(pathPattern));
+      Arrays.sort(srcs);
+      for (FileStatus src : srcs) {
+        LOG.info("Got file: " + src.getPath());
+      }
+      if (srcs.length == 0) {
+        return null;
+      }
+      return srcs;
+    } catch (Exception e) {
+      throw new RuntimeException("Cannot get path ", e);
+    }
   }
 };

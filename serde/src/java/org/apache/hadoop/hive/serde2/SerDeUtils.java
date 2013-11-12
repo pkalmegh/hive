@@ -21,24 +21,25 @@ package org.apache.hadoop.hive.serde2;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hive.common.JavaUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.ByteObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.DateObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.FloatObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveCharObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveDecimalObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveVarcharObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.ShortObjectInspector;
@@ -61,36 +62,12 @@ public final class SerDeUtils {
   public static final String LBRACE = "{";
   public static final String RBRACE = "}";
 
-  private static ConcurrentHashMap<String, Class<?>> serdes =
-    new ConcurrentHashMap<String, Class<?>>();
+  // lower case null is used within json objects
+  private static final String JSON_NULL = "null";
 
   public static final Log LOG = LogFactory.getLog(SerDeUtils.class.getName());
 
-  public static void registerSerDe(String name, Class<?> serde) {
-    if (serdes.containsKey(name)) {
-      LOG.warn("double registering serde " + name);
-      return;
-    }
-    serdes.put(name, serde);
-  }
-
-  public static Deserializer lookupDeserializer(String name) throws SerDeException {
-    Class<?> c;
-    if (serdes.containsKey(name)) {
-      c = serdes.get(name);
-    } else {
-      try {
-        c = Class.forName(name, true, JavaUtils.getClassLoader());
-      } catch (ClassNotFoundException e) {
-        throw new SerDeException("SerDe " + name + " does not exist");
-      }
-    }
-    try {
-      return (Deserializer) c.newInstance();
-    } catch (Exception e) {
-      throw new SerDeException(e);
-    }
-  }
+  public static void registerSerDe(String name, Class<?> serde) {}
 
   private static List<String> nativeSerDeNames = new ArrayList<String>();
   static {
@@ -215,18 +192,32 @@ public final class SerDeUtils {
   }
 
   public static String getJSONString(Object o, ObjectInspector oi) {
+    return getJSONString(o, oi, JSON_NULL);
+  }
+
+  /**
+   * Use this if you need to have custom representation of top level null .
+   * (ie something other than 'null')
+   * eg, for hive output, we want to to print NULL for a null map object.
+   * @param o Object
+   * @param oi ObjectInspector
+   * @param nullStr The custom string used to represent null value
+   * @return
+   */
+  public static String getJSONString(Object o, ObjectInspector oi, String nullStr) {
     StringBuilder sb = new StringBuilder();
-    buildJSONString(sb, o, oi);
+    buildJSONString(sb, o, oi, nullStr);
     return sb.toString();
   }
 
-  static void buildJSONString(StringBuilder sb, Object o, ObjectInspector oi) {
+
+  static void buildJSONString(StringBuilder sb, Object o, ObjectInspector oi, String nullStr) {
 
     switch (oi.getCategory()) {
     case PRIMITIVE: {
       PrimitiveObjectInspector poi = (PrimitiveObjectInspector) oi;
       if (o == null) {
-        sb.append("null");
+        sb.append(nullStr);
       } else {
         switch (poi.getPrimitiveCategory()) {
         case BOOLEAN: {
@@ -265,6 +256,27 @@ public final class SerDeUtils {
           sb.append('"');
           break;
         }
+        case CHAR: {
+          sb.append('"');
+          sb.append(escapeString(((HiveCharObjectInspector) poi)
+              .getPrimitiveJavaObject(o).toString()));
+          sb.append('"');
+          break;
+        }
+        case VARCHAR: {
+          sb.append('"');
+          sb.append(escapeString(((HiveVarcharObjectInspector) poi)
+              .getPrimitiveJavaObject(o).toString()));
+          sb.append('"');
+          break;
+        }
+        case DATE: {
+          sb.append('"');
+          sb.append(((DateObjectInspector) poi)
+              .getPrimitiveWritableObject(o));
+          sb.append('"');
+          break;
+        }
         case TIMESTAMP: {
           sb.append('"');
           sb.append(((TimestampObjectInspector) poi)
@@ -277,6 +289,10 @@ public final class SerDeUtils {
           Text txt = new Text();
           txt.set(bw.getBytes(), 0, bw.getLength());
           sb.append(txt.toString());
+          break;
+        }
+        case DECIMAL: {
+          sb.append(((HiveDecimalObjectInspector) oi).getPrimitiveJavaObject(o));
           break;
         }
         default:
@@ -292,14 +308,14 @@ public final class SerDeUtils {
           .getListElementObjectInspector();
       List<?> olist = loi.getList(o);
       if (olist == null) {
-        sb.append("null");
+        sb.append(nullStr);
       } else {
         sb.append(LBRACKET);
         for (int i = 0; i < olist.size(); i++) {
           if (i > 0) {
             sb.append(COMMA);
           }
-          buildJSONString(sb, olist.get(i), listElementObjectInspector);
+          buildJSONString(sb, olist.get(i), listElementObjectInspector, JSON_NULL);
         }
         sb.append(RBRACKET);
       }
@@ -312,7 +328,7 @@ public final class SerDeUtils {
           .getMapValueObjectInspector();
       Map<?, ?> omap = moi.getMap(o);
       if (omap == null) {
-        sb.append("null");
+        sb.append(nullStr);
       } else {
         sb.append(LBRACE);
         boolean first = true;
@@ -323,9 +339,9 @@ public final class SerDeUtils {
             sb.append(COMMA);
           }
           Map.Entry<?, ?> e = (Map.Entry<?, ?>) entry;
-          buildJSONString(sb, e.getKey(), mapKeyObjectInspector);
+          buildJSONString(sb, e.getKey(), mapKeyObjectInspector, JSON_NULL);
           sb.append(COLON);
-          buildJSONString(sb, e.getValue(), mapValueObjectInspector);
+          buildJSONString(sb, e.getValue(), mapValueObjectInspector, JSON_NULL);
         }
         sb.append(RBRACE);
       }
@@ -335,7 +351,7 @@ public final class SerDeUtils {
       StructObjectInspector soi = (StructObjectInspector) oi;
       List<? extends StructField> structFields = soi.getAllStructFieldRefs();
       if (o == null) {
-        sb.append("null");
+        sb.append(nullStr);
       } else {
         sb.append(LBRACE);
         for (int i = 0; i < structFields.size(); i++) {
@@ -347,7 +363,7 @@ public final class SerDeUtils {
           sb.append(QUOTE);
           sb.append(COLON);
           buildJSONString(sb, soi.getStructFieldData(o, structFields.get(i)),
-              structFields.get(i).getFieldObjectInspector());
+              structFields.get(i).getFieldObjectInspector(), JSON_NULL);
         }
         sb.append(RBRACE);
       }
@@ -356,13 +372,13 @@ public final class SerDeUtils {
     case UNION: {
       UnionObjectInspector uoi = (UnionObjectInspector) oi;
       if (o == null) {
-        sb.append("null");
+        sb.append(nullStr);
       } else {
         sb.append(LBRACE);
         sb.append(uoi.getTag(o));
         sb.append(COLON);
         buildJSONString(sb, uoi.getField(o),
-              uoi.getObjectInspectors().get(uoi.getTag(o)));
+              uoi.getObjectInspectors().get(uoi.getTag(o)), JSON_NULL);
         sb.append(RBRACE);
       }
       break;
@@ -375,7 +391,7 @@ public final class SerDeUtils {
   /**
    * return false though element is null if nullsafe flag is true for that
    */
-  public static boolean hasAnyNullObject(List o, StandardStructObjectInspector loi,
+  public static boolean hasAnyNullObject(List o, StructObjectInspector loi,
       boolean[] nullSafes) {
     List<? extends StructField> fields = loi.getAllStructFieldRefs();
     for (int i = 0; i < o.size();i++) {

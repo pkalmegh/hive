@@ -19,8 +19,12 @@
 package org.apache.hadoop.hive.ql.udf;
 
 import org.apache.hadoop.hive.ql.exec.Description;
+import org.apache.hadoop.hive.ql.exec.vector.VectorizedExpressions;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleColUnaryMinus;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.LongColUnaryMinus;
 import org.apache.hadoop.hive.serde2.io.ByteWritable;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
+import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.hadoop.hive.serde2.io.ShortWritable;
 import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
@@ -31,6 +35,7 @@ import org.apache.hadoop.io.LongWritable;
  *
  */
 @Description(name = "-", value = "_FUNC_ a - Returns -a")
+@VectorizedExpressions({LongColUnaryMinus.class, DoubleColUnaryMinus.class})
 public class UDFOPNegative extends UDFBaseNumericUnaryOp {
 
   public UDFOPNegative() {
@@ -88,6 +93,15 @@ public class UDFOPNegative extends UDFBaseNumericUnaryOp {
     }
     doubleWritable.set(-a.get());
     return doubleWritable;
+  }
+
+  @Override
+  public HiveDecimalWritable evaluate(HiveDecimalWritable a) {
+    if (a == null) {
+      return null;
+    }
+    decimalWritable.set(a.getHiveDecimal().negate());
+    return decimalWritable;
   }
 
 }

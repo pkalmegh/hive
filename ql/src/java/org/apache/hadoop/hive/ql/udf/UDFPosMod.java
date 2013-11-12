@@ -18,9 +18,14 @@
 
 package org.apache.hadoop.hive.ql.udf;
 
+import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.ql.exec.Description;
+import org.apache.hadoop.hive.ql.exec.vector.VectorizedExpressions;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.PosModDoubleToDouble;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.PosModLongToLong;
 import org.apache.hadoop.hive.serde2.io.ByteWritable;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
+import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.hadoop.hive.serde2.io.ShortWritable;
 import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
@@ -32,6 +37,7 @@ import org.apache.hadoop.io.LongWritable;
  * {org.apache.hadoop.hive.ql.exec.FunctionRegistry}
  */
 @Description(name = "pmod", value = "a _FUNC_ b - Compute the positive modulo")
+@VectorizedExpressions({PosModLongToLong.class, PosModDoubleToDouble.class})
 public class UDFPosMod extends UDFBaseNumericOp {
 
   public UDFPosMod() {
@@ -41,7 +47,7 @@ public class UDFPosMod extends UDFBaseNumericOp {
   public ByteWritable evaluate(ByteWritable a, ByteWritable b) {
     // LOG.info("Get input " + a.getClass() + ":" + a + " " + b.getClass() + ":"
     // + b);
-    if ((a == null) || (b == null)) {
+    if (a == null || b == null || b.get() == 0) {
       return null;
     }
 
@@ -53,7 +59,7 @@ public class UDFPosMod extends UDFBaseNumericOp {
   public ShortWritable evaluate(ShortWritable a, ShortWritable b) {
     // LOG.info("Get input " + a.getClass() + ":" + a + " " + b.getClass() + ":"
     // + b);
-    if ((a == null) || (b == null)) {
+    if (a == null || b == null || b.get() == 0) {
       return null;
     }
 
@@ -65,7 +71,7 @@ public class UDFPosMod extends UDFBaseNumericOp {
   public IntWritable evaluate(IntWritable a, IntWritable b) {
     // LOG.info("Get input " + a.getClass() + ":" + a + " " + b.getClass() + ":"
     // + b);
-    if ((a == null) || (b == null)) {
+    if (a == null || b == null || b.get() == 0) {
       return null;
     }
 
@@ -77,7 +83,7 @@ public class UDFPosMod extends UDFBaseNumericOp {
   public LongWritable evaluate(LongWritable a, LongWritable b) {
     // LOG.info("Get input " + a.getClass() + ":" + a + " " + b.getClass() + ":"
     // + b);
-    if ((a == null) || (b == null)) {
+    if (a == null || b == null || b.get() == 0L) {
       return null;
     }
 
@@ -89,7 +95,7 @@ public class UDFPosMod extends UDFBaseNumericOp {
   public FloatWritable evaluate(FloatWritable a, FloatWritable b) {
     // LOG.info("Get input " + a.getClass() + ":" + a + " " + b.getClass() + ":"
     // + b);
-    if ((a == null) || (b == null)) {
+    if (a == null || b == null || b.get() == 0.0f) {
       return null;
     }
 
@@ -101,11 +107,33 @@ public class UDFPosMod extends UDFBaseNumericOp {
   public DoubleWritable evaluate(DoubleWritable a, DoubleWritable b) {
     // LOG.info("Get input " + a.getClass() + ":" + a + " " + b.getClass() + ":"
     // + b);
-    if ((a == null) || (b == null)) {
+    if (a == null || b == null || b.get() == 0.0) {
       return null;
     }
 
     doubleWritable.set(((a.get() % b.get()) + b.get()) % b.get());
     return doubleWritable;
+  }
+
+  @Override
+  public HiveDecimalWritable evaluate(HiveDecimalWritable a, HiveDecimalWritable b) {
+    if ((a == null) || (b == null)) {
+      return null;
+    }
+
+    HiveDecimal av = a.getHiveDecimal();
+    HiveDecimal bv = b.getHiveDecimal();
+
+    if (bv.compareTo(HiveDecimal.ZERO) == 0) {
+      return null;
+    }
+
+    HiveDecimal dec = av.remainder(bv).add(bv).remainder(bv);
+    if (dec == null) {
+      return null;
+    }
+
+    decimalWritable.set(dec);
+    return decimalWritable;
   }
 }

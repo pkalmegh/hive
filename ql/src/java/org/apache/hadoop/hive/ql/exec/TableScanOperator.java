@@ -27,14 +27,15 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.common.FileUtils;
+import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.VirtualColumn;
+import org.apache.hadoop.hive.ql.plan.OperatorDesc;
 import org.apache.hadoop.hive.ql.plan.TableDesc;
 import org.apache.hadoop.hive.ql.plan.TableScanDesc;
 import org.apache.hadoop.hive.ql.plan.api.OperatorType;
 import org.apache.hadoop.hive.ql.stats.StatsPublisher;
-import org.apache.hadoop.hive.ql.stats.StatsSetupConst;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption;
@@ -60,6 +61,9 @@ public class TableScanOperator extends Operator<TableScanDesc> implements
   private transient Stat currentStat;
   private transient Map<String, Stat> stats;
 
+  private transient int rowLimit = -1;
+  private transient int currCount = 0;
+
   public TableDesc getTableDesc() {
     return tableDesc;
   }
@@ -77,6 +81,10 @@ public class TableScanOperator extends Operator<TableScanDesc> implements
    **/
   @Override
   public void processOp(Object row, int tag) throws HiveException {
+    if (rowLimit >= 0 && currCount++ >= rowLimit) {
+      setDone(true);
+      return;
+    }
     if (conf != null && conf.isGatherStats()) {
       gatherStats(row);
     }
@@ -87,6 +95,20 @@ public class TableScanOperator extends Operator<TableScanDesc> implements
   @Override
   public void cleanUpInputFileChangedOp() throws HiveException {
     inputFileChanged = true;
+    // If the file name to bucket number mapping is maintained, store the bucket number
+    // in the execution context. This is needed for the following scenario:
+    // insert overwrite table T1 select * from T2;
+    // where T1 and T2 are sorted/bucketed by the same keys into the same number of buckets
+    // Although one mapper per file is used (BucketizedInputHiveInput), it is possible that
+    // any mapper can pick up any file (depending on the size of the files). The bucket number
+    // corresponding to the input file is stored to name the output bucket file appropriately.
+    Map<String, Integer> bucketNameMapping =
+        (conf != null) ? conf.getBucketFileNameMapping() : null;
+    if ((bucketNameMapping != null) && (!bucketNameMapping.isEmpty())) {
+      Path currentInputPath = getExecContext().getCurrentInputPath();
+      getExecContext().setFileId(Integer.toString(bucketNameMapping.get(
+          currentInputPath.getName())));
+    }
   }
 
   private void gatherStats(Object row) {
@@ -169,6 +191,7 @@ public class TableScanOperator extends Operator<TableScanDesc> implements
     if (conf == null) {
       return;
     }
+    rowLimit = conf.getRowLimit();
     if (!conf.isGatherStats()) {
       return;
     }
@@ -178,7 +201,7 @@ public class TableScanOperator extends Operator<TableScanDesc> implements
       jc = (JobConf) hconf;
     } else {
       // test code path
-      jc = new JobConf(hconf, ExecDriver.class);
+      jc = new JobConf(hconf);
     }
 
     currentStat = null;
@@ -214,18 +237,31 @@ public class TableScanOperator extends Operator<TableScanDesc> implements
     return "TS";
   }
 
-  // this 'neededColumnIDs' field is included in this operator class instead of
+  // This 'neededColumnIDs' field is included in this operator class instead of
   // its desc class.The reason is that 1)tableScanDesc can not be instantiated,
   // and 2) it will fail some join and union queries if this is added forcibly
-  // into tableScanDesc
-  java.util.ArrayList<Integer> neededColumnIDs;
+  // into tableScanDesc.
+  // Both neededColumnIDs and neededColumns should never be null.
+  // When neededColumnIDs is an empty list,
+  // it means no needed column (e.g. we do not need any column to evaluate
+  // SELECT count(*) FROM t).
+  List<Integer> neededColumnIDs;
+  List<String> neededColumns;
 
-  public void setNeededColumnIDs(java.util.ArrayList<Integer> orign_columns) {
+  public void setNeededColumnIDs(List<Integer> orign_columns) {
     neededColumnIDs = orign_columns;
   }
 
-  public java.util.ArrayList<Integer> getNeededColumnIDs() {
+  public List<Integer> getNeededColumnIDs() {
     return neededColumnIDs;
+  }
+
+  public void setNeededColumns(List<String> columnNames) {
+    neededColumns = columnNames;
+  }
+
+  public List<String> getNeededColumns() {
+    return neededColumns;
   }
 
   @Override
@@ -256,11 +292,15 @@ public class TableScanOperator extends Operator<TableScanDesc> implements
       if (pspecs.isEmpty()) {
         // In case of a non-partitioned table, the key for temp storage is just
         // "tableName + taskID"
-        key = conf.getStatsAggPrefix() + taskID;
+        String keyPrefix = Utilities.getHashedStatsPrefix(
+            conf.getStatsAggPrefix(), conf.getMaxStatsKeyPrefixLength());
+        key = keyPrefix + taskID;
       } else {
         // In case of a partition, the key for temp storage is
         // "tableName + partitionSpecs + taskID"
-        key = conf.getStatsAggPrefix() + pspecs + Path.SEPARATOR + taskID;
+        String keyPrefix = Utilities.getHashedStatsPrefix(
+            conf.getStatsAggPrefix() + pspecs, conf.getMaxStatsKeyPrefixLength());
+        key = keyPrefix + taskID;
       }
       for(String statType : stats.get(pspecs).getStoredStats()) {
         statsToPublish.put(statType, Long.toString(stats.get(pspecs).getStat(statType)));
@@ -283,4 +323,19 @@ public class TableScanOperator extends Operator<TableScanDesc> implements
   public boolean supportSkewJoinOptimization() {
     return true;
   }
+
+  @Override
+  public boolean supportAutomaticSortMergeJoin() {
+    return true;
+  }
+
+  @Override
+  public Operator<? extends OperatorDesc> clone()
+    throws CloneNotSupportedException {
+    TableScanOperator ts = (TableScanOperator) super.clone();
+    ts.setNeededColumnIDs(new ArrayList<Integer>(getNeededColumnIDs()));
+    ts.setNeededColumns(new ArrayList<String>(getNeededColumns()));
+    return ts;
+  }
+
 }

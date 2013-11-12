@@ -22,6 +22,7 @@ import java.beans.DefaultPersistenceDelegate;
 import java.beans.Encoder;
 import java.beans.ExceptionListener;
 import java.beans.Expression;
+import java.beans.PersistenceDelegate;
 import java.beans.Statement;
 import java.beans.XMLDecoder;
 import java.beans.XMLEncoder;
@@ -43,21 +44,26 @@ import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.SQLTransientException;
+import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -73,6 +79,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.antlr.runtime.CommonToken;
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.WordUtils;
 import org.apache.commons.logging.Log;
@@ -87,65 +95,87 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.hive.common.HiveInterruptCallback;
 import org.apache.hadoop.hive.common.HiveInterruptUtils;
+import org.apache.hadoop.hive.common.HiveStatsUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Order;
+import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.hadoop.hive.ql.Context;
 import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.QueryPlan;
-import org.apache.hadoop.hive.ql.exec.FileSinkOperator.RecordWriter;
+import org.apache.hadoop.hive.ql.exec.mr.ExecDriver;
+import org.apache.hadoop.hive.ql.exec.mr.ExecMapper;
+import org.apache.hadoop.hive.ql.exec.mr.ExecReducer;
+import org.apache.hadoop.hive.ql.exec.mr.MapRedTask;
 import org.apache.hadoop.hive.ql.io.ContentSummaryInputFormat;
+import org.apache.hadoop.hive.ql.io.FSRecordWriter;
 import org.apache.hadoop.hive.ql.io.HiveFileFormatUtils;
 import org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat;
 import org.apache.hadoop.hive.ql.io.HiveInputFormat;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
 import org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat;
+import org.apache.hadoop.hive.ql.io.OneNullRowInputFormat;
 import org.apache.hadoop.hive.ql.io.RCFile;
 import org.apache.hadoop.hive.ql.io.ReworkMapredInputFormat;
+import org.apache.hadoop.hive.ql.io.rcfile.merge.MergeWork;
+import org.apache.hadoop.hive.ql.io.rcfile.merge.RCFileMergeMapper;
+import org.apache.hadoop.hive.ql.io.rcfile.stats.PartialScanMapper;
+import org.apache.hadoop.hive.ql.io.rcfile.stats.PartialScanWork;
+import org.apache.hadoop.hive.ql.io.rcfile.truncate.ColumnTruncateMapper;
+import org.apache.hadoop.hive.ql.io.rcfile.truncate.ColumnTruncateWork;
+import org.apache.hadoop.hive.ql.log.PerfLogger;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
+import org.apache.hadoop.hive.ql.metadata.HiveStorageHandler;
+import org.apache.hadoop.hive.ql.metadata.HiveUtils;
+import org.apache.hadoop.hive.ql.metadata.InputEstimator;
 import org.apache.hadoop.hive.ql.metadata.Partition;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
+import org.apache.hadoop.hive.ql.plan.BaseWork;
 import org.apache.hadoop.hive.ql.plan.DynamicPartitionCtx;
-import org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc;
-import org.apache.hadoop.hive.ql.plan.ExprNodeConstantDesc;
-import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc;
 import org.apache.hadoop.hive.ql.plan.FileSinkDesc;
 import org.apache.hadoop.hive.ql.plan.GroupByDesc;
-import org.apache.hadoop.hive.ql.plan.MapredLocalWork;
+import org.apache.hadoop.hive.ql.plan.MapWork;
 import org.apache.hadoop.hive.ql.plan.MapredWork;
+import org.apache.hadoop.hive.ql.plan.OperatorDesc;
 import org.apache.hadoop.hive.ql.plan.PartitionDesc;
 import org.apache.hadoop.hive.ql.plan.PlanUtils;
-import org.apache.hadoop.hive.ql.plan.TableDesc;
 import org.apache.hadoop.hive.ql.plan.PlanUtils.ExpressionTypes;
+import org.apache.hadoop.hive.ql.plan.ReduceWork;
+import org.apache.hadoop.hive.ql.plan.TableDesc;
+import org.apache.hadoop.hive.ql.plan.api.Adjacency;
+import org.apache.hadoop.hive.ql.plan.api.Graph;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.stats.StatsFactory;
 import org.apache.hadoop.hive.ql.stats.StatsPublisher;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPAnd;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPOr;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.Serializer;
 import org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe;
-import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.SequenceFile;
-import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.SequenceFile.CompressionType;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.DefaultCodec;
+import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.Shell;
+
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+import com.esotericsoftware.kryo.serializers.FieldSerializer;
 
 /**
  * Utilities.
@@ -159,70 +189,167 @@ public final class Utilities {
    */
 
   public static String HADOOP_LOCAL_FS = "file:///";
+  public static String MAP_PLAN_NAME = "map.xml";
+  public static String REDUCE_PLAN_NAME = "reduce.xml";
+  public static final String MAPRED_MAPPER_CLASS = "mapred.mapper.class";
+  public static final String MAPRED_REDUCER_CLASS = "mapred.reducer.class";
 
   /**
-   * ReduceField.
-   *
+   * ReduceField:
+   * KEY: record key
+   * VALUE: record value
    */
   public static enum ReduceField {
-    KEY, VALUE, ALIAS
+    KEY, VALUE
   };
+
+  public static List<String> reduceFieldNameList;
+  static {
+    reduceFieldNameList = new ArrayList<String>();
+    for (ReduceField r : ReduceField.values()) {
+      reduceFieldNameList.add(r.toString());
+    }
+  }
 
   private Utilities() {
     // prevent instantiation
   }
 
-  private static Map<String, MapredWork> gWorkMap = Collections
-      .synchronizedMap(new HashMap<String, MapredWork>());
-  private static final Log LOG = LogFactory.getLog(Utilities.class.getName());
+  private static Map<Path, BaseWork> gWorkMap = Collections
+      .synchronizedMap(new HashMap<Path, BaseWork>());
+  private static final String CLASS_NAME = Utilities.class.getName();
+  private static final Log LOG = LogFactory.getLog(CLASS_NAME);
 
-  public static void clearMapRedWork(Configuration job) {
+  public static void clearWork(Configuration conf) {
+    Path mapPath = getPlanPath(conf, MAP_PLAN_NAME);
+    Path reducePath = getPlanPath(conf, REDUCE_PLAN_NAME);
+
+    // if the plan path hasn't been initialized just return, nothing to clean.
+    if (mapPath == null || reducePath == null) {
+      return;
+    }
+
     try {
-      Path planPath = new Path(HiveConf.getVar(job, HiveConf.ConfVars.PLAN));
-      FileSystem fs = planPath.getFileSystem(job);
-      if (fs.exists(planPath)) {
-        try {
-          fs.delete(planPath, true);
-        } catch (IOException e) {
-          e.printStackTrace();
-        }
+      FileSystem fs = mapPath.getFileSystem(conf);
+      if (fs.exists(mapPath)) {
+        fs.delete(mapPath, true);
       }
+      if (fs.exists(reducePath)) {
+        fs.delete(reducePath, true);
+      }
+
     } catch (Exception e) {
+      LOG.warn("Failed to clean-up tmp directories.", e);
     } finally {
       // where a single process works with multiple plans - we must clear
       // the cache before working with the next plan.
-      String jobID = getHiveJobID(job);
-      if (jobID != null) {
-        gWorkMap.remove(jobID);
+      if (mapPath != null) {
+        gWorkMap.remove(mapPath);
+      }
+      if (reducePath != null) {
+        gWorkMap.remove(reducePath);
       }
     }
   }
 
-  public static MapredWork getMapRedWork(Configuration job) {
-    MapredWork gWork = null;
+  public static MapredWork getMapRedWork(Configuration conf) {
+    MapredWork w = new MapredWork();
+    w.setMapWork(getMapWork(conf));
+    w.setReduceWork(getReduceWork(conf));
+    return w;
+  }
+
+  public static MapWork getMapWork(Configuration conf) {
+    return (MapWork) getBaseWork(conf, MAP_PLAN_NAME);
+  }
+
+  public static ReduceWork getReduceWork(Configuration conf) {
+    return (ReduceWork) getBaseWork(conf, REDUCE_PLAN_NAME);
+  }
+
+  /**
+   * Returns the Map or Reduce plan
+   * Side effect: the BaseWork returned is also placed in the gWorkMap
+   * @param conf
+   * @param name
+   * @return BaseWork based on the name supplied will return null if name is null
+   * @throws RuntimeException if the configuration files are not proper or if plan can not be loaded
+   */
+  private static BaseWork getBaseWork(Configuration conf, String name) {
+    BaseWork gWork = null;
+    Path path = null;
+    InputStream in = null;
     try {
-      String jobID = getHiveJobID(job);
-      assert jobID != null;
-      gWork = gWorkMap.get(jobID);
+      path = getPlanPath(conf, name);
+      assert path != null;
+      gWork = gWorkMap.get(path);
       if (gWork == null) {
-        String jtConf = ShimLoader.getHadoopShims().getJobLauncherRpcAddress(job);
-        String path;
-        if (jtConf.equals("local")) {
-          String planPath = HiveConf.getVar(job, HiveConf.ConfVars.PLAN);
-          path = new Path(planPath).toUri().getPath();
+        Path localPath;
+        if (ShimLoader.getHadoopShims().isLocalMode(conf)) {
+          localPath = path;
         } else {
-          path = "HIVE_PLAN" + jobID;
+          localPath = new Path(name);
         }
-        InputStream in = new FileInputStream(path);
-        MapredWork ret = deserializeMapRedWork(in, job);
-        gWork = ret;
-        gWork.initialize();
-        gWorkMap.put(jobID, gWork);
+        in = new FileInputStream(localPath.toUri().getPath());
+        if(MAP_PLAN_NAME.equals(name)){
+          if (ExecMapper.class.getName().equals(conf.get(MAPRED_MAPPER_CLASS))){
+            gWork = deserializePlan(in, MapWork.class, conf);
+          } else if(RCFileMergeMapper.class.getName().equals(conf.get(MAPRED_MAPPER_CLASS))) {
+            gWork = deserializePlan(in, MergeWork.class, conf);
+          } else if(ColumnTruncateMapper.class.getName().equals(conf.get(MAPRED_MAPPER_CLASS))) {
+            gWork = deserializePlan(in, ColumnTruncateWork.class, conf);
+          } else if(PartialScanMapper.class.getName().equals(conf.get(MAPRED_MAPPER_CLASS))) {
+            gWork = deserializePlan(in, PartialScanWork.class,conf);
+          } else {
+            throw new RuntimeException("unable to determine work from configuration ."
+                + MAPRED_MAPPER_CLASS + " was "+ conf.get(MAPRED_MAPPER_CLASS)) ;
+          }
+        } else if (REDUCE_PLAN_NAME.equals(name)) {
+          if(ExecReducer.class.getName().equals(conf.get(MAPRED_REDUCER_CLASS))) {
+            gWork = deserializePlan(in, ReduceWork.class, conf);
+          } else {
+            throw new RuntimeException("unable to determine work from configuration ."
+                + MAPRED_REDUCER_CLASS +" was "+ conf.get(MAPRED_REDUCER_CLASS)) ;
+          }
+        }
+        gWorkMap.put(path, gWork);
       }
-      return (gWork);
+      return gWork;
+    } catch (FileNotFoundException fnf) {
+      // happens. e.g.: no reduce work.
+      LOG.debug("No plan file found: "+path);
+      return null;
     } catch (Exception e) {
-      e.printStackTrace();
+      LOG.error("Failed to load plan: "+path, e);
       throw new RuntimeException(e);
+    } finally {
+      if (in != null) {
+        try {
+          in.close();
+        } catch (IOException cantBlameMeForTrying) { }
+      }
+    }
+  }
+
+  public static void setWorkflowAdjacencies(Configuration conf, QueryPlan plan) {
+    try {
+      Graph stageGraph = plan.getQueryPlan().getStageGraph();
+      if (stageGraph == null) {
+        return;
+      }
+      List<Adjacency> adjList = stageGraph.getAdjacencyList();
+      if (adjList == null) {
+        return;
+      }
+      for (Adjacency adj : adjList) {
+        List<String> children = adj.getChildren();
+        if (children == null || children.isEmpty()) {
+          return;
+        }
+        conf.setStrings("mapreduce.workflow.adjacency."+adj.getNode(),
+            children.toArray(new String[children.size()]));
+      }
+    } catch (IOException e) {
     }
   }
 
@@ -338,103 +465,177 @@ public final class Utilities {
 
   }
 
-  public static void setMapRedWork(Configuration job, MapredWork w, String hiveScratchDir) {
+  /**
+   * DatePersistenceDelegate. Needed to serialize java.util.Date
+   * since it is not serialization friendly.
+   * Also works for java.sql.Date since it derives from java.util.Date.
+   */
+  public static class DatePersistenceDelegate extends PersistenceDelegate {
+
+    @Override
+    protected Expression instantiate(Object oldInstance, Encoder out) {
+      Date dateVal = (Date)oldInstance;
+      Object[] args = { dateVal.getTime() };
+      return new Expression(dateVal, dateVal.getClass(), "new", args);
+    }
+
+    @Override
+    protected boolean mutatesTo(Object oldInstance, Object newInstance) {
+      if (oldInstance == null || newInstance == null) {
+        return false;
+      }
+      return oldInstance.getClass() == newInstance.getClass();
+    }
+  }
+
+  /**
+   * TimestampPersistenceDelegate. Needed to serialize java.sql.Timestamp since
+   * it is not serialization friendly.
+   */
+  public static class TimestampPersistenceDelegate extends DatePersistenceDelegate {
+    @Override
+    protected void initialize(Class<?> type, Object oldInstance, Object newInstance, Encoder out) {
+      Timestamp ts = (Timestamp)oldInstance;
+      Object[] args = { ts.getNanos() };
+      Statement stmt = new Statement(oldInstance, "setNanos", args);
+      out.writeStatement(stmt);
+    }
+  }
+
+  /**
+   * Need to serialize org.antlr.runtime.CommonToken
+   */
+  public static class CommonTokenDelegate extends PersistenceDelegate {
+    @Override
+    protected Expression instantiate(Object oldInstance, Encoder out) {
+      CommonToken ct = (CommonToken)oldInstance;
+      Object[] args = {ct.getType(), ct.getText()};
+      return new Expression(ct, ct.getClass(), "new", args);
+    }
+  }
+
+  public static void setMapRedWork(Configuration conf, MapredWork w, String hiveScratchDir) {
+    setMapWork(conf, w.getMapWork(), hiveScratchDir, true);
+    if (w.getReduceWork() != null) {
+      setReduceWork(conf, w.getReduceWork(), hiveScratchDir, true);
+    }
+  }
+
+  public static Path setMapWork(Configuration conf, MapWork w, String hiveScratchDir, boolean useCache) {
+    return setBaseWork(conf, w, hiveScratchDir, MAP_PLAN_NAME, useCache);
+  }
+
+  public static Path setReduceWork(Configuration conf, ReduceWork w, String hiveScratchDir, boolean useCache) {
+    return setBaseWork(conf, w, hiveScratchDir, REDUCE_PLAN_NAME, useCache);
+  }
+
+  private static Path setBaseWork(Configuration conf, BaseWork w, String hiveScratchDir, String name, boolean useCache) {
     try {
+      setPlanPath(conf, hiveScratchDir);
 
-      // this is the unique job ID, which is kept in JobConf as part of the plan file name
-      String jobID = UUID.randomUUID().toString();
-      Path planPath = new Path(hiveScratchDir, jobID);
-      HiveConf.setVar(job, HiveConf.ConfVars.PLAN, planPath.toUri().toString());
+      Path planPath = getPlanPath(conf, name);
 
-      // use the default file system of the job
-      FileSystem fs = planPath.getFileSystem(job);
+      // use the default file system of the conf
+      FileSystem fs = planPath.getFileSystem(conf);
       FSDataOutputStream out = fs.create(planPath);
-      serializeMapRedWork(w, out);
+      serializePlan(w, out, conf);
 
       // Serialize the plan to the default hdfs instance
       // Except for hadoop local mode execution where we should be
       // able to get the plan directly from the cache
-      if (!ShimLoader.getHadoopShims().isLocalMode(job)) {
+      if (useCache && !ShimLoader.getHadoopShims().isLocalMode(conf)) {
         // Set up distributed cache
-        DistributedCache.createSymlink(job);
-        String uriWithLink = planPath.toUri().toString() + "#HIVE_PLAN" + jobID;
-        DistributedCache.addCacheFile(new URI(uriWithLink), job);
+        if (!DistributedCache.getSymlink(conf)) {
+          DistributedCache.createSymlink(conf);
+        }
+        String uriWithLink = planPath.toUri().toString() + "#" + name;
+        DistributedCache.addCacheFile(new URI(uriWithLink), conf);
 
         // set replication of the plan file to a high number. we use the same
         // replication factor as used by the hadoop jobclient for job.xml etc.
-        short replication = (short) job.getInt("mapred.submit.replication", 10);
+        short replication = (short) conf.getInt("mapred.submit.replication", 10);
         fs.setReplication(planPath, replication);
       }
 
       // Cache the plan in this process
-      w.initialize();
-      gWorkMap.put(jobID, w);
+      gWorkMap.put(planPath, w);
+
+      return planPath;
     } catch (Exception e) {
       e.printStackTrace();
       throw new RuntimeException(e);
     }
   }
 
-  public static String getHiveJobID(Configuration job) {
-    String planPath = HiveConf.getVar(job, HiveConf.ConfVars.PLAN);
-    if (planPath != null) {
-      return (new Path(planPath)).getName();
+  private static Path getPlanPath(Configuration conf, String name) {
+    Path planPath = getPlanPath(conf);
+    if (planPath == null) {
+      return null;
+    }
+    return new Path(planPath, name);
+  }
+
+  private static void setPlanPath(Configuration conf, String hiveScratchDir) throws IOException {
+    if (getPlanPath(conf) == null) {
+      // this is the unique conf ID, which is kept in JobConf as part of the plan file name
+      String jobID = UUID.randomUUID().toString();
+      Path planPath = new Path(hiveScratchDir, jobID);
+      FileSystem fs = planPath.getFileSystem(conf);
+      fs.mkdirs(planPath);
+      HiveConf.setVar(conf, HiveConf.ConfVars.PLAN, planPath.toUri().toString());
+    }
+  }
+
+  public static Path getPlanPath(Configuration conf) {
+    String plan = HiveConf.getVar(conf, HiveConf.ConfVars.PLAN);
+    if (plan != null && !plan.isEmpty()) {
+      return new Path(plan);
     }
     return null;
   }
 
-  public static String serializeExpression(ExprNodeDesc expr) {
+  /**
+   * Serializes expression via Kryo.
+   * @param expr Expression.
+   * @return Bytes.
+   */
+  public static byte[] serializeExpressionToKryo(ExprNodeGenericFuncDesc expr) {
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    XMLEncoder encoder = new XMLEncoder(baos);
-    try {
-      encoder.writeObject(expr);
-    } finally {
-      encoder.close();
-    }
-    try {
-      return baos.toString("UTF-8");
-    } catch (UnsupportedEncodingException ex) {
-      throw new RuntimeException("UTF-8 support required", ex);
-    }
-  }
-
-  public static ExprNodeDesc deserializeExpression(String s, Configuration conf) {
-    byte[] bytes;
-    try {
-      bytes = s.getBytes("UTF-8");
-    } catch (UnsupportedEncodingException ex) {
-      throw new RuntimeException("UTF-8 support required", ex);
-    }
-
-    ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
-
-    XMLDecoder decoder = new XMLDecoder(bais, null, null);
-    try {
-      ExprNodeDesc expr = (ExprNodeDesc) decoder.readObject();
-      return expr;
-    } finally {
-      decoder.close();
-    }
+    Output output = new Output(baos);
+    runtimeSerializationKryo.get().writeObject(output, expr);
+    output.close();
+    return baos.toByteArray();
   }
 
   /**
-   * Serialize a single Task.
+   * Deserializes expression from Kryo.
+   * @param bytes Bytes containing the expression.
+   * @return Expression; null if deserialization succeeded, but the result type is incorrect.
    */
-  public static void serializeTasks(Task<? extends Serializable> t, OutputStream out) {
-    XMLEncoder e = null;
-    try {
-      e = new XMLEncoder(out);
-      // workaround for java 1.5
-      e.setPersistenceDelegate(ExpressionTypes.class, new EnumDelegate());
-      e.setPersistenceDelegate(GroupByDesc.Mode.class, new EnumDelegate());
-      e.setPersistenceDelegate(Operator.ProgressCounter.class, new EnumDelegate());
+  public static ExprNodeGenericFuncDesc deserializeExpressionFromKryo(byte[] bytes) {
+    Input inp = new Input(new ByteArrayInputStream(bytes));
+    ExprNodeGenericFuncDesc func = runtimeSerializationKryo.get().
+      readObject(inp,ExprNodeGenericFuncDesc.class);
+    inp.close();
+    return func;
+  }
 
-      e.writeObject(t);
-    } finally {
-      if (null != e) {
-        e.close();
-      }
+  public static String serializeExpression(ExprNodeGenericFuncDesc expr) {
+    try {
+      return new String(Base64.encodeBase64(serializeExpressionToKryo(expr)), "UTF-8");
+    } catch (UnsupportedEncodingException ex) {
+      throw new RuntimeException("UTF-8 support required", ex);
     }
+  }
+
+  public static ExprNodeGenericFuncDesc deserializeExpression(String s) {
+    byte[] bytes;
+    try {
+      bytes = Base64.decodeBase64(s.getBytes("UTF-8"));
+    } catch (UnsupportedEncodingException ex) {
+      throw new RuntimeException("UTF-8 support required", ex);
+    }
+    return deserializeExpressionFromKryo(bytes);
   }
 
   public static class CollectionPersistenceDelegate extends DefaultPersistenceDelegate {
@@ -453,37 +654,173 @@ public final class Utilities {
   }
 
   /**
-   * Serialize the whole query plan.
+   * Kryo serializer for timestamp.
    */
-  public static void serializeQueryPlan(QueryPlan plan, OutputStream out) {
+  private static class TimestampSerializer extends
+  com.esotericsoftware.kryo.Serializer<Timestamp> {
+
+    @Override
+    public Timestamp read(Kryo kryo, Input input, Class<Timestamp> clazz) {
+      Timestamp ts = new Timestamp(input.readLong());
+      ts.setNanos(input.readInt());
+      return ts;
+    }
+
+    @Override
+    public void write(Kryo kryo, Output output, Timestamp ts) {
+      output.writeLong(ts.getTime());
+      output.writeInt(ts.getNanos());
+    }
+  }
+
+   /** Custom Kryo serializer for sql date, otherwise Kryo gets confused between
+   java.sql.Date and java.util.Date while deserializing
+   */
+  private static class SqlDateSerializer extends
+    com.esotericsoftware.kryo.Serializer<java.sql.Date> {
+
+    @Override
+    public java.sql.Date read(Kryo kryo, Input input, Class<java.sql.Date> clazz) {
+      return new java.sql.Date(input.readLong());
+    }
+
+    @Override
+    public void write(Kryo kryo, Output output, java.sql.Date sqlDate) {
+      output.writeLong(sqlDate.getTime());
+    }
+  }
+
+  private static class CommonTokenSerializer extends com.esotericsoftware.kryo.Serializer<CommonToken> {
+    @Override
+    public CommonToken read(Kryo kryo, Input input, Class<CommonToken> clazz) {
+      return new CommonToken(input.readInt(), input.readString());
+    }
+
+    @Override
+  public void write(Kryo kryo, Output output, CommonToken token) {
+      output.writeInt(token.getType());
+      output.writeString(token.getText());
+    }
+  }
+  private static void serializePlan(Object plan, OutputStream out, Configuration conf, boolean cloningPlan) {
+    PerfLogger perfLogger = PerfLogger.getPerfLogger();
+    perfLogger.PerfLogBegin(CLASS_NAME, PerfLogger.SERIALIZE_PLAN);
+    String serializationType = conf.get(HiveConf.ConfVars.PLAN_SERIALIZATION.varname, "kryo");
+    LOG.info("Serializing " + plan.getClass().getSimpleName() + " via " + serializationType);
+    if("javaXML".equalsIgnoreCase(serializationType)) {
+      serializeObjectByJavaXML(plan, out);
+    } else {
+      if(cloningPlan) {
+        serializeObjectByKryo(cloningQueryPlanKryo.get(), plan, out);
+      } else {
+        serializeObjectByKryo(runtimeSerializationKryo.get(), plan, out);
+      }
+    }
+    perfLogger.PerfLogEnd(CLASS_NAME, PerfLogger.SERIALIZE_PLAN);
+  }
+  /**
+   * Serializes the plan.
+   * @param plan The plan, such as QueryPlan, MapredWork, etc.
+   * @param out The stream to write to.
+   * @param conf to pick which serialization format is desired.
+   */
+  public static void serializePlan(Object plan, OutputStream out, Configuration conf) {
+    serializePlan(plan, out, conf, false);
+  }
+
+  private static <T> T deserializePlan(InputStream in, Class<T> planClass, Configuration conf, boolean cloningPlan) {
+    PerfLogger perfLogger = PerfLogger.getPerfLogger();
+    perfLogger.PerfLogBegin(CLASS_NAME, PerfLogger.DESERIALIZE_PLAN);
+    T plan;
+    String serializationType = conf.get(HiveConf.ConfVars.PLAN_SERIALIZATION.varname, "kryo");
+    LOG.info("Deserializing " + planClass.getSimpleName() + " via " + serializationType);
+    if("javaXML".equalsIgnoreCase(serializationType)) {
+      plan = deserializeObjectByJavaXML(in);
+    } else {
+      if(cloningPlan) {
+        plan = deserializeObjectByKryo(cloningQueryPlanKryo.get(), in, planClass);
+      } else {
+        plan = deserializeObjectByKryo(runtimeSerializationKryo.get(), in, planClass);
+      }
+    }
+    perfLogger.PerfLogEnd(CLASS_NAME, PerfLogger.DESERIALIZE_PLAN);
+    return plan;
+  }
+  /**
+   * Deserializes the plan.
+   * @param in The stream to read from.
+   * @return The plan, such as QueryPlan, MapredWork, etc.
+   * @param To know what serialization format plan is in
+   */
+  public static <T> T deserializePlan(InputStream in, Class<T> planClass, Configuration conf) {
+    return deserializePlan(in, planClass, conf, false);
+  }
+
+  /**
+   * Clones using the powers of XML. Do not use unless necessary.
+   * @param plan The plan.
+   * @return The clone.
+   */
+  public static MapredWork clonePlan(MapredWork plan) {
+    // TODO: need proper clone. Meanwhile, let's at least keep this horror in one place
+    PerfLogger perfLogger = PerfLogger.getPerfLogger();
+    perfLogger.PerfLogBegin(CLASS_NAME, PerfLogger.CLONE_PLAN);
+    ByteArrayOutputStream baos = new ByteArrayOutputStream(4096);
+    Configuration conf = new HiveConf();
+    serializePlan(plan, baos, conf, true);
+    MapredWork newPlan = deserializePlan(new ByteArrayInputStream(baos.toByteArray()),
+        MapredWork.class, conf, true);
+    perfLogger.PerfLogEnd(CLASS_NAME, PerfLogger.CLONE_PLAN);
+    return newPlan;
+  }
+
+  /**
+   * Serialize the object. This helper function mainly makes sure that enums,
+   * counters, etc are handled properly.
+   */
+  private static void serializeObjectByJavaXML(Object plan, OutputStream out) {
     XMLEncoder e = new XMLEncoder(out);
     e.setExceptionListener(new ExceptionListener() {
       public void exceptionThrown(Exception e) {
         LOG.warn(org.apache.hadoop.util.StringUtils.stringifyException(e));
-        throw new RuntimeException("Cannot serialize the query plan", e);
+        throw new RuntimeException("Cannot serialize object", e);
       }
     });
     // workaround for java 1.5
     e.setPersistenceDelegate(ExpressionTypes.class, new EnumDelegate());
     e.setPersistenceDelegate(GroupByDesc.Mode.class, new EnumDelegate());
     e.setPersistenceDelegate(Operator.ProgressCounter.class, new EnumDelegate());
+    e.setPersistenceDelegate(java.sql.Date.class, new DatePersistenceDelegate());
+    e.setPersistenceDelegate(Timestamp.class, new TimestampPersistenceDelegate());
 
-    e.setPersistenceDelegate(org.datanucleus.sco.backed.Map.class, new MapDelegate());
-    e.setPersistenceDelegate(org.datanucleus.sco.backed.List.class, new ListDelegate());
+    e.setPersistenceDelegate(org.datanucleus.store.types.backed.Map.class, new MapDelegate());
+    e.setPersistenceDelegate(org.datanucleus.store.types.backed.List.class, new ListDelegate());
+    e.setPersistenceDelegate(CommonToken.class, new CommonTokenDelegate());
 
     e.writeObject(plan);
     e.close();
   }
 
   /**
-   * Deserialize the whole query plan.
+   * @param plan Usually of type MapredWork, MapredLocalWork etc.
+   * @param out stream in which serialized plan is written into
    */
-  public static QueryPlan deserializeQueryPlan(InputStream in, Configuration conf) {
+  private static void serializeObjectByKryo(Kryo kryo, Object plan, OutputStream out) {
+    Output output = new Output(out);
+    kryo.writeObject(output, plan);
+    output.close();
+  }
+
+  /**
+   * De-serialize an object. This helper function mainly makes sure that enums,
+   * counters, etc are handled properly.
+   */
+  @SuppressWarnings("unchecked")
+  private static <T> T deserializeObjectByJavaXML(InputStream in) {
     XMLDecoder d = null;
     try {
       d = new XMLDecoder(in, null, null);
-      QueryPlan ret = (QueryPlan) d.readObject();
-      return (ret);
+      return (T) d.readObject();
     } finally {
       if (null != d) {
         d.close();
@@ -491,94 +828,46 @@ public final class Utilities {
     }
   }
 
-  /**
-   * Serialize the mapredWork object to an output stream. DO NOT use this to write to standard
-   * output since it closes the output stream. DO USE mapredWork.toXML() instead.
-   */
-  public static void serializeMapRedWork(MapredWork w, OutputStream out) {
-    XMLEncoder e = null;
-    try {
-      e = new XMLEncoder(out);
-      // workaround for java 1.5
-      e.setPersistenceDelegate(ExpressionTypes.class, new EnumDelegate());
-      e.setPersistenceDelegate(GroupByDesc.Mode.class, new EnumDelegate());
-      e.writeObject(w);
-    } finally {
-      if (null != e) {
-        e.close();
-      }
-    }
-
+  private static <T> T deserializeObjectByKryo(Kryo kryo, InputStream in, Class<T> clazz ) {
+    Input inp = new Input(in);
+    T t = kryo.readObject(inp,clazz);
+    inp.close();
+    return t;
   }
 
-  public static MapredWork deserializeMapRedWork(InputStream in, Configuration conf) {
-    XMLDecoder d = null;
-    try {
-      d = new XMLDecoder(in, null, null);
-      MapredWork ret = (MapredWork) d.readObject();
-      return (ret);
-    } finally {
-      if (null != d) {
-        d.close();
-      }
-    }
+  // Kryo is not thread-safe,
+  // Also new Kryo() is expensive, so we want to do it just once.
+  private static ThreadLocal<Kryo> runtimeSerializationKryo = new ThreadLocal<Kryo>() {
+    @Override
+    protected synchronized Kryo initialValue() {
+      Kryo kryo = new Kryo();
+      kryo.setClassLoader(Thread.currentThread().getContextClassLoader());
+      kryo.register(java.sql.Date.class, new SqlDateSerializer());
+      kryo.register(java.sql.Timestamp.class, new TimestampSerializer());
+      removeField(kryo, Operator.class, "colExprMap");
+      removeField(kryo, ColumnInfo.class, "objectInspector");
+      removeField(kryo, MapWork.class, "opParseCtxMap");
+      removeField(kryo, MapWork.class, "joinTree");
+      return kryo;
+    };
+  };
+  @SuppressWarnings("rawtypes")
+  protected static void removeField(Kryo kryo, Class type, String fieldName) {
+    FieldSerializer fld = new FieldSerializer(kryo, type);
+    fld.removeField(fieldName);
+    kryo.register(type, fld);
   }
-
-  /**
-   * Serialize the mapredLocalWork object to an output stream. DO NOT use this to write to standard
-   * output since it closes the output stream. DO USE mapredWork.toXML() instead.
-   */
-  public static void serializeMapRedLocalWork(MapredLocalWork w, OutputStream out) {
-    XMLEncoder e = null;
-    try {
-      e = new XMLEncoder(out);
-      // workaround for java 1.5
-      e.setPersistenceDelegate(ExpressionTypes.class, new EnumDelegate());
-      e.setPersistenceDelegate(GroupByDesc.Mode.class, new EnumDelegate());
-      e.writeObject(w);
-    } finally {
-      if (null != e) {
-        e.close();
-      }
-    }
-  }
-
-  public static MapredLocalWork deserializeMapRedLocalWork(InputStream in, Configuration conf) {
-    XMLDecoder d = null;
-    try {
-      d = new XMLDecoder(in, null, null);
-      MapredLocalWork ret = (MapredLocalWork) d.readObject();
-      return (ret);
-    } finally {
-      if (null != d) {
-        d.close();
-      }
-    }
-  }
-
-  /**
-   * Tuple.
-   *
-   * @param <T>
-   * @param <V>
-   */
-  public static class Tuple<T, V> {
-    private final T one;
-    private final V two;
-
-    public Tuple(T one, V two) {
-      this.one = one;
-      this.two = two;
-    }
-
-    public T getOne() {
-      return this.one;
-    }
-
-    public V getTwo() {
-      return this.two;
-    }
-  }
+  private static ThreadLocal<Kryo> cloningQueryPlanKryo = new ThreadLocal<Kryo>() {
+    @Override
+    protected synchronized Kryo initialValue() {
+      Kryo kryo = new Kryo();
+      kryo.setClassLoader(Thread.currentThread().getContextClassLoader());
+      kryo.register(CommonToken.class, new CommonTokenSerializer());
+      kryo.register(java.sql.Date.class, new SqlDateSerializer());
+      kryo.register(java.sql.Timestamp.class, new TimestampSerializer());
+      return kryo;
+    };
+  };
 
   public static TableDesc defaultTd;
   static {
@@ -689,17 +978,20 @@ public final class Utilities {
   }
 
   public static TableDesc getTableDesc(Table tbl) {
-    return (new TableDesc(tbl.getDeserializer().getClass(), tbl.getInputFormatClass(), tbl
-        .getOutputFormatClass(), tbl.getSchema()));
+    Properties props = tbl.getMetadata();
+    props.put(serdeConstants.SERIALIZATION_LIB, tbl.getDeserializer().getClass().getName());
+    return (new TableDesc(tbl.getInputFormatClass(), tbl
+        .getOutputFormatClass(), props));
   }
 
   // column names and column types are all delimited by comma
   public static TableDesc getTableDesc(String cols, String colTypes) {
-    return (new TableDesc(LazySimpleSerDe.class, SequenceFileInputFormat.class,
+    return (new TableDesc(SequenceFileInputFormat.class,
         HiveSequenceFileOutputFormat.class, Utilities.makeProperties(
-        org.apache.hadoop.hive.serde.Constants.SERIALIZATION_FORMAT, "" + Utilities.ctrlaCode,
-        org.apache.hadoop.hive.serde.Constants.LIST_COLUMNS, cols,
-        org.apache.hadoop.hive.serde.Constants.LIST_COLUMN_TYPES, colTypes)));
+        serdeConstants.SERIALIZATION_FORMAT, "" + Utilities.ctrlaCode,
+        serdeConstants.LIST_COLUMNS, cols,
+        serdeConstants.LIST_COLUMN_TYPES, colTypes,
+        serdeConstants.SERIALIZATION_LIB,LazySimpleSerDe.class.getName())));
   }
 
   public static PartitionDesc getPartitionDesc(Partition part) throws HiveException {
@@ -709,11 +1001,6 @@ public final class Utilities {
   public static PartitionDesc getPartitionDescFromTableDesc(TableDesc tblDesc, Partition part)
       throws HiveException {
     return new PartitionDesc(part, tblDesc);
-  }
-
-  public static void addMapWork(MapredWork mr, Table tbl, String alias, Operator<?> work) {
-    mr.addMapWork(tbl.getDataLocation().getPath(), alias, work, new PartitionDesc(
-        getTableDesc(tbl), (LinkedHashMap<String, String>) null));
   }
 
   private static String getOpTreeSkel_helper(Operator<?> op, String indent) {
@@ -1318,31 +1605,20 @@ public final class Utilities {
   }
 
   /**
-   * Get all file status from a root path and recursively go deep into certain levels.
-   *
-   * @param path
-   *          the root path
-   * @param level
-   *          the depth of directory should explore
-   * @param fs
-   *          the file system
-   * @return array of FileStatus
-   * @throws IOException
+   * returns null if path is not exist
    */
-  public static FileStatus[] getFileStatusRecurse(Path path, int level, FileSystem fs)
-      throws IOException {
-
-    // construct a path pattern (e.g., /*/*) to find all dynamically generated paths
-    StringBuilder sb = new StringBuilder(path.toUri().getPath());
-    for (int i = 0; i < level; ++i) {
-      sb.append(Path.SEPARATOR).append("*");
+  public static FileStatus[] listStatusIfExists(Path path, FileSystem fs) throws IOException {
+    try {
+      return fs.listStatus(path);
+    } catch (FileNotFoundException e) {
+      // FS in hadoop 2.0 throws FNF instead of returning null
+      return null;
     }
-    Path pathPattern = new Path(path, sb.toString());
-    return fs.globStatus(pathPattern);
   }
 
   public static void mvFileToFinalPath(String specPath, Configuration hconf,
-      boolean success, Log log, DynamicPartitionCtx dpCtx, FileSinkDesc conf) throws IOException,
+      boolean success, Log log, DynamicPartitionCtx dpCtx, FileSinkDesc conf,
+      Reporter reporter) throws IOException,
       HiveException {
 
     FileSystem fs = (new Path(specPath)).getFileSystem(hconf);
@@ -1363,7 +1639,7 @@ public final class Utilities {
             Utilities.removeTempOrDuplicateFiles(fs, intermediatePath, dpCtx);
         // create empty buckets if necessary
         if (emptyBuckets.size() > 0) {
-          createEmptyBuckets(hconf, emptyBuckets, conf);
+          createEmptyBuckets(hconf, emptyBuckets, conf, reporter);
         }
 
         // Step3: move to the file destination
@@ -1380,17 +1656,15 @@ public final class Utilities {
    * Check the existence of buckets according to bucket specification. Create empty buckets if
    * needed.
    *
-   * @param specPath
-   *          The final path where the dynamic partitions should be in.
-   * @param conf
-   *          FileSinkDesc.
-   * @param dpCtx
-   *          dynamic partition context.
+   * @param hconf
+   * @param paths A list of empty buckets to create
+   * @param conf The definition of the FileSink.
+   * @param reporter The mapreduce reporter object
    * @throws HiveException
    * @throws IOException
    */
   private static void createEmptyBuckets(Configuration hconf, ArrayList<String> paths,
-      FileSinkDesc conf)
+      FileSinkDesc conf, Reporter reporter)
       throws HiveException, IOException {
 
     JobConf jc;
@@ -1398,7 +1672,7 @@ public final class Utilities {
       jc = new JobConf(hconf);
     } else {
       // test code path
-      jc = new JobConf(hconf, ExecDriver.class);
+      jc = new JobConf(hconf);
     }
     HiveOutputFormat<?, ?> hiveOutputFormat = null;
     Class<? extends Writable> outputClass = null;
@@ -1419,8 +1693,9 @@ public final class Utilities {
 
     for (String p : paths) {
       Path path = new Path(p);
-      RecordWriter writer = HiveFileFormatUtils.getRecordWriter(
-          jc, hiveOutputFormat, outputClass, isCompressed, tableInfo.getProperties(), path);
+      FSRecordWriter writer = HiveFileFormatUtils.getRecordWriter(
+          jc, hiveOutputFormat, outputClass, isCompressed,
+          tableInfo.getProperties(), path, reporter);
       writer.close(false);
       LOG.info("created empty bucket for enforcing bucketing at " + path);
     }
@@ -1446,7 +1721,7 @@ public final class Utilities {
 
     ArrayList<String> result = new ArrayList<String>();
     if (dpCtx != null) {
-      FileStatus parts[] = getFileStatusRecurse(path, dpCtx.getNumDPCols(), fs);
+      FileStatus parts[] = HiveStatsUtils.getFileStatusRecurse(path, dpCtx.getNumDPCols(), fs);
       HashMap<String, FileStatus> taskIDToFile = null;
 
       for (int i = 0; i < parts.length; ++i) {
@@ -1644,7 +1919,7 @@ public final class Utilities {
 
   public static List<String> getColumnNames(Properties props) {
     List<String> names = new ArrayList<String>();
-    String colNames = props.getProperty(Constants.LIST_COLUMNS);
+    String colNames = props.getProperty(serdeConstants.LIST_COLUMNS);
     String[] cols = colNames.trim().split(",");
     if (cols != null) {
       for (String col : cols) {
@@ -1658,7 +1933,7 @@ public final class Utilities {
 
   public static List<String> getColumnTypes(Properties props) {
     List<String> names = new ArrayList<String>();
-    String colNames = props.getProperty(Constants.LIST_COLUMN_TYPES);
+    String colNames = props.getProperty(serdeConstants.LIST_COLUMN_TYPES);
     String[] cols = colNames.trim().split(",");
     if (cols != null) {
       for (String col : cols) {
@@ -1730,7 +2005,7 @@ public final class Utilities {
     }
   }
 
-  public static Object getInputSummaryLock = new Object();
+  private static final Object INPUT_SUMMARY_LOCK = new Object();
 
   /**
    * Calculate the total size of input files.
@@ -1744,8 +2019,10 @@ public final class Utilities {
    * @return the summary of all the input paths.
    * @throws IOException
    */
-  public static ContentSummary getInputSummary(Context ctx, MapredWork work, PathFilter filter)
+  public static ContentSummary getInputSummary(Context ctx, MapWork work, PathFilter filter)
       throws IOException {
+    PerfLogger perfLogger = PerfLogger.getPerfLogger();
+    perfLogger.PerfLogBegin(CLASS_NAME, PerfLogger.INPUT_SUMMARY);
 
     long[] summary = {0, 0, 0};
 
@@ -1753,7 +2030,7 @@ public final class Utilities {
 
     // Since multiple threads could call this method concurrently, locking
     // this method will avoid number of threads out of control.
-    synchronized (getInputSummaryLock) {
+    synchronized (INPUT_SUMMARY_LOCK) {
       // For each input path, calculate the total size.
       for (String path : work.getPathToAliases().keySet()) {
         Path p = new Path(path);
@@ -1811,26 +2088,47 @@ public final class Utilities {
           // is not correct.
           final Configuration myConf = conf;
           final JobConf myJobConf = jobConf;
+          final Map<String, Operator<?>> aliasToWork = work.getAliasToWork();
+          final Map<String, ArrayList<String>> pathToAlias = work.getPathToAliases();
           final PartitionDesc partDesc = work.getPathToPartitionInfo().get(
               p.toString());
           Runnable r = new Runnable() {
             public void run() {
               try {
-                ContentSummary resultCs;
-
                 Class<? extends InputFormat> inputFormatCls = partDesc
                     .getInputFileFormatClass();
                 InputFormat inputFormatObj = HiveInputFormat.getInputFormatFromCache(
                     inputFormatCls, myJobConf);
                 if (inputFormatObj instanceof ContentSummaryInputFormat) {
-                  resultCs = ((ContentSummaryInputFormat) inputFormatObj).getContentSummary(p,
-                      myJobConf);
-                } else {
-                  FileSystem fs = p.getFileSystem(myConf);
-                  resultCs = fs.getContentSummary(p);
+                  ContentSummaryInputFormat cs = (ContentSummaryInputFormat) inputFormatObj;
+                  resultMap.put(pathStr, cs.getContentSummary(p, myJobConf));
+                  return;
                 }
-                resultMap.put(pathStr, resultCs);
-              } catch (IOException e) {
+                HiveStorageHandler handler = HiveUtils.getStorageHandler(myConf,
+                    partDesc.getOverlayedProperties().getProperty(
+                    hive_metastoreConstants.META_TABLE_STORAGE));
+                if (handler == null) {
+                  // native table
+                  FileSystem fs = p.getFileSystem(myConf);
+                  resultMap.put(pathStr, fs.getContentSummary(p));
+                  return;
+                }
+                if (handler instanceof InputEstimator) {
+                  long total = 0;
+                  TableDesc tableDesc = partDesc.getTableDesc();
+                  InputEstimator estimator = (InputEstimator) handler;
+                  for (String alias : HiveFileFormatUtils.doGetAliasesFromPath(pathToAlias, p)) {
+                    JobConf jobConf = new JobConf(myJobConf);
+                    TableScanOperator scanOp = (TableScanOperator) aliasToWork.get(alias);
+                    Utilities.setColumnNameList(jobConf, scanOp, true);
+                    Utilities.setColumnTypeList(jobConf, scanOp, true);
+                    PlanUtils.configureInputJobPropertiesForStorageHandler(tableDesc);
+                    Utilities.copyTableJobPropertiesToConf(tableDesc, jobConf);
+                    total += estimator.estimate(myJobConf, scanOp, -1).getTotalLength();
+                  }
+                  resultMap.put(pathStr, new ContentSummary(total, -1, -1));
+                }
+              } catch (Exception e) {
                 // We safely ignore this exception for summary data.
                 // We don't update the cache to protect it from polluting other
                 // usages. The worst case is that IOException will always be
@@ -1864,7 +2162,7 @@ public final class Utilities {
                 throw new IOException(e);
               }
             } while (!executorDone);
-    }
+          }
           executor.shutdown();
         }
         HiveInterruptUtils.checkInterrupted();
@@ -1881,6 +2179,7 @@ public final class Utilities {
               + cs.getFileCount() + " directory count: " + cs.getDirectoryCount());
         }
 
+        perfLogger.PerfLogEnd(CLASS_NAME, PerfLogger.INPUT_SUMMARY);
         return new ContentSummary(summary[0], summary[1], summary[2]);
       } finally {
         HiveInterruptUtils.remove(interrup);
@@ -1888,7 +2187,7 @@ public final class Utilities {
     }
   }
 
-  public static boolean isEmptyPath(JobConf job, String dirPath, Context ctx)
+  public static boolean isEmptyPath(JobConf job, Path dirPath, Context ctx)
       throws Exception {
     ContentSummary cs = ctx.getCS(dirPath);
     if (cs != null) {
@@ -1898,8 +2197,7 @@ public final class Utilities {
     } else {
       LOG.info("Content Summary not cached for " + dirPath);
     }
-    Path p = new Path(dirPath);
-    return isEmptyPath(job, p);
+    return isEmptyPath(job, dirPath);
   }
 
   public static boolean isEmptyPath(JobConf job, Path dirPath) throws Exception {
@@ -1934,10 +2232,6 @@ public final class Utilities {
     }
   }
 
-  public static boolean supportCombineFileInputFormat() {
-    return ShimLoader.getHadoopShims().getCombineFileInputFormat() != null;
-  }
-
   /**
    * Construct a list of full partition spec from Dynamic Partition Context and the directory names
    * corresponding to these dynamic partitions.
@@ -1949,7 +2243,7 @@ public final class Utilities {
       Path loadPath = new Path(dpCtx.getRootPath());
       FileSystem fs = loadPath.getFileSystem(conf);
       int numDPCols = dpCtx.getNumDPCols();
-      FileStatus[] status = Utilities.getFileStatusRecurse(loadPath, numDPCols, fs);
+      FileStatus[] status = HiveStatsUtils.getFileStatusRecurse(loadPath, numDPCols, fs);
 
       if (status.length == 0) {
         LOG.warn("No partition is generated by dynamic partitioning");
@@ -1990,36 +2284,80 @@ public final class Utilities {
     }
   }
 
+  /**
+   * If statsPrefix's length is greater than maxPrefixLength and maxPrefixLength > 0,
+   * then it returns an MD5 hash of statsPrefix followed by path separator, otherwise
+   * it returns statsPrefix
+   *
+   * @param statsPrefix
+   * @param maxPrefixLength
+   * @return
+   */
+  public static String getHashedStatsPrefix(String statsPrefix, int maxPrefixLength) {
+    String ret = appendPathSeparator(statsPrefix);
+    if (maxPrefixLength >= 0 && statsPrefix.length() > maxPrefixLength) {
+      try {
+        MessageDigest digester = MessageDigest.getInstance("MD5");
+        digester.update(ret.getBytes());
+        ret = new String(digester.digest()) + Path.SEPARATOR;
+      } catch (NoSuchAlgorithmException e) {
+        throw new RuntimeException(e);
+      }
+    }
+    return ret;
+  }
+
+  private static String appendPathSeparator(String path) {
+    if (!path.endsWith(Path.SEPARATOR)) {
+      path = path + Path.SEPARATOR;
+    }
+    return path;
+  }
+
   public static void setColumnNameList(JobConf jobConf, Operator op) {
+    setColumnNameList(jobConf, op, false);
+  }
+
+  public static void setColumnNameList(JobConf jobConf, Operator op, boolean excludeVCs) {
     RowSchema rowSchema = op.getSchema();
     if (rowSchema == null) {
       return;
     }
     StringBuilder columnNames = new StringBuilder();
     for (ColumnInfo colInfo : rowSchema.getSignature()) {
+      if (excludeVCs && colInfo.getIsVirtualCol()) {
+        continue;
+      }
       if (columnNames.length() > 0) {
         columnNames.append(",");
       }
       columnNames.append(colInfo.getInternalName());
     }
     String columnNamesString = columnNames.toString();
-    jobConf.set(Constants.LIST_COLUMNS, columnNamesString);
+    jobConf.set(serdeConstants.LIST_COLUMNS, columnNamesString);
   }
 
   public static void setColumnTypeList(JobConf jobConf, Operator op) {
+    setColumnTypeList(jobConf, op, false);
+  }
+
+  public static void setColumnTypeList(JobConf jobConf, Operator op, boolean excludeVCs) {
     RowSchema rowSchema = op.getSchema();
     if (rowSchema == null) {
       return;
     }
     StringBuilder columnTypes = new StringBuilder();
     for (ColumnInfo colInfo : rowSchema.getSignature()) {
+      if (excludeVCs && colInfo.getIsVirtualCol()) {
+        continue;
+      }
       if (columnTypes.length() > 0) {
         columnTypes.append(",");
       }
-      columnTypes.append(colInfo.getType().getTypeName());
+      columnTypes.append(colInfo.getTypeName());
     }
     String columnTypesString = columnTypes.toString();
-    jobConf.set(Constants.LIST_COLUMN_TYPES, columnTypesString);
+    jobConf.set(serdeConstants.LIST_COLUMN_TYPES, columnTypesString);
   }
 
   public static void validatePartSpec(Table tbl, Map<String, String> partSpec)
@@ -2088,73 +2426,6 @@ public final class Utilities {
   }
 
   /**
-   * Check if a function can be pushed down to JDO.
-   * Now only {=, AND, OR} are supported.
-   * @param func a generic function.
-   * @return true if this function can be pushed down to JDO filter.
-   */
-  private static boolean supportedJDOFuncs(GenericUDF func) {
-    return func instanceof GenericUDFOPEqual ||
-           func instanceof GenericUDFOPAnd ||
-           func instanceof GenericUDFOPOr;
-  }
-
-  /**
-   * Check if the partition pruning expression can be pushed down to JDO filtering.
-   * The partition expression contains only partition columns.
-   * The criteria that an expression can be pushed down are that:
-   *  1) the expression only contains function specified in supportedJDOFuncs().
-   *     Now only {=, AND, OR} can be pushed down.
-   *  2) the partition column type and the constant type have to be String. This is
-   *     restriction by the current JDO filtering implementation.
-   * @param tab The table that contains the partition columns.
-   * @param expr the partition pruning expression
-   * @return null if the partition pruning expression can be pushed down to JDO filtering.
-   */
-  public static String checkJDOPushDown(Table tab, ExprNodeDesc expr) {
-    if (expr instanceof ExprNodeConstantDesc) {
-      // JDO filter now only support String typed literal -- see Filter.g and ExpressionTree.java
-      Object value = ((ExprNodeConstantDesc)expr).getValue();
-      if (value instanceof String) {
-        return null;
-      }
-      return "Constant " + value + " is not string type";
-    } else if (expr instanceof ExprNodeColumnDesc) {
-      // JDO filter now only support String typed literal -- see Filter.g and ExpressionTree.java
-      TypeInfo type = expr.getTypeInfo();
-      if (type.getTypeName().equals(Constants.STRING_TYPE_NAME)) {
-        String colName = ((ExprNodeColumnDesc)expr).getColumn();
-        for (FieldSchema fs: tab.getPartCols()) {
-          if (fs.getName().equals(colName)) {
-            if (fs.getType().equals(Constants.STRING_TYPE_NAME)) {
-              return null;
-            }
-            return "Partition column " + fs.getName() + " is not string type";
-          }
-        }
-        assert(false); // cannot find the partition column!
-     } else {
-        return "Column " + expr.getExprString() + " is not string type";
-     }
-    } else if (expr instanceof ExprNodeGenericFuncDesc) {
-      ExprNodeGenericFuncDesc funcDesc = (ExprNodeGenericFuncDesc) expr;
-      GenericUDF func = funcDesc.getGenericUDF();
-      if (!supportedJDOFuncs(func)) {
-        return "Expression " + expr.getExprString() + " cannot be evaluated";
-      }
-      List<ExprNodeDesc> children = funcDesc.getChildExprs();
-      for (ExprNodeDesc child: children) {
-        String message = checkJDOPushDown(tab, child);
-        if (message != null) {
-          return message;
-        }
-      }
-      return null;
-    }
-    return "Expression " + expr.getExprString() + " cannot be evaluated";
-  }
-
-  /**
    * The check here is kind of not clean. It first use a for loop to go through
    * all input formats, and choose the ones that extend ReworkMapredInputFormat
    * to a set. And finally go through the ReworkMapredInputFormat set, and call
@@ -2176,7 +2447,7 @@ public final class Utilities {
       try {
         MapredWork mapredWork = ((MapRedTask) task).getWork();
         Set<Class<? extends InputFormat>> reworkInputFormats = new HashSet<Class<? extends InputFormat>>();
-        for (PartitionDesc part : mapredWork.getPathToPartitionInfo().values()) {
+        for (PartitionDesc part : mapredWork.getMapWork().getPathToPartitionInfo().values()) {
           Class<? extends InputFormat> inputFormatCls = part
               .getInputFileFormatClass();
           if (ReworkMapredInputFormat.class.isAssignableFrom(inputFormatCls)) {
@@ -2413,7 +2684,414 @@ public final class Utilities {
     return sb.toString();
   }
 
-  public static Class getBuiltinUtilsClass() throws ClassNotFoundException {
-    return Class.forName("org.apache.hive.builtins.BuiltinUtils");
+  /**
+   * Estimate the number of reducers needed for this job, based on job input,
+   * and configuration parameters.
+   *
+   * The output of this method should only be used if the output of this
+   * MapRedTask is not being used to populate a bucketed table and the user
+   * has not specified the number of reducers to use.
+   *
+   * @return the number of reducers.
+   */
+  public static int estimateNumberOfReducers(HiveConf conf, ContentSummary inputSummary,
+                                             MapWork work, boolean finalMapRed) throws IOException {
+    long bytesPerReducer = conf.getLongVar(HiveConf.ConfVars.BYTESPERREDUCER);
+    int maxReducers = conf.getIntVar(HiveConf.ConfVars.MAXREDUCERS);
+
+    double samplePercentage = getHighestSamplePercentage(work);
+    long totalInputFileSize = getTotalInputFileSize(inputSummary, work, samplePercentage);
+
+    // if all inputs are sampled, we should shrink the size of reducers accordingly.
+    if (totalInputFileSize != inputSummary.getLength()) {
+      LOG.info("BytesPerReducer=" + bytesPerReducer + " maxReducers="
+          + maxReducers + " estimated totalInputFileSize=" + totalInputFileSize);
+    } else {
+      LOG.info("BytesPerReducer=" + bytesPerReducer + " maxReducers="
+        + maxReducers + " totalInputFileSize=" + totalInputFileSize);
+    }
+
+    int reducers = (int) ((totalInputFileSize + bytesPerReducer - 1) / bytesPerReducer);
+    reducers = Math.max(1, reducers);
+    reducers = Math.min(maxReducers, reducers);
+
+    // If this map reduce job writes final data to a table and bucketing is being inferred,
+    // and the user has configured Hive to do this, make sure the number of reducers is a
+    // power of two
+    if (conf.getBoolVar(HiveConf.ConfVars.HIVE_INFER_BUCKET_SORT_NUM_BUCKETS_POWER_TWO) &&
+        finalMapRed && !work.getBucketedColsByDirectory().isEmpty()) {
+
+      int reducersLog = (int)(Math.log(reducers) / Math.log(2)) + 1;
+      int reducersPowerTwo = (int)Math.pow(2, reducersLog);
+
+      // If the original number of reducers was a power of two, use that
+      if (reducersPowerTwo / 2 == reducers) {
+        return reducers;
+      } else if (reducersPowerTwo > maxReducers) {
+        // If the next power of two greater than the original number of reducers is greater
+        // than the max number of reducers, use the preceding power of two, which is strictly
+        // less than the original number of reducers and hence the max
+        reducers = reducersPowerTwo / 2;
+      } else {
+        // Otherwise use the smallest power of two greater than the original number of reducers
+        reducers = reducersPowerTwo;
+      }
+    }
+
+    return reducers;
+  }
+
+  /**
+   * Computes the total input file size. If block sampling was used it will scale this
+   * value by the highest sample percentage (as an estimate for input).
+   *
+   * @param inputSummary
+   * @param work
+   * @param highestSamplePercentage
+   * @return estimated total input size for job
+   */
+  public static long getTotalInputFileSize (ContentSummary inputSummary, MapWork work,
+      double highestSamplePercentage) {
+    long totalInputFileSize = inputSummary.getLength();
+    if (work.getNameToSplitSample() == null || work.getNameToSplitSample().isEmpty()) {
+      // If percentage block sampling wasn't used, we don't need to do any estimation
+      return totalInputFileSize;
+    }
+
+    if (highestSamplePercentage >= 0) {
+      totalInputFileSize = Math.min((long) (totalInputFileSize * highestSamplePercentage / 100D)
+          , totalInputFileSize);
+    }
+    return totalInputFileSize;
+  }
+
+  /**
+   * Computes the total number of input files. If block sampling was used it will scale this
+   * value by the highest sample percentage (as an estimate for # input files).
+   *
+   * @param inputSummary
+   * @param work
+   * @param highestSamplePercentage
+   * @return
+   */
+  public static long getTotalInputNumFiles (ContentSummary inputSummary, MapWork work,
+      double highestSamplePercentage) {
+    long totalInputNumFiles = inputSummary.getFileCount();
+    if (work.getNameToSplitSample() == null || work.getNameToSplitSample().isEmpty()) {
+      // If percentage block sampling wasn't used, we don't need to do any estimation
+      return totalInputNumFiles;
+    }
+
+    if (highestSamplePercentage >= 0) {
+      totalInputNumFiles = Math.min((long) (totalInputNumFiles * highestSamplePercentage / 100D)
+          , totalInputNumFiles);
+    }
+    return totalInputNumFiles;
+  }
+
+  /**
+   * Returns the highest sample percentage of any alias in the given MapWork
+   */
+  public static double getHighestSamplePercentage (MapWork work) {
+    double highestSamplePercentage = 0;
+    for (String alias : work.getAliasToWork().keySet()) {
+      if (work.getNameToSplitSample().containsKey(alias)) {
+        Double rate = work.getNameToSplitSample().get(alias).getPercent();
+        if (rate != null && rate > highestSamplePercentage) {
+          highestSamplePercentage = rate;
+        }
+      } else {
+        highestSamplePercentage = -1;
+        break;
+      }
+    }
+
+    return highestSamplePercentage;
+  }
+
+  /**
+   * Computes a list of all input paths needed to compute the given MapWork. All aliases
+   * are considered and a merged list of input paths is returned. If any input path points
+   * to an empty table or partition a dummy file in the scratch dir is instead created and
+   * added to the list. This is needed to avoid special casing the operator pipeline for
+   * these cases.
+   *
+   * @param job JobConf used to run the job
+   * @param work MapWork encapsulating the info about the task
+   * @param hiveScratchDir The tmp dir used to create dummy files if needed
+   * @param ctx Context object
+   * @return List of paths to process for the given MapWork
+   * @throws Exception
+   */
+  public static List<Path> getInputPaths(JobConf job, MapWork work, String hiveScratchDir, Context ctx)
+      throws Exception {
+    int sequenceNumber = 0;
+
+    Set<Path> pathsProcessed = new HashSet<Path>();
+    List<Path> pathsToAdd = new LinkedList<Path>();
+    // AliasToWork contains all the aliases
+    for (String alias : work.getAliasToWork().keySet()) {
+      LOG.info("Processing alias " + alias);
+
+      // The alias may not have any path
+      Path path = null;
+      for (String file : new LinkedList<String>(work.getPathToAliases().keySet())) {
+        List<String> aliases = work.getPathToAliases().get(file);
+        if (aliases.contains(alias)) {
+          path = new Path(file);
+
+          // Multiple aliases can point to the same path - it should be
+          // processed only once
+          if (pathsProcessed.contains(path)) {
+            continue;
+          }
+
+          pathsProcessed.add(path);
+
+          LOG.info("Adding input file " + path);
+          if (isEmptyPath(job, path, ctx)) {
+            path = createDummyFileForEmptyPartition(path, job, work,
+                 hiveScratchDir, alias, sequenceNumber++);
+
+          }
+          pathsToAdd.add(path);
+        }
+      }
+
+      // If the query references non-existent partitions
+      // We need to add a empty file, it is not acceptable to change the
+      // operator tree
+      // Consider the query:
+      // select * from (select count(1) from T union all select count(1) from
+      // T2) x;
+      // If T is empty and T2 contains 100 rows, the user expects: 0, 100 (2
+      // rows)
+      if (path == null) {
+        path = createDummyFileForEmptyTable(job, work, hiveScratchDir,
+            alias, sequenceNumber++);
+        pathsToAdd.add(path);
+      }
+    }
+    return pathsToAdd;
+  }
+
+  @SuppressWarnings({"rawtypes", "unchecked"})
+  private static Path createEmptyFile(String hiveScratchDir,
+      Class<? extends HiveOutputFormat> outFileFormat, JobConf job,
+      int sequenceNumber, Properties props, boolean dummyRow)
+          throws IOException, InstantiationException, IllegalAccessException {
+
+    // create a dummy empty file in a new directory
+    String newDir = hiveScratchDir + File.separator + sequenceNumber;
+    Path newPath = new Path(newDir);
+    FileSystem fs = newPath.getFileSystem(job);
+    fs.mkdirs(newPath);
+    //Qualify the path against the file system. The user configured path might contain default port which is skipped
+    //in the file status. This makes sure that all paths which goes into PathToPartitionInfo are always listed status
+    //file path.
+    newPath = fs.makeQualified(newPath);
+    String newFile = newDir + File.separator + "emptyFile";
+    Path newFilePath = new Path(newFile);
+
+    String onefile = newPath.toString();
+    FSRecordWriter recWriter = outFileFormat.newInstance().getHiveRecordWriter(job, newFilePath,
+        Text.class, false, props, null);
+    if (dummyRow) {
+      // empty files are omitted at CombineHiveInputFormat.
+      // for meta-data only query, it effectively makes partition columns disappear..
+      // this could be fixed by other methods, but this seemed to be the most easy (HIVEV-2955)
+      recWriter.write(new Text("empty"));  // written via HiveIgnoreKeyTextOutputFormat
+    }
+    recWriter.close(false);
+
+    return newPath;
+  }
+
+  @SuppressWarnings("rawtypes")
+  private static Path createDummyFileForEmptyPartition(Path path, JobConf job, MapWork work,
+      String hiveScratchDir, String alias, int sequenceNumber)
+          throws IOException, InstantiationException, IllegalAccessException {
+
+    String strPath = path.toString();
+
+    // The input file does not exist, replace it by a empty file
+    PartitionDesc partDesc = work.getPathToPartitionInfo().get(strPath);
+    boolean nonNative = partDesc.getTableDesc().isNonNative();
+    boolean oneRow = partDesc.getInputFileFormatClass() == OneNullRowInputFormat.class;
+    Properties props = partDesc.getProperties();
+    Class<? extends HiveOutputFormat> outFileFormat = partDesc.getOutputFileFormatClass();
+
+    if (nonNative) {
+      // if this isn't a hive table we can't create an empty file for it.
+      return path;
+    }
+
+    Path newPath = createEmptyFile(hiveScratchDir, outFileFormat, job,
+        sequenceNumber, props, oneRow);
+
+
+    LOG.info("Changed input file to " + newPath);
+
+    // update the work
+    String strNewPath = newPath.toString();
+
+    LinkedHashMap<String, ArrayList<String>> pathToAliases = work.getPathToAliases();
+    pathToAliases.put(strNewPath, pathToAliases.get(strPath));
+    pathToAliases.remove(strPath);
+
+    work.setPathToAliases(pathToAliases);
+
+    LinkedHashMap<String, PartitionDesc> pathToPartitionInfo = work.getPathToPartitionInfo();
+    pathToPartitionInfo.put(strNewPath, pathToPartitionInfo.get(strPath));
+    pathToPartitionInfo.remove(strPath);
+    work.setPathToPartitionInfo(pathToPartitionInfo);
+
+    return newPath;
+  }
+
+  @SuppressWarnings("rawtypes")
+  private static Path createDummyFileForEmptyTable(JobConf job, MapWork work,
+      String hiveScratchDir, String alias, int sequenceNumber)
+          throws IOException, InstantiationException, IllegalAccessException {
+
+    TableDesc tableDesc = work.getAliasToPartnInfo().get(alias).getTableDesc();
+    Properties props = tableDesc.getProperties();
+    boolean nonNative = tableDesc.isNonNative();
+    Class<? extends HiveOutputFormat> outFileFormat = tableDesc.getOutputFileFormatClass();
+
+    if (nonNative) {
+      // if this isn't a hive table we can't create an empty file for it.
+      return null;
+    }
+
+    Path newPath = createEmptyFile(hiveScratchDir, outFileFormat, job,
+        sequenceNumber, props, false);
+
+
+    LOG.info("Changed input file to " + newPath.toString());
+
+    // update the work
+
+    LinkedHashMap<String, ArrayList<String>> pathToAliases = work.getPathToAliases();
+    ArrayList<String> newList = new ArrayList<String>();
+    newList.add(alias);
+    pathToAliases.put(newPath.toUri().toString(), newList);
+
+    work.setPathToAliases(pathToAliases);
+
+    LinkedHashMap<String, PartitionDesc> pathToPartitionInfo = work.getPathToPartitionInfo();
+    PartitionDesc pDesc = work.getAliasToPartnInfo().get(alias).clone();
+    pathToPartitionInfo.put(newPath.toUri().toString(), pDesc);
+    work.setPathToPartitionInfo(pathToPartitionInfo);
+
+    return newPath;
+  }
+
+  /**
+   * setInputPaths add all the paths in the provided list to the Job conf object
+   * as input paths for the job.
+   *
+   * @param job
+   * @param pathsToAdd
+   */
+  public static void setInputPaths(JobConf job, List<Path> pathsToAdd) {
+
+    Path[] addedPaths = FileInputFormat.getInputPaths(job);
+    if (addedPaths == null) {
+      addedPaths = new Path[0];
+    }
+
+    Path[] combined = new Path[addedPaths.length + pathsToAdd.size()];
+    System.arraycopy(addedPaths, 0, combined, 0, addedPaths.length);
+
+    int i = 0;
+    for(Path p: pathsToAdd) {
+      combined[addedPaths.length + (i++)] = p;
+    }
+    FileInputFormat.setInputPaths(job, combined);
+  }
+
+  /**
+   * Set hive input format, and input format file if necessary.
+   */
+  public static void setInputAttributes(Configuration conf, MapWork mWork) {
+    if (mWork.getInputformat() != null) {
+      HiveConf.setVar(conf, HiveConf.ConfVars.HIVEINPUTFORMAT, mWork.getInputformat());
+    }
+    if (mWork.getIndexIntermediateFile() != null) {
+      conf.set("hive.index.compact.file", mWork.getIndexIntermediateFile());
+      conf.set("hive.index.blockfilter.file", mWork.getIndexIntermediateFile());
+    }
+
+    // Intentionally overwrites anything the user may have put here
+    conf.setBoolean("hive.input.format.sorted", mWork.isInputFormatSorted());
+  }
+
+  /**
+   * Hive uses tmp directories to capture the output of each FileSinkOperator.
+   * This method creates all necessary tmp directories for FileSinks in the Mapwork.
+   *
+   * @param conf Used to get the right FileSystem
+   * @param mWork Used to find FileSinkOperators
+   * @throws IOException
+   */
+  public static void createTmpDirs(Configuration conf, MapWork mWork)
+      throws IOException {
+
+    Map<String, ArrayList<String>> pa = mWork.getPathToAliases();
+    if (pa != null) {
+      List<Operator<? extends OperatorDesc>> ops =
+        new ArrayList<Operator<? extends OperatorDesc>>();
+      for (List<String> ls : pa.values()) {
+        for (String a : ls) {
+          ops.add(mWork.getAliasToWork().get(a));
+        }
+      }
+      createTmpDirs(conf, ops);
+    }
+  }
+
+  /**
+   * Hive uses tmp directories to capture the output of each FileSinkOperator.
+   * This method creates all necessary tmp directories for FileSinks in the ReduceWork.
+   *
+   * @param conf Used to get the right FileSystem
+   * @param rWork Used to find FileSinkOperators
+   * @throws IOException
+   */
+  @SuppressWarnings("unchecked")
+  public static void createTmpDirs(Configuration conf, ReduceWork rWork)
+      throws IOException {
+    if (rWork == null) {
+      return;
+    }
+    List<Operator<? extends OperatorDesc>> ops
+      = new LinkedList<Operator<? extends OperatorDesc>>();
+    ops.add(rWork.getReducer());
+    createTmpDirs(conf, ops);
+  }
+
+  private static void createTmpDirs(Configuration conf,
+      List<Operator<? extends OperatorDesc>> ops) throws IOException {
+
+    while (!ops.isEmpty()) {
+      Operator<? extends OperatorDesc> op = ops.remove(0);
+
+      if (op instanceof FileSinkOperator) {
+        FileSinkDesc fdesc = ((FileSinkOperator) op).getConf();
+        String tempDir = fdesc.getDirName();
+
+        if (tempDir != null) {
+          Path tempPath = Utilities.toTempPath(new Path(tempDir));
+          FileSystem fs = tempPath.getFileSystem(conf);
+          fs.mkdirs(tempPath);
+        }
+      }
+
+      if (op.getChildOperators() != null) {
+        ops.addAll(op.getChildOperators());
+      }
+    }
   }
 }
+

@@ -5,34 +5,34 @@ POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@url_t
 PREHOOK: query: insert overwrite table url_t
 select * from (
-  select '1', 'http://facebook.com/path1/p.php?k1=v1&k2=v2#Ref1' from src limit 1
+  select '1', 'http://facebook.com/path1/p.php?k1=v1&k2=v2#Ref1' from src tablesample (1 rows)
   union all
-  select '2', 'https://www.socs.uts.edu.au:80/MosaicDocs-old/url-primer.html?k1=tps#chapter1' from src limit 1
+  select '2', 'https://www.socs.uts.edu.au:80/MosaicDocs-old/url-primer.html?k1=tps#chapter1' from src tablesample (1 rows)
   union all
-  select '3', 'ftp://sites.google.com/a/example.com/site/page' from src limit 1
+  select '3', 'ftp://sites.google.com/a/example.com/site/page' from src tablesample (1 rows)
   union all
-  select '4', cast(null as string) from src limit 1
+  select '4', cast(null as string) from src tablesample (1 rows)
   union all
-  select '5', 'htttp://' from src limit 1
+  select '5', 'htttp://' from src tablesample (1 rows)
   union all
-  select '6', '[invalid url string]' from src limit 1
+  select '6', '[invalid url string]' from src tablesample (1 rows)
 ) s
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
 PREHOOK: Output: default@url_t
 POSTHOOK: query: insert overwrite table url_t
 select * from (
-  select '1', 'http://facebook.com/path1/p.php?k1=v1&k2=v2#Ref1' from src limit 1
+  select '1', 'http://facebook.com/path1/p.php?k1=v1&k2=v2#Ref1' from src tablesample (1 rows)
   union all
-  select '2', 'https://www.socs.uts.edu.au:80/MosaicDocs-old/url-primer.html?k1=tps#chapter1' from src limit 1
+  select '2', 'https://www.socs.uts.edu.au:80/MosaicDocs-old/url-primer.html?k1=tps#chapter1' from src tablesample (1 rows)
   union all
-  select '3', 'ftp://sites.google.com/a/example.com/site/page' from src limit 1
+  select '3', 'ftp://sites.google.com/a/example.com/site/page' from src tablesample (1 rows)
   union all
-  select '4', cast(null as string) from src limit 1
+  select '4', cast(null as string) from src tablesample (1 rows)
   union all
-  select '5', 'htttp://' from src limit 1
+  select '5', 'htttp://' from src tablesample (1 rows)
   union all
-  select '6', '[invalid url string]' from src limit 1
+  select '6', '[invalid url string]' from src tablesample (1 rows)
 ) s
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
@@ -89,14 +89,10 @@ STAGE PLANS:
                       type: string
                 outputColumnNames: key
                 Lateral View Join Operator
-                  outputColumnNames: _col0, _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10
+                  outputColumnNames: _col0, _col4, _col5, _col6, _col7, _col8, _col9, _col10, _col11, _col12
                   Select Operator
                     expressions:
                           expr: _col0
-                          type: string
-                          expr: _col2
-                          type: string
-                          expr: _col3
                           type: string
                           expr: _col4
                           type: string
@@ -111,6 +107,10 @@ STAGE PLANS:
                           expr: _col9
                           type: string
                           expr: _col10
+                          type: string
+                          expr: _col11
+                          type: string
+                          expr: _col12
                           type: string
                     outputColumnNames: _col0, _col1, _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9
                     Reduce Output Operator
@@ -166,14 +166,10 @@ STAGE PLANS:
                 UDTF Operator
                   function name: parse_url_tuple
                   Lateral View Join Operator
-                    outputColumnNames: _col0, _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10
+                    outputColumnNames: _col0, _col4, _col5, _col6, _col7, _col8, _col9, _col10, _col11, _col12
                     Select Operator
                       expressions:
                             expr: _col0
-                            type: string
-                            expr: _col2
-                            type: string
-                            expr: _col3
                             type: string
                             expr: _col4
                             type: string
@@ -188,6 +184,10 @@ STAGE PLANS:
                             expr: _col9
                             type: string
                             expr: _col10
+                            type: string
+                            expr: _col11
+                            type: string
+                            expr: _col12
                             type: string
                       outputColumnNames: _col0, _col1, _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9
                       Reduce Output Operator
@@ -225,6 +225,7 @@ STAGE PLANS:
             table:
                 input format: org.apache.hadoop.mapred.TextInputFormat
                 output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator
@@ -331,6 +332,7 @@ STAGE PLANS:
             table:
                 input format: org.apache.hadoop.mapred.TextInputFormat
                 output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator
@@ -384,22 +386,22 @@ STAGE PLANS:
                       type: string
                 outputColumnNames: key
                 Lateral View Join Operator
-                  outputColumnNames: _col0, _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10, _col11, _col12, _col13
+                  outputColumnNames: _col0, _col4, _col5, _col6, _col7, _col8, _col9, _col10, _col11, _col12, _col13, _col14, _col15
                   Select Operator
                     expressions:
                           expr: _col0
                           type: string
-                          expr: _col2
-                          type: string
                           expr: _col4
                           type: string
-                          expr: _col10
-                          type: string
-                          expr: _col11
+                          expr: _col6
                           type: string
                           expr: _col12
                           type: string
                           expr: _col13
+                          type: string
+                          expr: _col14
+                          type: string
+                          expr: _col15
                           type: string
                     outputColumnNames: _col0, _col1, _col2, _col3, _col4, _col5, _col6
                     Reduce Output Operator
@@ -455,22 +457,22 @@ STAGE PLANS:
                 UDTF Operator
                   function name: parse_url_tuple
                   Lateral View Join Operator
-                    outputColumnNames: _col0, _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10, _col11, _col12, _col13
+                    outputColumnNames: _col0, _col4, _col5, _col6, _col7, _col8, _col9, _col10, _col11, _col12, _col13, _col14, _col15
                     Select Operator
                       expressions:
                             expr: _col0
                             type: string
-                            expr: _col2
-                            type: string
                             expr: _col4
                             type: string
-                            expr: _col10
-                            type: string
-                            expr: _col11
+                            expr: _col6
                             type: string
                             expr: _col12
                             type: string
                             expr: _col13
+                            type: string
+                            expr: _col14
+                            type: string
+                            expr: _col15
                             type: string
                       outputColumnNames: _col0, _col1, _col2, _col3, _col4, _col5, _col6
                       Reduce Output Operator
@@ -502,6 +504,7 @@ STAGE PLANS:
             table:
                 input format: org.apache.hadoop.mapred.TextInputFormat
                 output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator
@@ -549,22 +552,22 @@ STAGE PLANS:
             Lateral View Forward
               Select Operator
                 Lateral View Join Operator
-                  outputColumnNames: _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10
+                  outputColumnNames: _col4, _col5, _col6, _col7, _col8, _col9, _col10, _col11, _col12
                   Filter Operator
                     predicate:
-                        expr: _col10 is not null
+                        expr: _col12 is not null
                         type: boolean
                     Select Operator
                       expressions:
-                            expr: _col2
+                            expr: _col4
                             type: string
-                      outputColumnNames: _col2
+                      outputColumnNames: _col4
                       Group By Operator
                         aggregations:
                               expr: count()
                         bucketGroup: false
                         keys:
-                              expr: _col2
+                              expr: _col4
                               type: string
                         mode: hash
                         outputColumnNames: _col0, _col1
@@ -606,22 +609,22 @@ STAGE PLANS:
                 UDTF Operator
                   function name: parse_url_tuple
                   Lateral View Join Operator
-                    outputColumnNames: _col2, _col3, _col4, _col5, _col6, _col7, _col8, _col9, _col10
+                    outputColumnNames: _col4, _col5, _col6, _col7, _col8, _col9, _col10, _col11, _col12
                     Filter Operator
                       predicate:
-                          expr: _col10 is not null
+                          expr: _col12 is not null
                           type: boolean
                       Select Operator
                         expressions:
-                              expr: _col2
+                              expr: _col4
                               type: string
-                        outputColumnNames: _col2
+                        outputColumnNames: _col4
                         Group By Operator
                           aggregations:
                                 expr: count()
                           bucketGroup: false
                           keys:
-                                expr: _col2
+                                expr: _col4
                                 type: string
                           mode: hash
                           outputColumnNames: _col0, _col1
@@ -660,6 +663,7 @@ STAGE PLANS:
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator

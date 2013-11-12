@@ -20,14 +20,22 @@ package org.apache.hadoop.hive.metastore.events;
 
 import org.apache.hadoop.hive.metastore.HiveMetaStore.HMSHandler;
 import org.apache.hadoop.hive.metastore.api.Partition;
+import org.apache.hadoop.hive.metastore.api.Table;
 
 public class DropPartitionEvent extends ListenerEvent {
 
+  private final Table table;
   private final Partition partition;
+  private final boolean deleteData;
 
-  public DropPartitionEvent (Partition partition, boolean status, HMSHandler handler) {
+  public DropPartitionEvent (Table table,
+      Partition partition, boolean status, boolean deleteData, HMSHandler handler) {
     super (status, handler);
+    this.table = table;
     this.partition = partition;
+    // In HiveMetaStore, the deleteData flag indicates whether DFS data should be
+    // removed on a drop.
+    this.deleteData = deleteData;
   }
 
   /**
@@ -36,5 +44,21 @@ public class DropPartitionEvent extends ListenerEvent {
   public Partition getPartition() {
 
     return partition;
+  }
+
+  /**
+   * @return the table
+   */
+  public Table getTable() {
+
+    return table;
+  }
+
+  /**
+   * @return the deleteData flag
+   */
+  public boolean getDeleteData() {
+
+    return deleteData;
   }
 }

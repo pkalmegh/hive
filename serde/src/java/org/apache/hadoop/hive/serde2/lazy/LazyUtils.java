@@ -28,15 +28,22 @@ import java.util.Arrays;
 import java.util.Properties;
 
 import org.apache.commons.codec.binary.Base64;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.common.type.HiveDecimal;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.SerDeException;
+import org.apache.hadoop.hive.serde2.io.HiveCharWritable;
+import org.apache.hadoop.hive.serde2.io.HiveVarcharWritable;
 import org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe.SerDeParameters;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.ByteObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.DateObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.FloatObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveCharObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveDecimalObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveVarcharObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.ShortObjectInspector;
@@ -125,8 +132,8 @@ public final class LazyUtils {
     }
   }
 
-  private static byte[] trueBytes = {(byte) 't', 'r', 'u', 'e'};
-  private static byte[] falseBytes = {(byte) 'f', 'a', 'l', 's', 'e'};
+  public static byte[] trueBytes = {(byte) 't', 'r', 'u', 'e'};
+  public static byte[] falseBytes = {(byte) 'f', 'a', 'l', 's', 'e'};
 
   /**
    * Write the bytes with special characters escaped.
@@ -139,7 +146,7 @@ public final class LazyUtils {
    *          if escaped, whether a specific character needs escaping. This
    *          array should have size of 128.
    */
-  private static void writeEscaped(OutputStream out, byte[] bytes, int start,
+  public static void writeEscaped(OutputStream out, byte[] bytes, int start,
       int len, boolean escaped, byte escapeChar, boolean[] needsEscape)
       throws IOException {
     if (escaped) {
@@ -221,7 +228,20 @@ public final class LazyUtils {
           needsEscape);
       break;
     }
-
+    case CHAR: {
+      HiveCharWritable hc = ((HiveCharObjectInspector) oi).getPrimitiveWritableObject(o);
+      Text t = hc.getPaddedValue();
+      writeEscaped(out, t.getBytes(), 0, t.getLength(), escaped, escapeChar,
+          needsEscape);
+      break;
+    }
+    case VARCHAR: {
+      HiveVarcharWritable hc = ((HiveVarcharObjectInspector)oi).getPrimitiveWritableObject(o);
+      Text t = hc.getTextValue();
+      writeEscaped(out, t.getBytes(), 0, t.getLength(), escaped, escapeChar,
+          needsEscape);
+      break;
+    }
     case BINARY: {
       BytesWritable bw = ((BinaryObjectInspector) oi).getPrimitiveWritableObject(o);
       byte[] toEncode = new byte[bw.getLength()];
@@ -230,9 +250,20 @@ public final class LazyUtils {
       out.write(toWrite, 0, toWrite.length);
       break;
     }
+    case DATE: {
+      LazyDate.writeUTF8(out,
+          ((DateObjectInspector) oi).getPrimitiveWritableObject(o));
+      break;
+    }
     case TIMESTAMP: {
       LazyTimestamp.writeUTF8(out,
           ((TimestampObjectInspector) oi).getPrimitiveWritableObject(o));
+      break;
+    }
+    case DECIMAL: {
+      HiveDecimal bd = ((HiveDecimalObjectInspector) oi).getPrimitiveJavaObject(o);
+      ByteBuffer b = Text.encode(bd.toString());
+      out.write(b.array(), 0, b.limit());
       break;
     }
     default: {
@@ -315,9 +346,9 @@ public final class LazyUtils {
   public static void extractColumnInfo(Properties tbl, SerDeParameters serdeParams,
       String serdeName) throws SerDeException {
     // Read the configuration parameters
-    String columnNameProperty = tbl.getProperty(Constants.LIST_COLUMNS);
+    String columnNameProperty = tbl.getProperty(serdeConstants.LIST_COLUMNS);
     // NOTE: if "columns.types" is missing, all columns will be of String type
-    String columnTypeProperty = tbl.getProperty(Constants.LIST_COLUMN_TYPES);
+    String columnTypeProperty = tbl.getProperty(serdeConstants.LIST_COLUMN_TYPES);
 
     // Parse the configuration parameters
 
@@ -333,7 +364,7 @@ public final class LazyUtils {
         if (i > 0) {
           sb.append(":");
         }
-        sb.append(Constants.STRING_TYPE_NAME);
+        sb.append(serdeConstants.STRING_TYPE_NAME);
       }
       columnTypeProperty = sb.toString();
     }
@@ -357,6 +388,30 @@ public final class LazyUtils {
     //TODO should replace with BytesWritable.copyData() once Hive
     //removes support for the Hadoop 0.20 series.
     return Arrays.copyOf(sourceBw.getBytes(), sourceBw.getLength());
+  }
+
+  /**
+   * Utility function to get separator for current level used in serialization.
+   * Used to get a better log message when out of bound lookup happens
+   * @param separators - array of separators byte, byte at index x indicates
+   *  separator used at that level
+   * @param level - nesting level
+   * @return separator at given level
+   * @throws SerDeException
+   */
+  static byte getSeparator(byte[] separators, int level) throws SerDeException {
+    try{
+      return separators[level];
+    }catch(ArrayIndexOutOfBoundsException e){
+      String msg = "Number of levels of nesting supported for " +
+          "LazySimpleSerde is " + (separators.length - 1) +
+          " Unable to work with level " + level;
+      if(separators.length < 9){
+        msg += ". Use " + LazySimpleSerDe.SERIALIZATION_EXTEND_NESTING_LEVELS +
+            " serde property for tables using LazySimpleSerde.";
+      }
+      throw new SerDeException(msg, e);
+    }
   }
 
   private LazyUtils() {

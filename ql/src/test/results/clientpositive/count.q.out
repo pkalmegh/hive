@@ -3,10 +3,10 @@ PREHOOK: type: CREATETABLE
 POSTHOOK: query: create table abcd (a int, b int, c int, d int)
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@abcd
-PREHOOK: query: LOAD DATA LOCAL INPATH '../data/files/in4.txt' INTO TABLE abcd
+PREHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/in4.txt' INTO TABLE abcd
 PREHOOK: type: LOAD
 PREHOOK: Output: default@abcd
-POSTHOOK: query: LOAD DATA LOCAL INPATH '../data/files/in4.txt' INTO TABLE abcd
+POSTHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/in4.txt' INTO TABLE abcd
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@abcd
 PREHOOK: query: select * from abcd
@@ -117,6 +117,7 @@ STAGE PLANS:
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator
@@ -332,6 +333,7 @@ STAGE PLANS:
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator
@@ -421,6 +423,7 @@ STAGE PLANS:
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator
@@ -488,10 +491,10 @@ STAGE PLANS:
           aggregations:
                 expr: count(1)
                 expr: count()
-                expr: count(KEY._col0:14._col0)
-                expr: count(KEY._col0:14._col1)
-                expr: count(KEY._col0:14._col2)
-                expr: count(KEY._col0:14._col3)
+                expr: count(KEY._col0:0._col0)
+                expr: count(KEY._col0:1._col0)
+                expr: count(KEY._col0:2._col0)
+                expr: count(KEY._col0:3._col0)
                 expr: count(DISTINCT KEY._col0:0._col0)
                 expr: count(DISTINCT KEY._col0:1._col0)
                 expr: count(DISTINCT KEY._col0:2._col0)
@@ -561,6 +564,7 @@ STAGE PLANS:
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator

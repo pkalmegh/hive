@@ -20,8 +20,21 @@ package org.apache.hadoop.hive.ql.exec;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
+import org.apache.hadoop.hive.ql.exec.vector.VectorFileSinkOperator;
+import org.apache.hadoop.hive.ql.exec.vector.VectorFilterOperator;
+import org.apache.hadoop.hive.ql.exec.vector.VectorGroupByOperator;
+import org.apache.hadoop.hive.ql.exec.vector.VectorLimitOperator;
+import org.apache.hadoop.hive.ql.exec.vector.VectorMapJoinOperator;
+import org.apache.hadoop.hive.ql.exec.vector.VectorReduceSinkOperator;
+import org.apache.hadoop.hive.ql.exec.vector.VectorSelectOperator;
+import org.apache.hadoop.hive.ql.exec.vector.VectorizationContext;
+import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.plan.CollectDesc;
+import org.apache.hadoop.hive.ql.plan.DemuxDesc;
+import org.apache.hadoop.hive.ql.plan.DummyStoreDesc;
+import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.ExtractDesc;
 import org.apache.hadoop.hive.ql.plan.FileSinkDesc;
 import org.apache.hadoop.hive.ql.plan.FilterDesc;
@@ -34,7 +47,9 @@ import org.apache.hadoop.hive.ql.plan.LateralViewForwardDesc;
 import org.apache.hadoop.hive.ql.plan.LateralViewJoinDesc;
 import org.apache.hadoop.hive.ql.plan.LimitDesc;
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc;
+import org.apache.hadoop.hive.ql.plan.MuxDesc;
 import org.apache.hadoop.hive.ql.plan.OperatorDesc;
+import org.apache.hadoop.hive.ql.plan.PTFDesc;
 import org.apache.hadoop.hive.ql.plan.ReduceSinkDesc;
 import org.apache.hadoop.hive.ql.plan.SMBJoinDesc;
 import org.apache.hadoop.hive.ql.plan.ScriptDesc;
@@ -73,6 +88,7 @@ public final class OperatorFactory {
     opvec.add(new OpTuple<FileSinkDesc>(FileSinkDesc.class, FileSinkOperator.class));
     opvec.add(new OpTuple<CollectDesc>(CollectDesc.class, CollectOperator.class));
     opvec.add(new OpTuple<ScriptDesc>(ScriptDesc.class, ScriptOperator.class));
+    opvec.add(new OpTuple<PTFDesc>(PTFDesc.class, PTFOperator.class));
     opvec.add(new OpTuple<ReduceSinkDesc>(ReduceSinkDesc.class, ReduceSinkOperator.class));
     opvec.add(new OpTuple<ExtractDesc>(ExtractDesc.class, ExtractOperator.class));
     opvec.add(new OpTuple<GroupByDesc>(GroupByDesc.class, GroupByOperator.class));
@@ -91,6 +107,46 @@ public final class OperatorFactory {
         HashTableDummyOperator.class));
     opvec.add(new OpTuple<HashTableSinkDesc>(HashTableSinkDesc.class,
         HashTableSinkOperator.class));
+    opvec.add(new OpTuple<DummyStoreDesc>(DummyStoreDesc.class,
+        DummyStoreOperator.class));
+    opvec.add(new OpTuple<DemuxDesc>(DemuxDesc.class,
+        DemuxOperator.class));
+    opvec.add(new OpTuple<MuxDesc>(MuxDesc.class,
+        MuxOperator.class));
+  }
+
+  public static ArrayList<OpTuple> vectorOpvec;
+  static {
+    vectorOpvec = new ArrayList<OpTuple>();
+    vectorOpvec.add(new OpTuple<SelectDesc>(SelectDesc.class, VectorSelectOperator.class));
+    vectorOpvec.add(new OpTuple<GroupByDesc>(GroupByDesc.class, VectorGroupByOperator.class));
+    vectorOpvec.add(new OpTuple<MapJoinDesc>(MapJoinDesc.class, VectorMapJoinOperator.class));
+    vectorOpvec.add(new OpTuple<ReduceSinkDesc>(ReduceSinkDesc.class,
+        VectorReduceSinkOperator.class));
+    vectorOpvec.add(new OpTuple<FileSinkDesc>(FileSinkDesc.class, VectorFileSinkOperator.class));
+    vectorOpvec.add(new OpTuple<FilterDesc>(FilterDesc.class, VectorFilterOperator.class));
+    vectorOpvec.add(new OpTuple<LimitDesc>(LimitDesc.class, VectorLimitOperator.class));
+  }
+
+  public static <T extends OperatorDesc> Operator<T> getVectorOperator(T conf,
+      VectorizationContext vContext) throws HiveException {
+    Class<T> descClass = (Class<T>) conf.getClass();
+    for (OpTuple o : vectorOpvec) {
+      if (o.descClass == descClass) {
+        try {
+          Operator<T> op = (Operator<T>) o.opClass.getDeclaredConstructor(
+              VectorizationContext.class, OperatorDesc.class).newInstance(
+              vContext, conf);
+          op.initializeCounters();
+          return op;
+        } catch (Exception e) {
+          e.printStackTrace();
+          throw new HiveException(e);
+        }
+      }
+    }
+    throw new HiveException("No vector operator for descriptor class "
+        + descClass.getName());
   }
 
   public static <T extends OperatorDesc> Operator<T> get(Class<T> opClass) {
@@ -248,9 +304,29 @@ public final class OperatorFactory {
    * Returns an operator given the conf and a list of parent operators.
    */
   public static <T extends OperatorDesc> Operator<T> getAndMakeChild(T conf,
+      RowSchema rwsch, Map<String, ExprNodeDesc> colExprMap, Operator... oplist) {
+    Operator<T> ret = getAndMakeChild(conf, rwsch, oplist);
+    ret.setColumnExprMap(colExprMap);
+    return (ret);
+  }
+
+  /**
+   * Returns an operator given the conf and a list of parent operators.
+   */
+  public static <T extends OperatorDesc> Operator<T> getAndMakeChild(T conf,
       RowSchema rwsch, List<Operator<? extends OperatorDesc>> oplist) {
     Operator<T> ret = getAndMakeChild(conf, oplist);
     ret.setSchema(rwsch);
+    return (ret);
+  }
+
+ /**
+   * Returns an operator given the conf and a list of parent operators.
+   */
+  public static <T extends OperatorDesc> Operator<T> getAndMakeChild(T conf,
+      RowSchema rwsch, Map<String, ExprNodeDesc> colExprMap, List<Operator<? extends OperatorDesc>> oplist) {
+    Operator<T> ret = getAndMakeChild(conf, rwsch, oplist);
+    ret.setColumnExprMap(colExprMap);
     return (ret);
   }
 

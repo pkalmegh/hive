@@ -20,6 +20,7 @@ package org.apache.hadoop.hive.ql.plan;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.hadoop.hive.ql.metadata.VirtualColumn;
 
@@ -44,19 +45,31 @@ public class TableScanDesc extends AbstractOperatorDesc {
   private List<String> partColumns;
 
   /**
+   * Used for split sampling (row count per split)
+   * For example,
+   *   select count(1) from ss_src2 tablesample (10 ROWS) s;
+   * provides first 10 rows from all input splits
+   */
+  private int rowLimit = -1;
+
+  /**
    * A boolean variable set to true by the semantic analyzer only in case of the analyze command.
    *
    */
   private boolean gatherStats;
   private boolean statsReliable;
+  private int maxStatsKeyPrefixLength = -1;
 
-  private ExprNodeDesc filterExpr;
+  private ExprNodeGenericFuncDesc filterExpr;
 
   public static final String FILTER_EXPR_CONF_STR =
     "hive.io.filter.expr.serialized";
 
   public static final String FILTER_TEXT_CONF_STR =
     "hive.io.filter.text";
+
+  // input file name (big) to bucket number
+  private Map<String, Integer> bucketFileNameMapping;
 
   @SuppressWarnings("nls")
   public TableScanDesc() {
@@ -83,11 +96,11 @@ public class TableScanDesc extends AbstractOperatorDesc {
   }
 
   @Explain(displayName = "filterExpr")
-  public ExprNodeDesc getFilterExpr() {
+  public ExprNodeGenericFuncDesc getFilterExpr() {
     return filterExpr;
   }
 
-  public void setFilterExpr(ExprNodeDesc filterExpr) {
+  public void setFilterExpr(ExprNodeGenericFuncDesc filterExpr) {
     this.filterExpr = filterExpr;
   }
 
@@ -124,6 +137,10 @@ public class TableScanDesc extends AbstractOperatorDesc {
     this.virtualCols.addAll(virtualCols);
   }
 
+  public boolean hasVirtualCols() {
+    return virtualCols != null && !virtualCols.isEmpty();
+  }
+
   public void setStatsAggPrefix(String k) {
     statsAggKeyPrefix = k;
   }
@@ -139,5 +156,34 @@ public class TableScanDesc extends AbstractOperatorDesc {
 
   public void setStatsReliable(boolean statsReliable) {
     this.statsReliable = statsReliable;
+  }
+
+  public int getMaxStatsKeyPrefixLength() {
+    return maxStatsKeyPrefixLength;
+  }
+
+  public void setMaxStatsKeyPrefixLength(int maxStatsKeyPrefixLength) {
+    this.maxStatsKeyPrefixLength = maxStatsKeyPrefixLength;
+  }
+
+  public void setRowLimit(int rowLimit) {
+    this.rowLimit = rowLimit;
+  }
+
+  public int getRowLimit() {
+    return rowLimit;
+  }
+
+  @Explain(displayName = "Row Limit Per Split")
+  public Integer getRowLimitExplain() {
+    return rowLimit >= 0 ? rowLimit : null;
+  }
+
+  public Map<String, Integer> getBucketFileNameMapping() {
+    return bucketFileNameMapping;
+  }
+
+  public void setBucketFileNameMapping(Map<String, Integer> bucketFileNameMapping) {
+    this.bucketFileNameMapping = bucketFileNameMapping;
   }
 }

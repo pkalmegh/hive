@@ -19,7 +19,6 @@
 package org.apache.hadoop.hive.serde2.dynamic_type;
 
 import java.io.ByteArrayInputStream;
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -27,15 +26,16 @@ import java.util.Properties;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.serde.serdeConstants;
+import org.apache.hadoop.hive.serde2.AbstractSerDe;
 import org.apache.hadoop.hive.serde2.ByteStream;
-import org.apache.hadoop.hive.serde2.SerDe;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveTypeEntry;
 import org.apache.hadoop.hive.serde2.thrift.ConfigurableTProtocol;
 import org.apache.hadoop.hive.serde2.thrift.TReflectionUtils;
 import org.apache.hadoop.io.BytesWritable;
@@ -50,7 +50,7 @@ import org.apache.thrift.transport.TIOStreamTransport;
  * DynamicSerDe.
  *
  */
-public class DynamicSerDe implements SerDe, Serializable {
+public class DynamicSerDe extends AbstractSerDe {
 
   public static final Log LOG = LogFactory.getLog(DynamicSerDe.class.getName());
 
@@ -73,10 +73,11 @@ public class DynamicSerDe implements SerDe, Serializable {
 
   TIOStreamTransport tios;
 
+  @Override
   public void initialize(Configuration job, Properties tbl) throws SerDeException {
     try {
 
-      String ddl = tbl.getProperty(Constants.SERIALIZATION_DDL);
+      String ddl = tbl.getProperty(serdeConstants.SERIALIZATION_DDL);
       // type_name used to be tbl.getProperty(META_TABLE_NAME).
       // However, now the value is DBName.TableName. To make it backward compatible,
       // we take the TableName part as type_name.
@@ -88,7 +89,7 @@ public class DynamicSerDe implements SerDe, Serializable {
       } else {
         type_name = tableName;
       }
-      String protoName = tbl.getProperty(Constants.SERIALIZATION_FORMAT);
+      String protoName = tbl.getProperty(serdeConstants.SERIALIZATION_FORMAT);
 
       if (protoName == null) {
         protoName = "org.apache.thrift.protocol.TBinaryProtocol";
@@ -145,6 +146,7 @@ public class DynamicSerDe implements SerDe, Serializable {
 
   Object deserializeReuse = null;
 
+  @Override
   public Object deserialize(Writable field) throws SerDeException {
     try {
       if (field instanceof Text) {
@@ -174,9 +176,9 @@ public class DynamicSerDe implements SerDe, Serializable {
           dynamicSerDeStructBaseToObjectInspector(btMap.getKeyType()),
           dynamicSerDeStructBaseToObjectInspector(btMap.getValueType()));
     } else if (bt.isPrimitive()) {
-      return PrimitiveObjectInspectorFactory
-          .getPrimitiveJavaObjectInspector(PrimitiveObjectInspectorUtils
-          .getTypeEntryFromPrimitiveJavaClass(bt.getRealType()).primitiveCategory);
+      PrimitiveTypeEntry pte = PrimitiveObjectInspectorUtils
+          .getTypeEntryFromPrimitiveJavaClass(bt.getRealType());
+      return PrimitiveObjectInspectorFactory.getPrimitiveJavaObjectInspector(pte.primitiveCategory);
     } else {
       // Must be a struct
       DynamicSerDeStructBase btStruct = (DynamicSerDeStructBase) bt;
@@ -195,16 +197,19 @@ public class DynamicSerDe implements SerDe, Serializable {
     }
   }
 
+  @Override
   public ObjectInspector getObjectInspector() throws SerDeException {
     return dynamicSerDeStructBaseToObjectInspector(bt);
   }
 
+  @Override
   public Class<? extends Writable> getSerializedClass() {
     return BytesWritable.class;
   }
 
   BytesWritable ret = new BytesWritable();
 
+  @Override
   public Writable serialize(Object obj, ObjectInspector objInspector) throws SerDeException {
     try {
       bos_.reset();
@@ -219,6 +224,7 @@ public class DynamicSerDe implements SerDe, Serializable {
   }
 
 
+  @Override
   public SerDeStats getSerDeStats() {
     // no support for statistics
     return null;

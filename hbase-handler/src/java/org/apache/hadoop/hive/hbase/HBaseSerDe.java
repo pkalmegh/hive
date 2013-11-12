@@ -30,9 +30,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.serde.serdeConstants;
+import org.apache.hadoop.hive.serde2.AbstractSerDe;
 import org.apache.hadoop.hive.serde2.ByteStream;
-import org.apache.hadoop.hive.serde2.SerDe;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.SerDeUtils;
@@ -58,17 +58,26 @@ import org.apache.hadoop.io.Writable;
  * HBaseSerDe can be used to serialize object into an HBase table and
  * deserialize objects from an HBase table.
  */
-public class HBaseSerDe implements SerDe {
+public class HBaseSerDe extends AbstractSerDe {
 
   public static final String HBASE_COLUMNS_MAPPING = "hbase.columns.mapping";
   public static final String HBASE_TABLE_NAME = "hbase.table.name";
   public static final String HBASE_TABLE_DEFAULT_STORAGE_TYPE = "hbase.table.default.storage.type";
   public static final String HBASE_KEY_COL = ":key";
   public static final String HBASE_PUT_TIMESTAMP = "hbase.put.timestamp";
+  public static final String HBASE_SCAN_CACHE = "hbase.scan.cache";
+  public static final String HBASE_SCAN_CACHEBLOCKS = "hbase.scan.cacheblock";
+  public static final String HBASE_SCAN_BATCH = "hbase.scan.batch";
+  
+  /** Determines whether a regex matching should be done on the columns or not. Defaults to true. 
+   *  <strong>WARNING: Note that currently this only supports the suffix wildcard .*</strong> **/
+  public static final String HBASE_COLUMNS_REGEX_MATCHING = "hbase.columns.mapping.regex.matching";
+
   public static final Log LOG = LogFactory.getLog(HBaseSerDe.class);
 
   private ObjectInspector cachedObjectInspector;
   private String hbaseColumnsMapping;
+  private boolean doColumnRegexMatching;
   private List<ColumnMapping> columnsMapping;
   private SerDeParameters serdeParams;
   private boolean useJSONSerialize;
@@ -143,6 +152,21 @@ public class HBaseSerDe implements SerDe {
    */
   public static List<ColumnMapping> parseColumnsMapping(String columnsMappingSpec)
       throws SerDeException {
+    return parseColumnsMapping(columnsMappingSpec, true);
+  }
+
+  /**
+   * Parses the HBase columns mapping specifier to identify the column families, qualifiers
+   * and also caches the byte arrays corresponding to them. One of the Hive table
+   * columns maps to the HBase row key, by default the first column.
+   *
+   * @param columnsMappingSpec string hbase.columns.mapping specified when creating table
+   * @param doColumnRegexMatching whether to do a regex matching on the columns or not
+   * @return List<ColumnMapping> which contains the column mapping information by position
+   * @throws SerDeException
+   */
+  public static List<ColumnMapping> parseColumnsMapping(String columnsMappingSpec, boolean doColumnRegexMatching)
+      throws SerDeException {
 
     if (columnsMappingSpec == null) {
       throw new SerDeException("Error: hbase.columns.mapping missing for this HBase table.");
@@ -159,7 +183,7 @@ public class HBaseSerDe implements SerDe {
     ColumnMapping columnMapping = null;
 
     for (int i = 0; i < columnSpecs.length; i++) {
-      String mappingSpec = columnSpecs[i];
+      String mappingSpec = columnSpecs[i].trim();
       String [] mapInfo = mappingSpec.split("#");
       String colInfo = mapInfo[0];
 
@@ -188,8 +212,21 @@ public class HBaseSerDe implements SerDe {
         columnMapping.hbaseRowKey = false;
 
         if (parts.length == 2) {
-          columnMapping.qualifierName = parts[1];
-          columnMapping.qualifierNameBytes = Bytes.toBytes(parts[1]);
+
+          if (doColumnRegexMatching && parts[1].endsWith(".*")) {
+            // we have a prefix with a wildcard
+            columnMapping.qualifierPrefix = parts[1].substring(0, parts[1].length() - 2);
+            columnMapping.qualifierPrefixBytes = Bytes.toBytes(columnMapping.qualifierPrefix);
+            // we weren't provided any actual qualifier name. Set these to
+            // null.
+            columnMapping.qualifierName = null;
+            columnMapping.qualifierNameBytes = null;
+          } else {
+            // set the regular provided qualifier names
+            columnMapping.qualifierName = parts[1];
+            columnMapping.qualifierNameBytes = Bytes.toBytes(parts[1]);
+            ;
+          }
         } else {
           columnMapping.qualifierName = null;
           columnMapping.qualifierNameBytes = null;
@@ -271,7 +308,7 @@ public class HBaseSerDe implements SerDe {
 
         // use the table default storage specification
         if (colType.getCategory() == Category.PRIMITIVE) {
-          if (!colType.getTypeName().equals(Constants.STRING_TYPE_NAME)) {
+          if (!colType.getTypeName().equals(serdeConstants.STRING_TYPE_NAME)) {
             colMap.binaryStorage.add(tableBinaryStorage);
           } else {
             colMap.binaryStorage.add(false);
@@ -281,14 +318,14 @@ public class HBaseSerDe implements SerDe {
           TypeInfo valueTypeInfo = ((MapTypeInfo) colType).getMapValueTypeInfo();
 
           if (keyTypeInfo.getCategory() == Category.PRIMITIVE &&
-              !keyTypeInfo.getTypeName().equals(Constants.STRING_TYPE_NAME)) {
+              !keyTypeInfo.getTypeName().equals(serdeConstants.STRING_TYPE_NAME)) {
             colMap.binaryStorage.add(tableBinaryStorage);
           } else {
             colMap.binaryStorage.add(false);
           }
 
           if (valueTypeInfo.getCategory() == Category.PRIMITIVE &&
-              !valueTypeInfo.getTypeName().equals(Constants.STRING_TYPE_NAME)) {
+              !valueTypeInfo.getTypeName().equals(serdeConstants.STRING_TYPE_NAME)) {
             colMap.binaryStorage.add(tableBinaryStorage);
           } else {
             colMap.binaryStorage.add(false);
@@ -311,7 +348,7 @@ public class HBaseSerDe implements SerDe {
         }
 
         if (colType.getCategory() == Category.PRIMITIVE &&
-            !colType.getTypeName().equals(Constants.STRING_TYPE_NAME)) {
+            !colType.getTypeName().equals(serdeConstants.STRING_TYPE_NAME)) {
 
           if ("-".equals(storageOption)) {
             colMap.binaryStorage.add(tableBinaryStorage);
@@ -349,7 +386,7 @@ public class HBaseSerDe implements SerDe {
         TypeInfo valueTypeInfo = ((MapTypeInfo) colType).getMapValueTypeInfo();
 
         if (keyTypeInfo.getCategory() == Category.PRIMITIVE &&
-            !keyTypeInfo.getTypeName().equals(Constants.STRING_TYPE_NAME)) {
+            !keyTypeInfo.getTypeName().equals(serdeConstants.STRING_TYPE_NAME)) {
 
           if (keyStorage.equals("-")) {
             colMap.binaryStorage.add(tableBinaryStorage);
@@ -363,7 +400,7 @@ public class HBaseSerDe implements SerDe {
         }
 
         if (valueTypeInfo.getCategory() == Category.PRIMITIVE &&
-            !valueTypeInfo.getTypeName().equals(Constants.STRING_TYPE_NAME)) {
+            !valueTypeInfo.getTypeName().equals(serdeConstants.STRING_TYPE_NAME)) {
           if (valStorage.equals("-")) {
             colMap.binaryStorage.add(tableBinaryStorage);
           } else if ("binary".startsWith(valStorage)) {
@@ -408,6 +445,8 @@ public class HBaseSerDe implements SerDe {
     List<Boolean> binaryStorage;
     boolean hbaseRowKey;
     String mappingSpec;
+    String qualifierPrefix;
+    byte[] qualifierPrefixBytes;
   }
 
   private void initHBaseSerDeParameters(
@@ -416,11 +455,13 @@ public class HBaseSerDe implements SerDe {
 
     // Read configuration parameters
     hbaseColumnsMapping = tbl.getProperty(HBaseSerDe.HBASE_COLUMNS_MAPPING);
-    String columnTypeProperty = tbl.getProperty(Constants.LIST_COLUMN_TYPES);
+    String columnTypeProperty = tbl.getProperty(serdeConstants.LIST_COLUMN_TYPES);
     putTimestamp = Long.valueOf(tbl.getProperty(HBaseSerDe.HBASE_PUT_TIMESTAMP,"-1"));
 
+    doColumnRegexMatching = Boolean.valueOf(tbl.getProperty(HBASE_COLUMNS_REGEX_MATCHING, "true"));
+
     // Parse and initialize the HBase columns mapping
-    columnsMapping = parseColumnsMapping(hbaseColumnsMapping);
+    columnsMapping = parseColumnsMapping(hbaseColumnsMapping, doColumnRegexMatching);
 
     // Build the type property string if not supplied
     if (columnTypeProperty == null) {
@@ -435,17 +476,17 @@ public class HBaseSerDe implements SerDe {
 
         if (colMap.hbaseRowKey) {
           // the row key column becomes a STRING
-          sb.append(Constants.STRING_TYPE_NAME);
+          sb.append(serdeConstants.STRING_TYPE_NAME);
         } else if (colMap.qualifierName == null)  {
           // a column family become a MAP
-          sb.append(Constants.MAP_TYPE_NAME + "<" + Constants.STRING_TYPE_NAME + ","
-              + Constants.STRING_TYPE_NAME + ">");
+          sb.append(serdeConstants.MAP_TYPE_NAME + "<" + serdeConstants.STRING_TYPE_NAME + ","
+              + serdeConstants.STRING_TYPE_NAME + ">");
         } else {
           // an individual column becomes a STRING
-          sb.append(Constants.STRING_TYPE_NAME);
+          sb.append(serdeConstants.STRING_TYPE_NAME);
         }
       }
-      tbl.setProperty(Constants.LIST_COLUMN_TYPES, sb.toString());
+      tbl.setProperty(serdeConstants.LIST_COLUMN_TYPES, sb.toString());
     }
 
     serdeParams = LazySimpleSerDe.initSerdeParams(job, tbl, serdeName);
@@ -546,10 +587,11 @@ public class HBaseSerDe implements SerDe {
         throw new SerDeException("HBase row key cannot be NULL");
       }
 
-      if(putTimestamp >= 0)
+      if(putTimestamp >= 0) {
         put = new Put(key,putTimestamp);
-      else
+      } else {
         put = new Put(key);
+      }
 
       // Serialize each field
       for (int i = 0; i < fields.size(); i++) {
@@ -792,6 +834,7 @@ public class HBaseSerDe implements SerDe {
     return columnsMapping.get(colPos).binaryStorage;
   }
 
+  @Override
   public SerDeStats getSerDeStats() {
     // no support for statistics
     return null;

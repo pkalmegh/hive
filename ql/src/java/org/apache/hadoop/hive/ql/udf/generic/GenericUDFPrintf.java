@@ -18,33 +18,30 @@
 
 package org.apache.hadoop.hive.ql.udf.generic;
 
+import java.util.ArrayList;
+import java.util.Formatter;
+import java.util.Locale;
+
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category;
-import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.ByteObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.ShortObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.FloatObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.FloatObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.ShortObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector;
-import org.apache.hadoop.hive.serde2.lazy.ByteArrayRef;
 import org.apache.hadoop.io.Text;
-
-import java.util.Formatter;
-import java.util.Locale;
-import java.util.ArrayList;
 
 /**
  * Generic UDF for printf function
@@ -60,7 +57,7 @@ import java.util.ArrayList;
     + "FROM src LIMIT 1;\n"
     + "  \"Hello World 100 days\"")
 public class GenericUDFPrintf extends GenericUDF {
-  private ObjectInspector[] argumentOIs;
+  private transient ObjectInspector[] argumentOIs;
   private final Text resultText = new Text();
 
   @Override
@@ -70,10 +67,10 @@ public class GenericUDFPrintf extends GenericUDF {
           "The function PRINTF(String format, Obj... args) needs at least one arguments.");
     }
 
-    if (arguments[0].getTypeName() != Constants.STRING_TYPE_NAME
-      && arguments[0].getTypeName() != Constants.VOID_TYPE_NAME) {
+    if (arguments[0].getTypeName() != serdeConstants.STRING_TYPE_NAME
+      && arguments[0].getTypeName() != serdeConstants.VOID_TYPE_NAME) {
         throw new UDFArgumentTypeException(0, "Argument 1"
-        + " of function PRINTF must be \"" + Constants.STRING_TYPE_NAME
+        + " of function PRINTF must be \"" + serdeConstants.STRING_TYPE_NAME
         + "\", but \"" + arguments[0].getTypeName() + "\" was found.");
       }
 

@@ -18,10 +18,12 @@
 
 package org.apache.hadoop.hive.metastore;
 
+import static org.apache.hadoop.hive.metastore.MetaStoreUtils.DATABASE_WAREHOUSE_SUFFIX;
 import static org.apache.hadoop.hive.metastore.MetaStoreUtils.DEFAULT_DATABASE_NAME;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,16 +39,21 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.ContentSummary;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.hive.common.FileUtils;
+import org.apache.hadoop.hive.common.HiveStatsUtils;
 import org.apache.hadoop.hive.common.JavaUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.api.Partition;
+import org.apache.hadoop.hive.metastore.api.SkewedInfo;
+import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.ReflectionUtils;
@@ -164,6 +171,14 @@ public class Warehouse {
     return new Path(db.getLocationUri());
   }
 
+  public Path getDefaultDatabasePath(String dbName) throws MetaException {
+    if (dbName.equalsIgnoreCase(DEFAULT_DATABASE_NAME)) {
+      return getWhRoot();
+    }
+    return new Path(getWhRoot(), dbName.toLowerCase() + DATABASE_WAREHOUSE_SUFFIX);
+  }
+
+
   public Path getTablePath(Database db, String tableName)
       throws MetaException {
     return getDnsPath(new Path(getDatabasePath(db), tableName.toLowerCase()));
@@ -195,9 +210,29 @@ public class Warehouse {
     return false;
   }
 
+  public boolean renameDir(Path sourcePath, Path destPath) throws MetaException {
+    FileSystem fs = null;
+    try {
+      fs = getFs(sourcePath);
+      fs.rename(sourcePath, destPath);
+      return true;
+    } catch (Exception ex) {
+      MetaStoreUtils.logAndThrowMetaException(ex);
+    }
+    return false;
+  }
+
   public boolean deleteDir(Path f, boolean recursive) throws MetaException {
     FileSystem fs = getFs(f);
     return fsHandler.deleteDir(fs, f, recursive, conf);
+  }
+
+  public boolean isEmpty(Path path) throws IOException, MetaException {
+    ContentSummary contents = getFs(path).getContentSummary(path);
+    if (contents != null && contents.getFileCount() == 0 && contents.getDirectoryCount() == 1) {
+      return true;
+    }
+    return false;
   }
 
   public boolean isWritable(Path path) throws IOException {
@@ -344,6 +379,30 @@ public class Warehouse {
 
   static final Pattern pat = Pattern.compile("([^/]+)=([^/]+)");
 
+  private static final Pattern slash = Pattern.compile("/");
+
+  /**
+   * Extracts values from partition name without the column names.
+   * @param name Partition name.
+   * @param result The result. Must be pre-sized to the expected number of columns.
+   */
+  public static void makeValsFromName(
+      String name, AbstractList<String> result) throws MetaException {
+    assert name != null;
+    String[] parts = slash.split(name, 0);
+    if (parts.length != result.size()) {
+      throw new MetaException(
+          "Expected " + result.size() + " components, got " + parts.length + " (" + name + ")");
+    }
+    for (int i = 0; i < parts.length; ++i) {
+      int eq = parts[i].indexOf('=');
+      if (eq <= 0) {
+        throw new MetaException("Unexpected component " + parts[i]);
+      }
+      result.set(i, unescapePathName(parts[i].substring(eq + 1)));
+    }
+  }
+
   public static LinkedHashMap<String, String> makeSpecFromName(String name)
       throws MetaException {
     if (name == null || name.isEmpty()) {
@@ -376,6 +435,38 @@ public class Warehouse {
     }
   }
 
+  public static Map<String, String> makeEscSpecFromName(String name) throws MetaException {
+
+    if (name == null || name.isEmpty()) {
+      throw new MetaException("Partition name is invalid. " + name);
+    }
+    LinkedHashMap<String, String> partSpec = new LinkedHashMap<String, String>();
+
+    Path currPath = new Path(name);
+
+    List<String[]> kvs = new ArrayList<String[]>();
+    do {
+      String component = currPath.getName();
+      Matcher m = pat.matcher(component);
+      if (m.matches()) {
+        String k = m.group(1);
+        String v = m.group(2);
+        String[] kv = new String[2];
+        kv[0] = k;
+        kv[1] = v;
+        kvs.add(kv);
+      }
+      currPath = currPath.getParent();
+    } while (currPath != null && !currPath.getName().isEmpty());
+
+    // reverse the list since we checked the part from leaf dir to table's base dir
+    for (int i = kvs.size(); i > 0; i--) {
+      partSpec.put(kvs.get(i - 1)[0], kvs.get(i - 1)[1]);
+    }
+
+    return partSpec;
+  }
+
   public Path getPartitionPath(Database db, String tableName,
       LinkedHashMap<String, String> pm) throws MetaException {
     return new Path(getTablePath(db, tableName), makePartPath(pm));
@@ -406,6 +497,63 @@ public class Warehouse {
   public static String makePartName(List<FieldSchema> partCols,
       List<String> vals) throws MetaException {
     return makePartName(partCols, vals, null);
+  }
+
+  /**
+   * @param partn
+   * @return array of FileStatus objects corresponding to the files making up the passed partition
+   */
+  public FileStatus[] getFileStatusesForPartition(Partition partn)
+      throws MetaException {
+    try {
+      Path path = new Path(partn.getSd().getLocation());
+      FileSystem fileSys = path.getFileSystem(conf);
+      /* consider sub-directory created from list bucketing. */
+      int listBucketingDepth = calculateListBucketingDMLDepth(partn);
+      return HiveStatsUtils.getFileStatusRecurse(path, (1 + listBucketingDepth), fileSys);
+    } catch (IOException ioe) {
+      MetaStoreUtils.logAndThrowMetaException(ioe);
+    }
+    return null;
+  }
+
+  /**
+   * List bucketing will introduce sub-directories.
+   * calculate it here in order to go to the leaf directory
+   * so that we can count right number of files.
+   * @param partn
+   * @return
+   */
+  private static int calculateListBucketingDMLDepth(Partition partn) {
+    // list bucketing will introduce more files
+    int listBucketingDepth = 0;
+    SkewedInfo skewedInfo = partn.getSd().getSkewedInfo();
+    if ((skewedInfo != null) && (skewedInfo.getSkewedColNames() != null)
+        && (skewedInfo.getSkewedColNames().size() > 0)
+        && (skewedInfo.getSkewedColValues() != null)
+        && (skewedInfo.getSkewedColValues().size() > 0)
+        && (skewedInfo.getSkewedColValueLocationMaps() != null)
+        && (skewedInfo.getSkewedColValueLocationMaps().size() > 0)) {
+      listBucketingDepth = skewedInfo.getSkewedColNames().size();
+    }
+    return listBucketingDepth;
+  }
+
+  /**
+   * @param table
+   * @return array of FileStatus objects corresponding to the files making up the passed
+   * unpartitioned table
+   */
+  public FileStatus[] getFileStatusesForUnpartitionedTable(Database db, Table table)
+      throws MetaException {
+    Path tablePath = getTablePath(db, table.getTableName());
+    try {
+      FileSystem fileSys = tablePath.getFileSystem(conf);
+      return HiveStatsUtils.getFileStatusRecurse(tablePath, 1, fileSys);
+    } catch (IOException ioe) {
+      MetaStoreUtils.logAndThrowMetaException(ioe);
+    }
+    return null;
   }
 
   /**

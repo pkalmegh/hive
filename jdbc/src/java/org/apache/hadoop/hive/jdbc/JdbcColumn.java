@@ -74,6 +74,8 @@ public class JdbcColumn {
     case Types.INTEGER:
     case Types.BIGINT:
       return columnPrecision(columnType) + 1; // allow +/-
+    case Types.DATE:
+      return 10;
     case Types.TIMESTAMP:
       return columnPrecision(columnType);
     // see http://download.oracle.com/javase/6/docs/api/constant-values.html#java.lang.Float.MAX_EXPONENT
@@ -82,6 +84,8 @@ public class JdbcColumn {
     // see http://download.oracle.com/javase/6/docs/api/constant-values.html#java.lang.Double.MAX_EXPONENT
     case Types.DOUBLE:
       return 25; // e.g. -(17#).e-####
+    case Types.DECIMAL:
+      return Integer.MAX_VALUE;
     default:
       throw new SQLException("Invalid column type: " + columnType);
     }
@@ -106,8 +110,12 @@ public class JdbcColumn {
       return 7;
     case Types.DOUBLE:
       return 15;
+    case Types.DATE:
+      return 10;
     case Types.TIMESTAMP:
       return 29;
+    case Types.DECIMAL:
+      return Integer.MAX_VALUE;
     default:
       throw new SQLException("Invalid column type: " + columnType);
     }
@@ -122,6 +130,7 @@ public class JdbcColumn {
     case Types.SMALLINT:
     case Types.INTEGER:
     case Types.BIGINT:
+    case Types.DATE:
       return 0;
     case Types.FLOAT:
       return 7;
@@ -129,6 +138,8 @@ public class JdbcColumn {
       return 15;
     case Types.TIMESTAMP:
       return 9;
+    case Types.DECIMAL:
+      return Integer.MAX_VALUE;
     default:
       throw new SQLException("Invalid column type: " + columnType);
     }
@@ -152,6 +163,8 @@ public class JdbcColumn {
     } else if (type.equalsIgnoreCase("int")) {
       return 10;
     } else if (type.equalsIgnoreCase("bigint")) {
+      return 10;
+    } else if (type.equalsIgnoreCase("decimal")) {
       return 10;
     } else if (type.equalsIgnoreCase("float")) {
       return 2;

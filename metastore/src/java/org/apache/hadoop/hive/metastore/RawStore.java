@@ -18,12 +18,19 @@
 
 package org.apache.hadoop.hive.metastore;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.hadoop.conf.Configurable;
+import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.Index;
+import org.apache.hadoop.hive.metastore.api.InvalidInputException;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.InvalidPartitionException;
 import org.apache.hadoop.hive.metastore.api.MetaException;
@@ -46,8 +53,17 @@ import org.apache.hadoop.hive.metastore.model.MPartitionPrivilege;
 import org.apache.hadoop.hive.metastore.model.MRoleMap;
 import org.apache.hadoop.hive.metastore.model.MTableColumnPrivilege;
 import org.apache.hadoop.hive.metastore.model.MTablePrivilege;
+import org.apache.thrift.TException;
 
 public interface RawStore extends Configurable {
+
+  /***
+   * Annotation to skip retries
+   */
+  @Target(value = ElementType.METHOD)
+  @Retention(value = RetentionPolicy.RUNTIME)
+  public @interface CanNotRetry {
+  }
 
   public abstract void shutdown();
 
@@ -66,11 +82,13 @@ public interface RawStore extends Configurable {
    *
    * @return true or false
    */
+  @CanNotRetry
   public abstract boolean commitTransaction();
 
   /**
    * Rolls back the current transaction if it is active
    */
+  @CanNotRetry
   public abstract void rollbackTransaction();
 
   public abstract void createDatabase(Database db)
@@ -97,7 +115,7 @@ public interface RawStore extends Configurable {
       MetaException;
 
   public abstract boolean dropTable(String dbName, String tableName)
-      throws MetaException;
+      throws MetaException, NoSuchObjectException, InvalidObjectException, InvalidInputException;
 
   public abstract Table getTable(String dbName, String tableName)
       throws MetaException;
@@ -109,7 +127,8 @@ public interface RawStore extends Configurable {
       List<String> part_vals) throws MetaException, NoSuchObjectException;
 
   public abstract boolean dropPartition(String dbName, String tableName,
-      List<String> part_vals) throws MetaException;
+      List<String> part_vals) throws MetaException, NoSuchObjectException, InvalidObjectException,
+      InvalidInputException;
 
   public abstract List<Partition> getPartitions(String dbName,
       String tableName, int max) throws MetaException;
@@ -182,6 +201,10 @@ public interface RawStore extends Configurable {
   public abstract List<Partition> getPartitionsByFilter(
       String dbName, String tblName, String filter, short maxParts)
       throws MetaException, NoSuchObjectException;
+
+  public abstract boolean getPartitionsByExpr(String dbName, String tblName,
+      byte[] expr, String defaultPartitionName, short maxParts, Set<Partition> result)
+      throws TException;
 
   public abstract List<Partition> getPartitionsByNames(
       String dbName, String tblName, List<String> partNames)
@@ -306,5 +329,136 @@ public interface RawStore extends Configurable {
       List<String> part_vals, short max_parts, String userName, List<String> groupNames)
       throws MetaException, InvalidObjectException, NoSuchObjectException;
 
+  /** Persists the given column statistics object to the metastore
+   * @param partVals
+   *
+   * @param ColumnStats object to persist
+   * @param List of partVals
+   * @return Boolean indicating the outcome of the operation
+   * @throws NoSuchObjectException
+   * @throws MetaException
+   * @throws InvalidObjectException
+   * @throws InvalidInputException
+   */
+  public abstract boolean updateTableColumnStatistics(ColumnStatistics colStats)
+      throws NoSuchObjectException, MetaException, InvalidObjectException, InvalidInputException;
+
+  /** Persists the given column statistics object to the metastore
+   * @param partVals
+   *
+   * @param ColumnStats object to persist
+   * @param List of partVals
+   * @return Boolean indicating the outcome of the operation
+   * @throws NoSuchObjectException
+   * @throws MetaException
+   * @throws InvalidObjectException
+   * @throws InvalidInputException
+   */
+  public abstract boolean updatePartitionColumnStatistics(ColumnStatistics statsObj,
+     List<String> partVals)
+     throws NoSuchObjectException, MetaException, InvalidObjectException, InvalidInputException;
+
+  /**
+   * Returns the relevant column statistics for a given column in a given table in a given database
+   * if such statistics exist.
+   *
+   * @param The name of the database, defaults to current database
+   * @param The name of the table
+   * @param The name of the column for which statistics is requested
+   * @return Relevant column statistics for the column for the given table
+   * @throws NoSuchObjectException
+   * @throws MetaException
+   * @throws InvalidInputException
+   *
+   */
+  public abstract ColumnStatistics getTableColumnStatistics(String dbName, String tableName,
+    String colName) throws MetaException, NoSuchObjectException, InvalidInputException,
+    InvalidObjectException;
+
+  /**
+   * Returns the relevant column statistics for a given column in a given partition in a given
+   * table in a given database if such statistics exist.
+   * @param partName
+   *
+   * @param The name of the database, defaults to current database
+   * @param The name of the table
+   * @param The name of the partition
+   * @param List of partVals for the partition
+   * @param The name of the column for which statistics is requested
+   * @return Relevant column statistics for the column for the given partition in a given table
+   * @throws NoSuchObjectException
+   * @throws MetaException
+   * @throws InvalidInputException
+   * @throws InvalidObjectException
+   *
+   */
+
+  public abstract ColumnStatistics getPartitionColumnStatistics(String dbName, String tableName,
+    String partName, List<String> partVals, String colName)
+    throws MetaException, NoSuchObjectException, InvalidInputException, InvalidObjectException;
+
+  /**
+   * Deletes column statistics if present associated with a given db, table, partition and col. If
+   * null is passed instead of a colName, stats when present for all columns associated
+   * with a given db, table and partition are deleted.
+   *
+   * @param dbName
+   * @param tableName
+   * @param partName
+   * @param partVals
+   * @param colName
+   * @return Boolean indicating the outcome of the operation
+   * @throws NoSuchObjectException
+   * @throws MetaException
+   * @throws InvalidObjectException
+   * @throws InvalidInputException
+   */
+
+  public abstract boolean deletePartitionColumnStatistics(String dbName, String tableName,
+      String partName, List<String> partVals, String colName)
+      throws NoSuchObjectException, MetaException, InvalidObjectException, InvalidInputException;
+
+  /**
+   * Deletes column statistics if present associated with a given db, table and col. If
+   * null is passed instead of a colName, stats when present for all columns associated
+   * with a given db and table are deleted.
+   *
+   * @param dbName
+   * @param tableName
+   * @param colName
+   * @return Boolean indicating the outcome of the operation
+   * @throws NoSuchObjectException
+   * @throws MetaException
+   * @throws InvalidObjectException
+   * @throws InvalidInputException
+   */
+
+  public abstract boolean deleteTableColumnStatistics(String dbName, String tableName,
+    String colName)
+    throws NoSuchObjectException, MetaException, InvalidObjectException, InvalidInputException;
+
  public abstract long cleanupEvents();
+
+ public abstract boolean addToken(String tokenIdentifier, String delegationToken);
+
+ public abstract boolean removeToken(String tokenIdentifier);
+
+ public abstract String getToken(String tokenIdentifier);
+
+ public abstract List<String> getAllTokenIdentifiers();
+
+ public abstract int addMasterKey(String key) throws MetaException;
+
+ public abstract void updateMasterKey(Integer seqNo, String key)
+     throws NoSuchObjectException, MetaException;
+
+ public abstract boolean removeMasterKey(Integer keySeq);
+
+ public abstract String[] getMasterKeys();
+
+ public abstract void verifySchema() throws MetaException;
+
+ public abstract String getMetaStoreSchemaVersion() throws  MetaException;
+
+ public abstract void setMetaStoreSchemaVersion(String version, String comment) throws MetaException;
 }

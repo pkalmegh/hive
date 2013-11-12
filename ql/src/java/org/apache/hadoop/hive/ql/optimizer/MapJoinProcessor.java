@@ -19,6 +19,7 @@
 package org.apache.hadoop.hive.ql.optimizer;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -43,6 +44,7 @@ import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.OperatorFactory;
 import org.apache.hadoop.hive.ql.exec.ReduceSinkOperator;
 import org.apache.hadoop.hive.ql.exec.RowSchema;
+import org.apache.hadoop.hive.ql.exec.SMBMapJoinOperator;
 import org.apache.hadoop.hive.ql.exec.ScriptOperator;
 import org.apache.hadoop.hive.ql.exec.SelectOperator;
 import org.apache.hadoop.hive.ql.exec.UnionOperator;
@@ -62,7 +64,7 @@ import org.apache.hadoop.hive.ql.parse.RowResolver;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
-import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc;
+import org.apache.hadoop.hive.ql.plan.ExprNodeDescUtils;
 import org.apache.hadoop.hive.ql.plan.FetchWork;
 import org.apache.hadoop.hive.ql.plan.JoinCondDesc;
 import org.apache.hadoop.hive.ql.plan.JoinDesc;
@@ -73,9 +75,10 @@ import org.apache.hadoop.hive.ql.plan.OperatorDesc;
 import org.apache.hadoop.hive.ql.plan.PartitionDesc;
 import org.apache.hadoop.hive.ql.plan.PlanUtils;
 import org.apache.hadoop.hive.ql.plan.ReduceSinkDesc;
+import org.apache.hadoop.hive.ql.plan.SMBJoinDesc;
 import org.apache.hadoop.hive.ql.plan.SelectDesc;
 import org.apache.hadoop.hive.ql.plan.TableDesc;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
 /**
@@ -87,6 +90,10 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 public class MapJoinProcessor implements Transform {
 
   private static final Log LOG = LogFactory.getLog(MapJoinProcessor.class.getName());
+  // mapjoin table descriptor contains a key descriptor which needs the field schema
+  // (column type + column name). The column name is not really used anywhere, but it
+  // needs to be passed. Use the string defined below for that.
+  private static final String MAPJOINKEY_FIELDPREFIX = "mapjoinkey";
 
   private ParseContext pGraphContext;
 
@@ -106,9 +113,11 @@ public class MapJoinProcessor implements Transform {
   }
 
   /**
-   * Generate the MapRed Local Work
+   * Generate the MapRed Local Work for the given map-join operator
+   *
    * @param newWork
    * @param mapJoinOp
+   *          map-join operator for which local work needs to be generated.
    * @param bigTablePos
    * @return
    * @throws SemanticException
@@ -125,7 +134,7 @@ public class MapJoinProcessor implements Transform {
         new LinkedHashMap<String, FetchWork>());
 
     for (Map.Entry<String, Operator<? extends OperatorDesc>> entry :
-      newWork.getAliasToWork().entrySet()) {
+      newWork.getMapWork().getAliasToWork().entrySet()) {
       String alias = entry.getKey();
       Operator<? extends OperatorDesc> op = entry.getValue();
 
@@ -153,7 +162,7 @@ public class MapJoinProcessor implements Transform {
       smallTableAliasList.add(alias);
       // get input path and remove this alias from pathToAlias
       // because this file will be fetched by fetch operator
-      LinkedHashMap<String, ArrayList<String>> pathToAliases = newWork.getPathToAliases();
+      LinkedHashMap<String, ArrayList<String>> pathToAliases = newWork.getMapWork().getPathToAliases();
 
       // keep record all the input path for this alias
       HashSet<String> pathSet = new HashSet<String>();
@@ -184,7 +193,7 @@ public class MapJoinProcessor implements Transform {
       List<PartitionDesc> partDesc = new ArrayList<PartitionDesc>();
 
       for (String tablePath : pathSet) {
-        PartitionDesc partitionDesc = newWork.getPathToPartitionInfo().get(tablePath);
+        PartitionDesc partitionDesc = newWork.getMapWork().getPathToPartitionInfo().get(tablePath);
         // create fetchwork for non partitioned table
         if (partitionDesc.getPartSpec() == null || partitionDesc.getPartSpec().size() == 0) {
           fetchWork = new FetchWork(tablePath, partitionDesc.getTableDesc());
@@ -196,7 +205,7 @@ public class MapJoinProcessor implements Transform {
       }
       // create fetchwork for partitioned table
       if (fetchWork == null) {
-        TableDesc table = newWork.getAliasToPartnInfo().get(alias).getTableDesc();
+        TableDesc table = newWork.getMapWork().getAliasToPartnInfo().get(alias).getTableDesc();
         fetchWork = new FetchWork(partDir, partDesc, table);
       }
       // set alias to fetch work
@@ -204,13 +213,13 @@ public class MapJoinProcessor implements Transform {
     }
     // remove small table ailias from aliasToWork;Avoid concurrent modification
     for (String alias : smallTableAliasList) {
-      newWork.getAliasToWork().remove(alias);
+      newWork.getMapWork().getAliasToWork().remove(alias);
     }
 
     // set up local work
-    newWork.setMapLocalWork(newLocalWork);
+    newWork.getMapWork().setMapLocalWork(newLocalWork);
     // remove reducer
-    newWork.setReducer(null);
+    newWork.setReduceWork(null);
     // return the big table alias
     if (bigTableAlias == null) {
       throw new SemanticException("Big Table Alias is null");
@@ -218,29 +227,80 @@ public class MapJoinProcessor implements Transform {
     return bigTableAlias;
   }
 
+  /**
+   * Convert the join to a map-join and also generate any local work needed.
+   *
+   * @param newWork MapredWork in which the conversion is to happen
+   * @param op
+   *          The join operator that needs to be converted to map-join
+   * @param bigTablePos
+   * @return the alias to the big table
+   * @throws SemanticException
+   */
   public static String genMapJoinOpAndLocalWork(MapredWork newWork, JoinOperator op, int mapJoinPos)
-    throws SemanticException {
+      throws SemanticException {
+    LinkedHashMap<Operator<? extends OperatorDesc>, OpParseContext> opParseCtxMap =
+        newWork.getMapWork().getOpParseCtxMap();
+    QBJoinTree newJoinTree = newWork.getMapWork().getJoinTree();
+    // generate the map join operator; already checked the map join
+    MapJoinOperator newMapJoinOp = MapJoinProcessor.convertMapJoin(opParseCtxMap, op,
+        newJoinTree, mapJoinPos, true, false);
+    return genLocalWorkForMapJoin(newWork, newMapJoinOp, mapJoinPos);
+  }
+
+  public static String genLocalWorkForMapJoin(MapredWork newWork, MapJoinOperator newMapJoinOp,
+      int mapJoinPos)
+      throws SemanticException {
     try {
-      LinkedHashMap<Operator<? extends OperatorDesc>, OpParseContext> opParseCtxMap =
-        newWork.getOpParseCtxMap();
-      QBJoinTree newJoinTree = newWork.getJoinTree();
-      // generate the map join operator; already checked the map join
-      MapJoinOperator newMapJoinOp = MapJoinProcessor.convertMapJoin(opParseCtxMap, op,
-          newJoinTree, mapJoinPos, true);
       // generate the local work and return the big table alias
       String bigTableAlias = MapJoinProcessor
           .genMapJoinLocalWork(newWork, newMapJoinOp, mapJoinPos);
       // clean up the mapred work
-      newWork.setOpParseCtxMap(null);
-      newWork.setJoinTree(null);
+      newWork.getMapWork().setOpParseCtxMap(null);
+      newWork.getMapWork().setJoinTree(null);
 
       return bigTableAlias;
 
     } catch (Exception e) {
       e.printStackTrace();
-      throw new SemanticException("Generate New MapJoin Opertor Exeception " + e.getMessage());
+      throw new SemanticException("Failed to generate new mapJoin operator " +
+          "by exception : " + e.getMessage());
+    }
+  }
+
+  private static void checkParentOperatorType(Operator<? extends OperatorDesc> op)
+      throws SemanticException {
+    if (!op.opAllowedBeforeMapJoin()) {
+      throw new SemanticException(ErrorMsg.OPERATOR_NOT_ALLOWED_WITH_MAPJOIN.getMsg());
+    }
+    if (op.getParentOperators() != null) {
+      for (Operator<? extends OperatorDesc> parentOp : op.getParentOperators()) {
+        checkParentOperatorType(parentOp);
+      }
+    }
+  }
+
+  private static void checkChildOperatorType(Operator<? extends OperatorDesc> op)
+      throws SemanticException {
+    if (!op.opAllowedAfterMapJoin()) {
+      throw new SemanticException(ErrorMsg.OPERATOR_NOT_ALLOWED_WITH_MAPJOIN.getMsg());
+    }
+    if (op.getChildOperators() != null) {
+      for (Operator<? extends OperatorDesc> childOp : op.getChildOperators()) {
+        checkChildOperatorType(childOp);
+      }
+    }
+  }
+
+  private static void validateMapJoinTypes(Operator<? extends OperatorDesc> op)
+      throws SemanticException {
+    for (Operator<? extends OperatorDesc> parentOp : op.getParentOperators()) {
+      checkParentOperatorType(parentOp);
     }
 
+    for (Operator<? extends OperatorDesc> childOp : op.getChildOperators()) {
+      checkChildOperatorType(childOp);
+    }
   }
 
   /**
@@ -258,22 +318,23 @@ public class MapJoinProcessor implements Transform {
    */
   public static MapJoinOperator convertMapJoin(
     LinkedHashMap<Operator<? extends OperatorDesc>, OpParseContext> opParseCtxMap,
-    JoinOperator op, QBJoinTree joinTree, int mapJoinPos, boolean noCheckOuterJoin)
+    JoinOperator op, QBJoinTree joinTree, int mapJoinPos, boolean noCheckOuterJoin,
+    boolean validateMapJoinTree)
     throws SemanticException {
+
     // outer join cannot be performed on a table which is being cached
     JoinDesc desc = op.getConf();
     JoinCondDesc[] condns = desc.getConds();
     Byte[] tagOrder = desc.getTagOrder();
 
     if (!noCheckOuterJoin) {
-      checkMapJoin(mapJoinPos, condns);
+      if (checkMapJoin(mapJoinPos, condns) < 0) {
+        throw new SemanticException(ErrorMsg.NO_OUTER_MAPJOIN.getMsg());
+      }
     }
 
-    RowResolver oldOutputRS = opParseCtxMap.get(op).getRowResolver();
-    RowResolver outputRS = new RowResolver();
-    ArrayList<String> outputColumnNames = new ArrayList<String>();
+    RowResolver outputRS = opParseCtxMap.get(op).getRowResolver();
     Map<Byte, List<ExprNodeDesc>> keyExprMap = new HashMap<Byte, List<ExprNodeDesc>>();
-    Map<Byte, List<ExprNodeDesc>> valueExprMap = new HashMap<Byte, List<ExprNodeDesc>>();
 
     // Walk over all the sources (which are guaranteed to be reduce sink
     // operators).
@@ -285,9 +346,6 @@ public class MapJoinProcessor implements Transform {
       new ArrayList<Operator<? extends OperatorDesc>>();
     List<Operator<? extends OperatorDesc>> oldReduceSinkParentOps =
        new ArrayList<Operator<? extends OperatorDesc>>();
-    Map<String, ExprNodeDesc> colExprMap = new HashMap<String, ExprNodeDesc>();
-    HashMap<Byte, HashMap<String, ExprNodeDesc>> columnTransfer =
-      new HashMap<Byte, HashMap<String, ExprNodeDesc>>();
 
     // found a source which is not to be stored in memory
     if (leftSrc != null) {
@@ -297,11 +355,10 @@ public class MapJoinProcessor implements Transform {
       Operator<? extends OperatorDesc> grandParentOp =
         parentOp.getParentOperators().get(0);
       oldReduceSinkParentOps.add(parentOp);
-      grandParentOp.removeChild(parentOp);
       newParentOps.add(grandParentOp);
     }
 
-    int pos = 0;
+    byte pos = 0;
     // Remove parent reduce-sink operators
     for (String src : joinTree.getBaseSrc()) {
       if (src != null) {
@@ -310,7 +367,6 @@ public class MapJoinProcessor implements Transform {
         Operator<? extends OperatorDesc> grandParentOp =
           parentOp.getParentOperators().get(0);
 
-        grandParentOp.removeChild(parentOp);
         oldReduceSinkParentOps.add(parentOp);
         newParentOps.add(grandParentOp);
       }
@@ -321,74 +377,54 @@ public class MapJoinProcessor implements Transform {
     for (pos = 0; pos < newParentOps.size(); pos++) {
       ReduceSinkOperator oldPar = (ReduceSinkOperator) oldReduceSinkParentOps.get(pos);
       ReduceSinkDesc rsconf = oldPar.getConf();
-      Byte tag = (byte) rsconf.getTag();
       List<ExprNodeDesc> keys = rsconf.getKeyCols();
-      keyExprMap.put(tag, keys);
-
-      // set column transfer
-      HashMap<String, ExprNodeDesc> map = (HashMap<String, ExprNodeDesc>) oldPar.getColumnExprMap();
-      columnTransfer.put(tag, map);
+      keyExprMap.put(pos, keys);
     }
 
-    // create the map-join operator
-    for (pos = 0; pos < newParentOps.size(); pos++) {
-      RowResolver inputRS = opParseCtxMap.get(newParentOps.get(pos)).getRowResolver();
-      List<ExprNodeDesc> values = new ArrayList<ExprNodeDesc>();
+    // removing RS, only ExprNodeDesc is changed (key/value/filter exprs and colExprMap)
+    // others (output column-name, RR, schema) remain intact
+    Map<String, ExprNodeDesc> colExprMap = op.getColumnExprMap();
+    List<String> outputColumnNames = op.getConf().getOutputColumnNames();
 
-      Iterator<String> keysIter = inputRS.getTableNames().iterator();
-      while (keysIter.hasNext()) {
-        String key = keysIter.next();
-        HashMap<String, ColumnInfo> rrMap = inputRS.getFieldMap(key);
-        Iterator<String> fNamesIter = rrMap.keySet().iterator();
-        while (fNamesIter.hasNext()) {
-          String field = fNamesIter.next();
-          ColumnInfo valueInfo = inputRS.get(key, field);
-          ColumnInfo oldValueInfo = oldOutputRS.get(key, field);
-          if (oldValueInfo == null) {
-            continue;
-          }
-          String outputCol = oldValueInfo.getInternalName();
-          if (outputRS.get(key, field) == null) {
-            outputColumnNames.add(outputCol);
-            ExprNodeDesc colDesc = new ExprNodeColumnDesc(valueInfo.getType(), valueInfo
-                .getInternalName(), valueInfo.getTabAlias(), valueInfo.getIsVirtualCol());
-            values.add(colDesc);
-            outputRS.put(key, field, new ColumnInfo(outputCol, valueInfo.getType(), valueInfo
-                .getTabAlias(), valueInfo.getIsVirtualCol(), valueInfo.isHiddenVirtualCol()));
-            colExprMap.put(outputCol, colDesc);
-          }
+    List<ColumnInfo> schema = new ArrayList<ColumnInfo>(op.getSchema().getSignature());
+
+    Map<Byte, List<ExprNodeDesc>> valueExprs = op.getConf().getExprs();
+    Map<Byte, List<ExprNodeDesc>> newValueExprs = new HashMap<Byte, List<ExprNodeDesc>>();
+    for (Map.Entry<Byte, List<ExprNodeDesc>> entry : valueExprs.entrySet()) {
+      byte tag = entry.getKey();
+      Operator<?> terminal = oldReduceSinkParentOps.get(tag);
+
+      List<ExprNodeDesc> values = entry.getValue();
+      List<ExprNodeDesc> newValues = ExprNodeDescUtils.backtrack(values, op, terminal);
+      newValueExprs.put(tag, newValues);
+      for (int i = 0; i < schema.size(); i++) {
+        ColumnInfo column = schema.get(i);
+        if (column == null) {
+          continue;
+        }
+        ExprNodeDesc expr = colExprMap.get(column.getInternalName());
+        int index = ExprNodeDescUtils.indexOf(expr, values);
+        if (index >= 0) {
+          colExprMap.put(column.getInternalName(), newValues.get(index));
+          schema.set(i, null);
         }
       }
-
-      valueExprMap.put(Byte.valueOf((byte) pos), values);
     }
 
     Map<Byte, List<ExprNodeDesc>> filters = desc.getFilters();
+    Map<Byte, List<ExprNodeDesc>> newFilters = new HashMap<Byte, List<ExprNodeDesc>>();
     for (Map.Entry<Byte, List<ExprNodeDesc>> entry : filters.entrySet()) {
-      Byte srcAlias = entry.getKey();
-      List<ExprNodeDesc> columnDescList = entry.getValue();
+      byte srcTag = entry.getKey();
+      List<ExprNodeDesc> filter = entry.getValue();
 
-      for (ExprNodeDesc nodeExpr : columnDescList) {
-        ExprNodeGenericFuncDesc funcDesc = (ExprNodeGenericFuncDesc) nodeExpr;
-        for (ExprNodeDesc childDesc : funcDesc.getChildExprs()) {
-          if (!(childDesc instanceof ExprNodeColumnDesc)) {
-            continue;
-          }
-          ExprNodeColumnDesc columnDesc = (ExprNodeColumnDesc) childDesc;
-          // reset columns
-          String column = columnDesc.getColumn();
-          String newColumn = null;
-          HashMap<String, ExprNodeDesc> map = columnTransfer.get(srcAlias);
-          ExprNodeColumnDesc tmpDesc = (ExprNodeColumnDesc) map.get(column);
-          if (tmpDesc != null) {
-            newColumn = tmpDesc.getColumn();
-          }
-          if (newColumn == null) {
-            throw new SemanticException("No Column name found in parent reduce sink op");
-          }
-          columnDesc.setColumn(newColumn);
-        }
-      }
+      Operator<?> terminal = oldReduceSinkParentOps.get(srcTag);
+      newFilters.put(srcTag, ExprNodeDescUtils.backtrack(filter, op, terminal));
+    }
+    desc.setFilters(filters = newFilters);
+
+    // remove old parents
+    for (pos = 0; pos < newParentOps.size(); pos++) {
+      newParentOps.get(pos).removeChild(oldReduceSinkParentOps.get(pos));
     }
 
     JoinCondDesc[] joinCondns = op.getConf().getConds();
@@ -406,14 +442,14 @@ public class MapJoinProcessor implements Transform {
     }
 
     TableDesc keyTableDesc = PlanUtils.getMapJoinKeyTableDesc(PlanUtils
-        .getFieldSchemasFromColumnList(keyCols, "mapjoinkey"));
+        .getFieldSchemasFromColumnList(keyCols, MAPJOINKEY_FIELDPREFIX));
 
     List<TableDesc> valueTableDescs = new ArrayList<TableDesc>();
     List<TableDesc> valueFiltedTableDescs = new ArrayList<TableDesc>();
 
     int[][] filterMap = desc.getFilterMap();
     for (pos = 0; pos < newParentOps.size(); pos++) {
-      List<ExprNodeDesc> valueCols = valueExprMap.get(Byte.valueOf((byte) pos));
+      List<ExprNodeDesc> valueCols = newValueExprs.get(pos);
       int length = valueCols.size();
       List<ExprNodeDesc> valueFilteredCols = new ArrayList<ExprNodeDesc>(length);
       // deep copy expr node desc
@@ -422,7 +458,7 @@ public class MapJoinProcessor implements Transform {
       }
       if (filterMap != null && filterMap[pos] != null && pos != mapJoinPos) {
         ExprNodeColumnDesc isFilterDesc = new ExprNodeColumnDesc(TypeInfoFactory
-            .getPrimitiveTypeInfo(Constants.TINYINT_TYPE_NAME), "filter", "filter", false);
+            .getPrimitiveTypeInfo(serdeConstants.SMALLINT_TYPE_NAME), "filter", "filter", false);
         valueFilteredCols.add(isFilterDesc);
       }
 
@@ -449,7 +485,7 @@ public class MapJoinProcessor implements Transform {
     } else {
       dumpFilePrefix = "mapfile"+PlanUtils.getCountForMapJoinDumpFilePrefix();
     }
-    MapJoinDesc mapJoinDescriptor = new MapJoinDesc(keyExprMap, keyTableDesc, valueExprMap,
+    MapJoinDesc mapJoinDescriptor = new MapJoinDesc(keyExprMap, keyTableDesc, newValueExprs,
         valueTableDescs, valueFiltedTableDescs, outputColumnNames, mapJoinPos, joinCondns,
         filters, op.getConf().getNoOuterJoin(), dumpFilePrefix);
     mapJoinDescriptor.setTagOrder(tagOrder);
@@ -477,6 +513,70 @@ public class MapJoinProcessor implements Transform {
     op.setChildOperators(null);
     op.setParentOperators(null);
 
+    // make sure only map-joins can be performed.
+    if (validateMapJoinTree) {
+      validateMapJoinTypes(mapJoinOp);
+    }
+
+    return mapJoinOp;
+  }
+
+  /**
+   * convert a sortmerge join to a a map-side join.
+   *
+   * @param opParseCtxMap
+   * @param smbJoinOp
+   *          join operator
+   * @param joinTree
+   *          qb join tree
+   * @param bigTablePos
+   *          position of the source to be read as part of map-reduce framework. All other sources
+   *          are cached in memory
+   * @param noCheckOuterJoin
+   */
+  public static MapJoinOperator convertSMBJoinToMapJoin(
+    Map<Operator<? extends OperatorDesc>, OpParseContext> opParseCtxMap,
+    SMBMapJoinOperator smbJoinOp, QBJoinTree joinTree, int bigTablePos, boolean noCheckOuterJoin)
+    throws SemanticException {
+    // Create a new map join operator
+    SMBJoinDesc smbJoinDesc = smbJoinOp.getConf();
+    List<ExprNodeDesc> keyCols = smbJoinDesc.getKeys().get(Byte.valueOf((byte) 0));
+    TableDesc keyTableDesc = PlanUtils.getMapJoinKeyTableDesc(PlanUtils
+        .getFieldSchemasFromColumnList(keyCols, MAPJOINKEY_FIELDPREFIX));
+    MapJoinDesc mapJoinDesc = new MapJoinDesc(smbJoinDesc.getKeys(),
+        keyTableDesc, smbJoinDesc.getExprs(),
+        smbJoinDesc.getValueTblDescs(), smbJoinDesc.getValueTblDescs(),
+        smbJoinDesc.getOutputColumnNames(),
+        bigTablePos, smbJoinDesc.getConds(),
+        smbJoinDesc.getFilters(), smbJoinDesc.isNoOuterJoin(), smbJoinDesc.getDumpFilePrefix());
+
+    RowResolver joinRS = opParseCtxMap.get(smbJoinOp).getRowResolver();
+    // The mapjoin has the same schema as the join operator
+    MapJoinOperator mapJoinOp = (MapJoinOperator) OperatorFactory.getAndMakeChild(
+        mapJoinDesc, joinRS.getRowSchema(),
+        new ArrayList<Operator<? extends OperatorDesc>>());
+
+    OpParseContext ctx = new OpParseContext(joinRS);
+    opParseCtxMap.put(mapJoinOp, ctx);
+
+    // change the children of the original join operator to point to the map
+    // join operator
+    List<Operator<? extends OperatorDesc>> childOps = smbJoinOp.getChildOperators();
+    for (Operator<? extends OperatorDesc> childOp : childOps) {
+      childOp.replaceParent(smbJoinOp, mapJoinOp);
+    }
+    mapJoinOp.setChildOperators(childOps);
+    smbJoinOp.setChildOperators(null);
+
+    // change the parent of the original SMBjoin operator to point to the map
+    // join operator
+    List<Operator<? extends OperatorDesc>> parentOps = smbJoinOp.getParentOperators();
+    for (Operator<? extends OperatorDesc> parentOp : parentOps) {
+      parentOp.replaceChild(smbJoinOp, mapJoinOp);
+    }
+    mapJoinOp.setParentOperators(parentOps);
+    smbJoinOp.setParentOperators(null);
+
     return mapJoinOp;
   }
 
@@ -487,11 +587,10 @@ public class MapJoinProcessor implements Transform {
         HiveConf.ConfVars.HIVEOPTSORTMERGEBUCKETMAPJOIN)
         && HiveConf.getBoolVar(hiveConf, HiveConf.ConfVars.HIVEOPTBUCKETMAPJOIN);
 
-
     LinkedHashMap<Operator<? extends OperatorDesc>, OpParseContext> opParseCtxMap = pctx
         .getOpParseCtx();
     MapJoinOperator mapJoinOp = convertMapJoin(opParseCtxMap, op, joinTree, mapJoinPos,
-        noCheckOuterJoin);
+        noCheckOuterJoin, true);
     // create a dummy select to select all columns
     genSelectPlan(pctx, mapJoinOp);
     return mapJoinOp;
@@ -516,10 +615,10 @@ public class MapJoinProcessor implements Transform {
    *
    *
    * @param condns
-   * @return list of big table candidates
+   * @return set of big table candidates
    */
-  public static HashSet<Integer> getBigTableCandidates(JoinCondDesc[] condns) {
-    HashSet<Integer> bigTableCandidates = new HashSet<Integer>();
+  public static Set<Integer> getBigTableCandidates(JoinCondDesc[] condns) {
+    Set<Integer> bigTableCandidates = new HashSet<Integer>();
 
     boolean seenOuterJoin = false;
     Set<Integer> seenPostitions = new HashSet<Integer>();
@@ -573,13 +672,20 @@ public class MapJoinProcessor implements Transform {
     return bigTableCandidates;
   }
 
-  public static void checkMapJoin(int mapJoinPos, JoinCondDesc[] condns) throws SemanticException {
-    HashSet<Integer> bigTableCandidates = MapJoinProcessor.getBigTableCandidates(condns);
+  /**
+   * @param mapJoinPos the position of big table as determined by either hints or auto conversion.
+   * @param condns the join conditions
+   * @return if given mapjoin position is a feasible big table position return same else -1.
+   * @throws SemanticException if given position is not in the big table candidates.
+   */
+  public static int checkMapJoin(int mapJoinPos, JoinCondDesc[] condns) {
+    Set<Integer> bigTableCandidates = MapJoinProcessor.getBigTableCandidates(condns);
 
-    if (bigTableCandidates == null || !bigTableCandidates.contains(mapJoinPos)) {
-      throw new SemanticException(ErrorMsg.NO_OUTER_MAPJOIN.getMsg());
+    // bigTableCandidates can never be null
+    if (!bigTableCandidates.contains(mapJoinPos)) {
+      return -1;
     }
-    return;
+    return mapJoinPos;
   }
 
   private void genSelectPlan(ParseContext pctx, MapJoinOperator input) throws SemanticException {
@@ -660,8 +766,8 @@ public class MapJoinProcessor implements Transform {
       // support this by randomly
       // leaving some table from the list of tables to be cached
       if (mapJoinPos == -1) {
-        throw new SemanticException(ErrorMsg.INVALID_MAPJOIN_HINT.getMsg(pGraphContext.getQB()
-            .getParseInfo().getHints()));
+        throw new SemanticException(ErrorMsg.INVALID_MAPJOIN_HINT.getMsg(
+            Arrays.toString(joinTree.getBaseSrc())));
       }
     }
 

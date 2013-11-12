@@ -1,7 +1,11 @@
-PREHOOK: query: create table src_auth_tmp as select * from src
+PREHOOK: query: -- SORT_BEFORE_DIFF
+
+create table src_auth_tmp as select * from src
 PREHOOK: type: CREATETABLE_AS_SELECT
 PREHOOK: Input: default@src
-POSTHOOK: query: create table src_auth_tmp as select * from src
+POSTHOOK: query: -- SORT_BEFORE_DIFF
+
+create table src_auth_tmp as select * from src
 POSTHOOK: type: CREATETABLE_AS_SELECT
 POSTHOOK: Input: default@src
 POSTHOOK: Output: default@src_auth_tmp
@@ -61,7 +65,7 @@ database	default
 table	authorization_part	
 principalName	hive_test_user	
 principalType	USER	
-privilege	Update	
+privilege	Drop	
 #### A masked pattern was here ####
 grantor	hive_test_user	
 
@@ -69,7 +73,7 @@ database	default
 table	authorization_part	
 principalName	hive_test_user	
 principalType	USER	
-privilege	Drop	
+privilege	Update	
 #### A masked pattern was here ####
 grantor	hive_test_user	
 PREHOOK: query: grant select(key) on table authorization_part to user hive_test_user

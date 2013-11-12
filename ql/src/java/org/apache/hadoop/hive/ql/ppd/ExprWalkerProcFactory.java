@@ -93,7 +93,7 @@ public final class ExprWalkerProcFactory {
         ctx.addAlias(exp, colAlias[0]);
       } else {
         if (colAlias == null) {
-          assert false;
+          return false;
         }
         ctx.addAlias(colref, colAlias[0]);
       }
@@ -171,7 +171,7 @@ public final class ExprWalkerProcFactory {
         ExprNodeDesc ch = (ExprNodeDesc) nd.getChildren().get(i);
         ExprNodeDesc newCh = ctx.getConvertedNode(ch);
         if (newCh != null) {
-          expr.getChildExprs().set(i, newCh);
+          expr.getChildren().set(i, newCh);
           ch = newCh;
         }
         String chAlias = ctx.getAlias(ch);

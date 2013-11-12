@@ -22,12 +22,14 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
+import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
 import org.apache.hadoop.hive.metastore.api.ConfigValSecurityException;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.HiveObjectPrivilege;
 import org.apache.hadoop.hive.metastore.api.HiveObjectRef;
 import org.apache.hadoop.hive.metastore.api.Index;
+import org.apache.hadoop.hive.metastore.api.InvalidInputException;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
 import org.apache.hadoop.hive.metastore.api.InvalidPartitionException;
@@ -50,6 +52,11 @@ import org.apache.thrift.TException;
  * merged
  */
 public interface IMetaStoreClient {
+
+  /**
+   *  Tries to reconnect this MetaStoreClient to the MetaStore.
+   */
+  public void reconnect() throws MetaException;
 
   public void close();
 
@@ -340,6 +347,17 @@ public interface IMetaStoreClient {
       List<String> partVals) throws NoSuchObjectException, MetaException, TException;
 
   /**
+   * @param partition
+   * @param destdb
+   * @param destTableName
+   * @return partition object
+   */
+  public Partition exchange_partition(Map<String, String> partitionSpecs,
+      String sourceDb, String sourceTable, String destdb,
+      String destTableName) throws MetaException, NoSuchObjectException,
+      InvalidObjectException, TException;
+
+  /**
    * @param dbName
    * @param tblName
    * @param name - partition name i.e. 'ds=2010-02-03/ts=2010-02-03 18%3A16%3A01'
@@ -408,6 +426,23 @@ public interface IMetaStoreClient {
   public List<Partition> listPartitionsByFilter(String db_name, String tbl_name,
       String filter, short max_parts) throws MetaException,
          NoSuchObjectException, TException;
+
+
+  /**
+   * Get list of partitions matching specified serialized expression
+   * @param db_name the database name
+   * @param tbl_name the table name
+   * @param expr expression, serialized from ExprNodeDesc
+   * @param max_parts the maximum number of partitions to return,
+   *    all partitions are returned if -1 is passed
+   * @param default_partition_name Default partition name from configuration. If blank, the
+   *    metastore server-side configuration is used.
+   * @param result the resulting list of partitions
+   * @return whether the resulting list contains partitions which may or may not match the expr
+   */
+  public boolean listPartitionsByExpr(String db_name, String tbl_name,
+      byte[] expr, String default_partition_name, short max_parts, List<Partition> result)
+          throws TException;
 
   /**
    * @param dbName
@@ -482,6 +517,15 @@ public interface IMetaStoreClient {
   public boolean isPartitionMarkedForEvent(String db_name, String tbl_name, Map<String,String> partKVs,
       PartitionEventType eventType) throws MetaException, NoSuchObjectException, TException,
       UnknownTableException, UnknownDBException, UnknownPartitionException, InvalidPartitionException;
+
+  /**
+   * @param partVals
+   * @throws TException
+   * @throws MetaException
+   */
+  public void validatePartitionNameCharacters(List<String> partVals)
+      throws TException, MetaException;
+
 
   /**
    * @param tbl
@@ -726,6 +770,105 @@ public interface IMetaStoreClient {
       MetaException, TException;
 
   /**
+   * Write table level column statistics to persistent store
+   * @param statsObj
+   * @return boolean indicating the status of the operation
+   * @throws NoSuchObjectException
+   * @throws InvalidObjectException
+   * @throws MetaException
+   * @throws TException
+   * @throws InvalidInputException
+   */
+
+  public boolean updateTableColumnStatistics(ColumnStatistics statsObj)
+    throws NoSuchObjectException, InvalidObjectException, MetaException, TException,
+    InvalidInputException;
+
+  /**
+   * Write partition level column statistics to persistent store
+   * @param statsObj
+   * @return boolean indicating the status of the operation
+   * @throws NoSuchObjectException
+   * @throws InvalidObjectException
+   * @throws MetaException
+   * @throws TException
+   * @throws InvalidInputException
+   */
+
+ public boolean updatePartitionColumnStatistics(ColumnStatistics statsObj)
+   throws NoSuchObjectException, InvalidObjectException, MetaException, TException,
+   InvalidInputException;
+
+ /**
+  * Get table level column statistics given dbName, tableName and colName
+  * @param dbName
+  * @param tableName
+  * @param colName
+  * @return ColumnStatistics struct for a given db, table and col
+  * @throws NoSuchObjectException
+  * @throws MetaException
+  * @throws TException
+  * @throws InvalidInputException
+  * @throws InvalidObjectException
+  */
+
+  public ColumnStatistics getTableColumnStatistics(String dbName, String tableName, String colName)
+      throws NoSuchObjectException, MetaException, TException,
+            InvalidInputException, InvalidObjectException;
+
+  /**
+   * Get partition level column statistics given dbName, tableName, partitionName and colName
+   * @param dbName
+   * @param tableName
+   * @param partitionName
+   * @param colName
+   * @return ColumnStatistics struct for a given db, table, partition and col
+   * @throws NoSuchObjectException
+   * @throws MetaException
+   * @throws TException
+   * @throws InvalidInputException
+   * @throws InvalidObjectException
+   */
+
+  public ColumnStatistics getPartitionColumnStatistics(String dbName, String tableName,
+    String partitionName, String colName) throws NoSuchObjectException, MetaException, TException,
+            InvalidInputException, InvalidObjectException;
+
+  /**
+   * Delete partition level column statistics given dbName, tableName, partName and colName
+   * @param dbName
+   * @param tableName
+   * @param partName
+   * @param colName
+   * @return boolean indicating outcome of the operation
+   * @throws NoSuchObjectException
+   * @throws InvalidObjectException
+   * @throws MetaException
+   * @throws TException
+   * @throws InvalidInputException
+   */
+
+  public boolean deletePartitionColumnStatistics(String dbName, String tableName,
+    String partName, String colName) throws NoSuchObjectException, MetaException,
+    InvalidObjectException, TException, InvalidInputException;
+
+   /**
+    * Delete table level column statistics given dbName, tableName and colName
+    * @param dbName
+    * @param tableName
+    * @param colName
+    * @return boolean indicating the outcome of the operation
+    * @throws NoSuchObjectException
+    * @throws MetaException
+    * @throws InvalidObjectException
+    * @throws TException
+    * @throws InvalidInputException
+    */
+
+  public boolean deleteTableColumnStatistics(String dbName, String tableName, String colName) throws
+    NoSuchObjectException, MetaException, InvalidObjectException, TException, InvalidInputException;
+
+  /**
    * @param role
    *          role object
    * @return true on success
@@ -862,4 +1005,9 @@ public interface IMetaStoreClient {
   public void cancelDelegationToken(String tokenStrForm) throws MetaException, TException;
 
 
+  public class IncompatibleMetastoreException extends MetaException {
+    public IncompatibleMetastoreException(String message) {
+      super(message);
+    }
+  }
 }

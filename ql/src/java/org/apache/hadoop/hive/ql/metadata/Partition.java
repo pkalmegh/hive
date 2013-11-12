@@ -46,6 +46,7 @@ import org.apache.hadoop.hive.ql.io.HiveFileFormatUtils;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
 import org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat;
 import org.apache.hadoop.hive.serde2.Deserializer;
+import org.apache.hadoop.hive.serde2.SerDeUtils;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
@@ -199,7 +200,7 @@ public class Partition implements Serializable {
           }
         }
         // set default if columns are not set
-        if (tPartition.getSd().getCols() == null || tPartition.getSd().getCols().size() == 0) {
+        if (tPartition.getSd().getCols() == null) {
           if (table.getCols() != null) {
             tPartition.getSd().setCols(table.getCols());
           }
@@ -214,7 +215,7 @@ public class Partition implements Serializable {
     getInputFormatClass();
     // This will set up field: outputFormatClass
     getOutputFormatClass();
-
+    getDeserializer();
   }
 
   public String getName() {
@@ -276,6 +277,10 @@ public class Partition implements Serializable {
     return MetaStoreUtils.getSchema(tPartition, table.getTTable());
   }
 
+  public Properties getMetadataFromPartitionSchema() {
+    return MetaStoreUtils.getPartitionMetadata(tPartition, table.getTTable());
+  }
+
   public Properties getSchemaFromTableSchema(Properties tblSchema) {
     return MetaStoreUtils.getPartSchemaFromTableSchema(tPartition.getSd(), table.getTTable().getSd(),
         tPartition.getParameters(), table.getDbName(), table.getTableName(), table.getPartitionKeys(),
@@ -296,7 +301,7 @@ public class Partition implements Serializable {
   public void setOutputFormatClass(Class<? extends HiveOutputFormat> outputFormatClass) {
     this.outputFormatClass = outputFormatClass;
     tPartition.getSd().setOutputFormat(HiveFileFormatUtils
-      .getOutputFormatSubstitute(outputFormatClass).toString());
+        .getOutputFormatSubstitute(outputFormatClass, false).toString());
   }
 
   final public Class<? extends InputFormat> getInputFormatClass()
@@ -334,7 +339,7 @@ public class Partition implements Serializable {
             JavaUtils.getClassLoader()));
         // Replace FileOutputFormat for backward compatibility
         if (!HiveOutputFormat.class.isAssignableFrom(c)) {
-          outputFormatClass = HiveFileFormatUtils.getOutputFormatSubstitute(c);
+          outputFormatClass = HiveFileFormatUtils.getOutputFormatSubstitute(c,false);
         } else {
           outputFormatClass = (Class<? extends HiveOutputFormat>)c;
         }
@@ -363,6 +368,10 @@ public class Partition implements Serializable {
      */
   }
 
+  public void setBucketCount(int newBucketNum) {
+    tPartition.getSd().setNumBuckets(newBucketNum);
+  }
+
   public List<String> getBucketCols() {
     return tPartition.getSd().getBucketCols();
   }
@@ -376,11 +385,10 @@ public class Partition implements Serializable {
   }
 
   /**
-   * mapping from bucket number to bucket path
+   * get all paths for this partition in a sorted manner
    */
-  // TODO: add test case and clean it up
   @SuppressWarnings("nls")
-  public Path getBucketPath(int bucketNum) {
+  public FileStatus[] getSortedPaths() {
     try {
       // Previously, this got the filesystem of the Table, which could be
       // different from the filesystem of the partition.
@@ -399,11 +407,23 @@ public class Partition implements Serializable {
       if (srcs.length == 0) {
         return null;
       }
-      return srcs[bucketNum].getPath();
+      return srcs;
     } catch (Exception e) {
-      throw new RuntimeException("Cannot get bucket path for bucket "
-          + bucketNum, e);
+      throw new RuntimeException("Cannot get path ", e);
     }
+  }
+
+  /**
+   * mapping from bucket number to bucket path
+   */
+  // TODO: add test case and clean it up
+  @SuppressWarnings("nls")
+  public Path getBucketPath(int bucketNum) {
+    FileStatus srcs[] = getSortedPaths();
+    if (srcs == null) {
+      return null;
+    }
+    return srcs[bucketNum].getPath();
   }
 
   @SuppressWarnings("nls")
@@ -499,7 +519,19 @@ public class Partition implements Serializable {
   }
 
   public List<FieldSchema> getCols() {
-    return tPartition.getSd().getCols();
+    if (!SerDeUtils.shouldGetColsFromSerDe(
+        tPartition.getSd().getSerdeInfo().getSerializationLib())) {
+      return tPartition.getSd().getCols();
+    }
+
+    try {
+      return Hive.getFieldsFromDeserializer(table.getTableName(), getDeserializer());
+    } catch (HiveException e) {
+      LOG.error("Unable to get cols from serde: " +
+          tPartition.getSd().getSerdeInfo().getSerializationLib(), e);
+    }
+
+    return new ArrayList<FieldSchema>();
   }
 
   public String getLocation() {
@@ -612,6 +644,10 @@ public class Partition implements Serializable {
 
   public void setLastAccessTime(int lastAccessTime) {
     tPartition.setLastAccessTime(lastAccessTime);
+  }
+
+  public boolean isStoredAsSubDirectories() {
+    return tPartition.getSd().isStoredAsSubDirectories();
   }
 
   public List<List<String>> getSkewedColValues(){

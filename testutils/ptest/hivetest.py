@@ -99,6 +99,12 @@ def read_conf(config_file):
 
     # Setup of needed environmental variables and paths
 
+    # Proxy
+    if args.http_proxy is not None:
+      all_set.export('http_proxy', args.http_proxy + ':' + args.http_proxy_port)
+      all_set.export('https_proxy', args.http_proxy + ':' + args.http_proxy_port)
+      all_set.export('ANT_OPTS', get_ant_opts_proxy())
+
     # Ant
     all_set.export('ANT_HOME', ant_path)
     all_set.add_path(ant_path + '/bin')
@@ -113,6 +119,13 @@ def read_conf(config_file):
     # Hive
     remote_set.export('HIVE_HOME', host_code_path + '/build/dist')
     remote_set.add_path(host_code_path + '/build/dist/bin')
+
+def get_ant_opts_proxy():
+  cmd  = ' -Dhttp.proxyHost='  + args.http_proxy
+  cmd += ' -Dhttp.proxyPort='  + args.http_proxy_port
+  cmd += ' -Dhttps.proxyHost=' + args.http_proxy
+  cmd += ' -Dhttps.proxyPort=' + args.http_proxy_port
+  return cmd
 
 def get_ant():
     # Gets Ant 1.8.4 from one of Apache mirrors.
@@ -133,19 +146,19 @@ def get_arc():
     if local.run('test -d "{0}"'.format(arc_path), warn_only = True,
             abandon_output = False) is None:
         local.run('mkdir -p "{0}"'.format(os.path.dirname(arc_path)))
-        local.run('git clone git://github.com/facebook/arcanist.git "{0}"'
+        local.run('git clone https://github.com/facebook/arcanist.git "{0}"'
                 .format(arc_path))
 
     if local.run('test -d "{0}"'.format(phutil_path), warn_only = True,
             abandon_output = False) is None:
         local.run('mkdir -p "{0}"'.format(os.path.dirname(phutil_path)))
-        local.run('git clone git://github.com/facebook/libphutil.git "{0}"'
+        local.run('git clone https://github.com/facebook/libphutil.git "{0}"'
                 .format(phutil_path))
 
     local.cd(arc_path)
-    local.run('git pull')
+    local.run('git pull https://github.com/facebook/arcanist.git')
     local.cd(phutil_path)
-    local.run('git pull')
+    local.run('git pull https://github.com/facebook/libphutil.git')
 
 def get_clean_hive():
     # Gets latest Hive from Apache Git repository and cleans the repository
@@ -153,15 +166,17 @@ def get_clean_hive():
     # `arc-setup` so the repo is ready to be used.
     print('\n-- Updating Hive repo\n')
 
-    if local.run('test -d "{0}"'.format(code_path), warn_only = True,
-            abandon_output = False) is not None:
-      local.run('rm -rf "{0}"'.format(code_path))
-
-
-    local.run('mkdir -p "{0}"'.format(code_path))
-    local.run('svn checkout http://svn.apache.org/repos/asf/hive/trunk "{0}"'.format(code_path), quiet = True)
-    
     local.cd(code_path)
+    if local.run('test -d "{0}"'.format(code_path), warn_only = True,
+            abandon_output = False) is None:
+      local.run('mkdir -p "{0}"'.format(os.path.dirname(code_path)))
+      local.run('git clone http://git.apache.org/hive.git "{0}"'.format(code_path))
+    else:
+      # Clean repo and checkout to t he last revision
+      local.run('git reset --hard HEAD')
+      local.run('git clean -dffx')
+      local.run('git pull')
+
     local.run('ant arc-setup')
 
 def copy_local_hive():
@@ -231,7 +246,7 @@ def propagate_hive():
     remote_set.run('cp -r "{0}/*" "{1}"'.format(
                     code_path, host_code_path))
 
-    # It should avoid issues with 'ivy publish' exceptions during testing phase. 
+    # It should avoid issues with 'ivy publish' exceptions during testing phase.
     remote_set.run('cp -r "{0}" "{1}"'.format(ivy_path, host_code_path))
 
 
@@ -243,12 +258,15 @@ def segment_tests(path):
     tests = local.run('ls -1', quiet = True, abandon_output = False).strip().split('\n')
 
     qfile_set.cd(host_code_path + path)
-    cmd = []
+    test_splits = [[] for i in range(len(qfile_set))]
     i = 0
     for test in tests:
-        host = qfile_set.conn[i].hostname
-        cmd.append('if [[ "{host}" != "' + host + '" ]]; then rm -f "' + test + '"; fi')
+        test_splits[i].append(test)
         i = (i + 1) % len(qfile_set)
+    cmd = []
+    for i in range(len(qfile_set)):
+        host = qfile_set.conn[i].hostname
+        cmd.append('if [[ "{host}" != "' + host + '" ]]; then rm -f ' + ' '.join(test_splits[i]) + '; fi')
     cmd = ' && '.join(cmd)
     # The command is huge and printing it out is not very useful, using wabbit
     # hunting mode.
@@ -297,7 +315,7 @@ def run_tests():
     # irrelevant if one of the first tests fails and Ant reports a failure after
     # running all the other test, fortunately JUnit report saves the Ant output
     # if you need it for some reason).
-    
+
     remote_ivy_path = '$(pwd)/.ivy2'
 
     qfile_set.cd(host_code_path)
@@ -324,6 +342,8 @@ def run_other_tests():
               'sed -e "s:[^/]*/::g"',
               'grep -v TestSerDe.class',
               'grep -v TestHiveMetaStore.class',
+              'grep -v TestBeeLineDriver.class',
+              'grep -v TestHiveServer2Concurrency.class',
               'grep -v TestCliDriver.class',
               'grep -v TestNegativeCliDriver.class',
               'grep -v ".*\$.*\.class"',
@@ -336,6 +356,8 @@ def run_other_tests():
               'sed -e "s:[^/]*/::g"',
               'grep -v TestSerDe.class',
               'grep -v TestHiveMetaStore.class',
+              'grep -v TestBeeLineDriver.class',
+              'grep -v TestHiveServer2Concurrency.class',
               'grep -v TestCliDriver.class',
               'grep -v TestNegativeCliDriver.class',
               'grep -v ".*\$.*\.class"',
@@ -459,13 +481,14 @@ def overwrite_results():
 def save_svn_info():
   if args.svn_info:
     local.cd(master_base_path + '/trunk')
-    local.run('svn info > "{0}"'.format(report_path + '/svn-info'))
+    local.run('git show --summary > "{0}"'.format(report_path + '/svn-info'))
 
 def save_patch():
   if args.save_patch:
-    local.cd(master_base_path + '/trunk')
-    local.run('svn diff > "{0}"'.format(report_path + '/patch'))
-  
+    local.cd(code_path)
+    local.run('git add --all')
+    local.run('git diff --no-prefix HEAD > "{0}"'.format(report_path + '/patch'))
+
 # -- Tasks that can be called from command line start here.
 
 def cmd_prepare(patches = [], revision = None):
@@ -505,8 +528,9 @@ def cmd_test(patches = [], revision = None, one_file_report = False):
       local.run('rm -rf "' + master_base_path + '/templogs/"')
       local.run('mkdir -p "' + master_base_path + '/templogs/"')
       tests = ['TestRemoteHiveMetaStore','TestEmbeddedHiveMetaStore','TestSetUGIOnBothClientServer','TestSetUGIOnOnlyClient','TestSetUGIOnOnlyServer']
+
       for test in tests:
-        local.run('sudo -u hadoop ant -Dtestcase=' + test + ' test')
+        local.run('sudo -u root ant -Divy.default.ivy.user.dir={0} '.format(ivy_path) + ' -Dtestcase=' + test + ' test')
         local.run('cp "`find . -name "TEST-*.xml"`" "' + master_base_path + '/templogs/"')
 
     cmd_run_tests(one_file_report)
@@ -556,6 +580,10 @@ parser.add_argument('--svn-info', dest = 'svn_info', action = 'store_true',
         help = 'Save result of `svn info` into ${report_path}/svn-info')
 parser.add_argument('--save-patch', dest = 'save_patch', action = 'store_true',
         help = 'Save applied patch into ${report_path}/patch')
+parser.add_argument('--http-proxy', dest = 'http_proxy',
+        help = 'Proxy host')
+parser.add_argument('--http-proxy-port', dest = 'http_proxy_port',
+        help = 'Proxy port')
 
 args = parser.parse_args()
 
@@ -574,6 +602,6 @@ elif args.stop:
     cmd_stop()
 elif args.remove:
     cmd_remove()
-else: 
+else:
   parser.print_help()
 

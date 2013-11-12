@@ -20,13 +20,16 @@ package org.apache.hadoop.hive.metastore;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import junit.framework.Assert;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.Index;
+import org.apache.hadoop.hive.metastore.api.InvalidInputException;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.InvalidPartitionException;
 import org.apache.hadoop.hive.metastore.api.MetaException;
@@ -49,6 +52,7 @@ import org.apache.hadoop.hive.metastore.model.MPartitionPrivilege;
 import org.apache.hadoop.hive.metastore.model.MRoleMap;
 import org.apache.hadoop.hive.metastore.model.MTableColumnPrivilege;
 import org.apache.hadoop.hive.metastore.model.MTablePrivilege;
+import org.apache.thrift.TException;
 
 /**
  *
@@ -320,6 +324,12 @@ public class DummyRawStoreForJdoConnection implements RawStore {
   }
 
   @Override
+  public boolean getPartitionsByExpr(String dbName, String tblName, byte[] expr,
+      String defaultPartitionName, short maxParts, Set<Partition> result) throws TException {
+    return false;
+  }
+
+  @Override
   public Table markPartitionForEvent(String dbName, String tblName, Map<String, String> partVals,
       PartitionEventType evtType) throws MetaException, UnknownTableException,
       InvalidPartitionException, UnknownPartitionException {
@@ -512,4 +522,98 @@ public class DummyRawStoreForJdoConnection implements RawStore {
     return 0;
   }
 
+  @Override
+  public boolean addToken(String tokenIdentifier, String delegationToken) {
+    return false;
+  }
+
+  @Override
+  public boolean removeToken(String tokenIdentifier) {
+    return false;
+  }
+
+  @Override
+  public String getToken(String tokenIdentifier) {
+    return null;
+  }
+
+  @Override
+  public List<String> getAllTokenIdentifiers() {
+    return null;
+  }
+
+  @Override
+  public int addMasterKey(String key) {
+    return 0;
+  }
+
+  @Override
+  public void updateMasterKey(Integer seqNo, String key) {
+  }
+
+  @Override
+  public boolean removeMasterKey(Integer keySeq) {
+    return false;
+  }
+
+  @Override
+  public String[] getMasterKeys() {
+    return null;
+  }
+
+  @Override
+  public ColumnStatistics getTableColumnStatistics(String dbName, String tableName, String colName)
+      throws MetaException, NoSuchObjectException {
+    return null;
+  }
+
+
+  @Override
+  public boolean deleteTableColumnStatistics(String dbName, String tableName,
+                                              String colName)
+      throws NoSuchObjectException, MetaException, InvalidObjectException {
+    return false;
+  }
+
+
+  public boolean deletePartitionColumnStatistics(String dbName, String tableName,
+    String partName, List<String> partVals, String colName)
+    throws NoSuchObjectException, MetaException, InvalidObjectException,
+    InvalidInputException {
+    return false;
+
+  }
+
+  @Override
+  public ColumnStatistics getPartitionColumnStatistics(String dbName, String tableName,
+    String partName, List<String> partVal, String colName) throws MetaException,
+    NoSuchObjectException, InvalidInputException, InvalidObjectException  {
+    return null;
+  }
+
+  @Override
+  public boolean updateTableColumnStatistics(ColumnStatistics statsObj)
+      throws NoSuchObjectException, MetaException, InvalidObjectException {
+    return false;
+  }
+
+  public boolean updatePartitionColumnStatistics(ColumnStatistics statsObj,List<String> partVals)
+    throws NoSuchObjectException, MetaException, InvalidObjectException {
+    return false;
+  }
+
+  @Override
+  public void verifySchema() throws MetaException {
+  }
+
+  @Override
+  public String getMetaStoreSchemaVersion() throws MetaException {
+    return null;
+  }
+
+  @Override
+  public void setMetaStoreSchemaVersion(String version, String comment) throws MetaException {
+  }
 }
+
+

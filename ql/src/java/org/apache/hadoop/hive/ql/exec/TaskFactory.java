@@ -23,8 +23,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.ql.exec.mr.MapRedTask;
+import org.apache.hadoop.hive.ql.exec.mr.MapredLocalTask;
 import org.apache.hadoop.hive.ql.io.rcfile.merge.BlockMergeTask;
 import org.apache.hadoop.hive.ql.io.rcfile.merge.MergeWork;
+import org.apache.hadoop.hive.ql.io.rcfile.stats.PartialScanTask;
+import org.apache.hadoop.hive.ql.io.rcfile.stats.PartialScanWork;
+import org.apache.hadoop.hive.ql.plan.ColumnStatsWork;
 import org.apache.hadoop.hive.ql.plan.ConditionalWork;
 import org.apache.hadoop.hive.ql.plan.CopyWork;
 import org.apache.hadoop.hive.ql.plan.DDLWork;
@@ -77,10 +82,13 @@ public final class TaskFactory {
         MapredLocalTask.class));
     taskvec.add(new taskTuple<StatsWork>(StatsWork.class,
         StatsTask.class));
+    taskvec.add(new taskTuple<ColumnStatsWork>(ColumnStatsWork.class, ColumnStatsTask.class));
     taskvec.add(new taskTuple<MergeWork>(MergeWork.class,
         BlockMergeTask.class));
     taskvec.add(new taskTuple<DependencyCollectionWork>(DependencyCollectionWork.class,
         DependencyCollectionTask.class));
+    taskvec.add(new taskTuple<PartialScanWork>(PartialScanWork.class,
+        PartialScanTask.class));
 
   }
 

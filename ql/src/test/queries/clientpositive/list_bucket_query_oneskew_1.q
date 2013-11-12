@@ -1,5 +1,4 @@
 set hive.mapred.supports.subdirectories=true;
-set hive.internal.ddl.list.bucketing.enable=true;
 set hive.optimize.listbucketing=true;
 set mapred.input.dir.recursive=true;	
 set hive.input.format=org.apache.hadoop.hive.ql.io.HiveInputFormat;
@@ -45,7 +44,7 @@ LOCATION '${hiveconf:hive.metastore.warehouse.dir}/fact_tz/ds=1';
 alter table fact_daily PARTITION (ds = '1') set skewed location (484='${hiveconf:hive.metastore.warehouse.dir}/fact_tz/ds=1/x=484','HIVE_DEFAULT_LIST_BUCKETING_KEY'='${hiveconf:hive.metastore.warehouse.dir}/fact_tz/ds=1/HIVE_DEFAULT_LIST_BUCKETING_DIR_NAME');
 describe formatted fact_daily PARTITION (ds = '1');
 	
-SELECT * FROM fact_daily WHERE ds='1';	
+SELECT * FROM fact_daily WHERE ds='1' ORDER BY x;	
 
 -- pruner only pick up skewed-value directory
 -- explain plan shows which directory selected: Truncated Path -> Alias

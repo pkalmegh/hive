@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.hive.serde2;
 
+import java.sql.Date;
 import java.util.List;
 import java.util.Properties;
 import java.util.Random;
@@ -25,7 +26,8 @@ import java.util.Random;
 import junit.framework.TestCase;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.common.type.HiveDecimal;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.binarysortable.MyTestClass;
 import org.apache.hadoop.hive.serde2.binarysortable.MyTestInnerStruct;
 import org.apache.hadoop.hive.serde2.binarysortable.TestBinarySortableSerDe;
@@ -103,7 +105,7 @@ public class TestStatsSerde extends TestCase {
       Random r = new Random(1234);
       MyTestClass rows[] = new MyTestClass[num];
       for (int i = 0; i < num; i++) {
-        int randField = r.nextInt(10);
+        int randField = r.nextInt(12);
         Byte b = randField > 0 ? null : Byte.valueOf((byte) r.nextInt());
         Short s = randField > 1 ? null : Short.valueOf((short) r.nextInt());
         Integer n = randField > 2 ? null : Integer.valueOf(r.nextInt());
@@ -112,12 +114,14 @@ public class TestStatsSerde extends TestCase {
         Double d = randField > 5 ? null : Double.valueOf(r.nextDouble());
         String st = randField > 6 ? null : TestBinarySortableSerDe
             .getRandString(r);
-        MyTestInnerStruct is = randField > 7 ? null : new MyTestInnerStruct(r
+	HiveDecimal bd = randField > 7 ? null : TestBinarySortableSerDe.getRandHiveDecimal(r);
+	      Date date = randField > 8 ? null : TestBinarySortableSerDe.getRandDate(r);
+        MyTestInnerStruct is = randField > 9 ? null : new MyTestInnerStruct(r
             .nextInt(5) - 2, r.nextInt(5) - 2);
-        List<Integer> li = randField > 8 ? null : TestBinarySortableSerDe
+        List<Integer> li = randField > 10 ? null : TestBinarySortableSerDe
             .getRandIntegerArray(r);
         byte[] ba = TestBinarySortableSerDe.getRandBA(r, i);
-        MyTestClass t = new MyTestClass(b, s, n, l, f, d, st, is, li,ba);
+        MyTestClass t = new MyTestClass(b, s, n, l, f, d, st, bd, date, is, li,ba);
         rows[i] = t;
       }
 
@@ -129,8 +133,8 @@ public class TestStatsSerde extends TestCase {
       String fieldTypes = ObjectInspectorUtils.getFieldTypes(rowOI);
 
       Properties schema = new Properties();
-      schema.setProperty(Constants.LIST_COLUMNS, fieldNames);
-      schema.setProperty(Constants.LIST_COLUMN_TYPES, fieldTypes);
+      schema.setProperty(serdeConstants.LIST_COLUMNS, fieldNames);
+      schema.setProperty(serdeConstants.LIST_COLUMN_TYPES, fieldTypes);
 
       LazyBinarySerDe serDe = new LazyBinarySerDe();
       serDe.initialize(new Configuration(), schema);
@@ -233,12 +237,12 @@ public class TestStatsSerde extends TestCase {
     Properties tbl = new Properties();
 
     // Set the configuration parameters
-    tbl.setProperty(Constants.SERIALIZATION_FORMAT, "9");
+    tbl.setProperty(serdeConstants.SERIALIZATION_FORMAT, "9");
     tbl.setProperty("columns",
         "abyte,ashort,aint,along,adouble,astring,anullint,anullstring");
     tbl.setProperty("columns.types",
         "tinyint:smallint:int:bigint:double:string:int:string");
-    tbl.setProperty(Constants.SERIALIZATION_NULL_FORMAT, "NULL");
+    tbl.setProperty(serdeConstants.SERIALIZATION_NULL_FORMAT, "NULL");
     return tbl;
   }
 

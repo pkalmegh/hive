@@ -25,6 +25,7 @@ import java.util.List;
 
 import org.apache.hadoop.hive.ql.exec.Task;
 import org.apache.hadoop.hive.ql.hooks.ReadEntity;
+import org.apache.hadoop.hive.ql.parse.ParseContext;
 
 /**
  * ExplainWork.
@@ -35,29 +36,42 @@ public class ExplainWork implements Serializable {
 
   private String resFile;
   private ArrayList<Task<? extends Serializable>> rootTasks;
+  private Task<? extends Serializable> fetchTask;
   private String astStringTree;
   private HashSet<ReadEntity> inputs;
+  private ParseContext pCtx;
+
   boolean extended;
   boolean formatted;
   boolean dependency;
+  boolean logical;
+
+  boolean appendTaskType;
+
 
   public ExplainWork() {
   }
 
   public ExplainWork(String resFile,
+      ParseContext pCtx,
       List<Task<? extends Serializable>> rootTasks,
+      Task<? extends Serializable> fetchTask,
       String astStringTree,
       HashSet<ReadEntity> inputs,
       boolean extended,
       boolean formatted,
-      boolean dependency) {
+      boolean dependency,
+      boolean logical) {
     this.resFile = resFile;
     this.rootTasks = new ArrayList<Task<? extends Serializable>>(rootTasks);
+    this.fetchTask = fetchTask;
     this.astStringTree = astStringTree;
     this.inputs = inputs;
     this.extended = extended;
     this.formatted = formatted;
     this.dependency = dependency;
+    this.logical = logical;
+    this.pCtx = pCtx;
   }
 
   public String getResFile() {
@@ -74,6 +88,14 @@ public class ExplainWork implements Serializable {
 
   public void setRootTasks(ArrayList<Task<? extends Serializable>> rootTasks) {
     this.rootTasks = rootTasks;
+  }
+
+  public Task<? extends Serializable> getFetchTask() {
+    return fetchTask;
+  }
+
+  public void setFetchTask(Task<? extends Serializable> fetchTask) {
+    this.fetchTask = fetchTask;
   }
 
   public String getAstStringTree() {
@@ -114,5 +136,29 @@ public class ExplainWork implements Serializable {
 
   public void setFormatted(boolean formatted) {
     this.formatted = formatted;
+  }
+
+  public ParseContext getParseContext() {
+    return pCtx;
+  }
+
+  public void setParseContext(ParseContext pCtx) {
+    this.pCtx = pCtx;
+  }
+
+  public boolean isLogical() {
+    return logical;
+  }
+
+  public void setLogical(boolean logical) {
+    this.logical = logical;
+  }
+
+  public boolean isAppendTaskType() {
+    return appendTaskType;
+  }
+
+  public void setAppendTaskType(boolean appendTaskType) {
+    this.appendTaskType = appendTaskType;
   }
 }

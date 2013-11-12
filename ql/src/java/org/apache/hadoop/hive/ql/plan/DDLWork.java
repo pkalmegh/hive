@@ -62,6 +62,9 @@ public class DDLWork implements Serializable {
   private ShowIndexesDesc showIndexesDesc;
   private DescDatabaseDesc descDbDesc;
   private AlterDatabaseDesc alterDbDesc;
+  private AlterTableAlterPartDesc alterTableAlterPartDesc;
+  private TruncateTableDesc truncateTblDesc;
+  private AlterTableExchangePartition alterTableExchangePartition;
 
   private RoleDDLDesc roleDDLDesc;
   private GrantDesc grantDesc;
@@ -124,6 +127,12 @@ public class DDLWork implements Serializable {
       AlterDatabaseDesc alterDbDesc) {
     this(inputs, outputs);
     this.alterDbDesc = alterDbDesc;
+  }
+
+  public DDLWork(HashSet<ReadEntity> inputs, HashSet<WriteEntity> outputs,
+      TruncateTableDesc truncateTblDesc) {
+    this(inputs, outputs);
+    this.truncateTblDesc = truncateTblDesc;
   }
 
   public DescDatabaseDesc getDescDatabaseDesc() {
@@ -435,7 +444,19 @@ public class DDLWork implements Serializable {
     this.mergeFilesDesc = mergeDesc;
   }
 
-  /**
+  public DDLWork(HashSet<ReadEntity> inputs, HashSet<WriteEntity> outputs,
+      AlterTableAlterPartDesc alterPartDesc) {
+    this(inputs, outputs);
+    this.alterTableAlterPartDesc = alterPartDesc;
+  }
+
+  public DDLWork(HashSet<ReadEntity> inputs, HashSet<WriteEntity> outputs,
+      AlterTableExchangePartition alterTableExchangePartition) {
+    this(inputs, outputs);
+    this.alterTableExchangePartition = alterTableExchangePartition;
+  }
+
+    /**
    * @return Create Database descriptor
    */
   public CreateDatabaseDesc getCreateDatabaseDesc() {
@@ -781,6 +802,7 @@ public class DDLWork implements Serializable {
   /**
    * @return information about the partitions we want to add.
    */
+  @Explain(displayName = "Add Partition Operator")
   public AddPartitionDesc getAddPartitionDesc() {
     return addPartitionDesc;
   }
@@ -988,4 +1010,43 @@ public class DDLWork implements Serializable {
     this.needLock = needLock;
   }
 
+  /**
+   * @return information about the partitions we want to change.
+   */
+  public AlterTableAlterPartDesc getAlterTableAlterPartDesc() {
+    return alterTableAlterPartDesc;
+  }
+
+  /**
+   * @param alterPartitionDesc
+   *          information about the partitions we want to change.
+   */
+  public void setAlterTableAlterPartDesc(AlterTableAlterPartDesc alterPartitionDesc) {
+    this.alterTableAlterPartDesc = alterPartitionDesc;
+  }
+
+  @Explain(displayName = "Truncate Table Operator")
+  public TruncateTableDesc getTruncateTblDesc() {
+    return truncateTblDesc;
+  }
+
+  public void setTruncateTblDesc(TruncateTableDesc truncateTblDesc) {
+    this.truncateTblDesc = truncateTblDesc;
+  }
+
+  /**
+   * @return information about the table partition to be exchanged
+   */
+  public AlterTableExchangePartition getAlterTableExchangePartition() {
+    return this.alterTableExchangePartition;
+  }
+
+  /**
+   * @param alterTableExchangePartition
+   *          set the value of the table partition to be exchanged
+   */
+  public void setAlterTableExchangePartition(
+      AlterTableExchangePartition alterTableExchangePartition) {
+    this.alterTableExchangePartition = alterTableExchangePartition;
+  }
 }

@@ -35,11 +35,11 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.Context;
 import org.apache.hadoop.hive.ql.DriverContext;
 import org.apache.hadoop.hive.ql.QueryPlan;
-import org.apache.hadoop.hive.ql.exec.HadoopJobExecHelper;
-import org.apache.hadoop.hive.ql.exec.HadoopJobExecHook;
 import org.apache.hadoop.hive.ql.exec.Task;
-import org.apache.hadoop.hive.ql.exec.Throttle;
 import org.apache.hadoop.hive.ql.exec.Utilities;
+import org.apache.hadoop.hive.ql.exec.mr.HadoopJobExecHelper;
+import org.apache.hadoop.hive.ql.exec.mr.HadoopJobExecHook;
+import org.apache.hadoop.hive.ql.exec.mr.Throttle;
 import org.apache.hadoop.hive.ql.io.CombineHiveInputFormat;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormatImpl;
 import org.apache.hadoop.hive.ql.plan.api.StageType;
@@ -161,6 +161,16 @@ public class BlockMergeTask extends Task<MergeWork> implements Serializable,
         HiveConf.ConfVars.HIVEMERGECURRENTJOBHASDYNAMICPARTITIONS,
         work.hasDynamicPartitions());
 
+    HiveConf.setBoolVar(job,
+        HiveConf.ConfVars.HIVEMERGECURRENTJOBCONCATENATELISTBUCKETING,
+        work.isListBucketingAlterTableConcatenate());
+
+    HiveConf.setIntVar(
+        job,
+        HiveConf.ConfVars.HIVEMERGECURRENTJOBCONCATENATELISTBUCKETINGDEPTH,
+        ((work.getListBucketingCtx() == null) ? 0 : work.getListBucketingCtx()
+            .calculateListBucketingLevel()));
+
     int returnVal = 0;
     RunningJob rj = null;
     boolean noName = StringUtils.isEmpty(HiveConf.getVar(job,
@@ -182,7 +192,7 @@ public class BlockMergeTask extends Task<MergeWork> implements Serializable,
     try {
       addInputPaths(job, work);
 
-      Utilities.setMapRedWork(job, work, ctx.getMRTmpFileURI());
+      Utilities.setMapWork(job, work, ctx.getMRTmpFileURI(), true);
 
       // remove the pwd from conf file so that job tracker doesn't show this
       // logs
@@ -234,7 +244,8 @@ public class BlockMergeTask extends Task<MergeWork> implements Serializable,
           HadoopJobExecHelper.runningJobKillURIs.remove(rj.getJobID());
           jobID = rj.getID().toString();
         }
-        RCFileMergeMapper.jobClose(outputPath, success, job, console, work.getDynPartCtx());
+        RCFileMergeMapper.jobClose(outputPath, success, job, console,
+          work.getDynPartCtx(), null);
       } catch (Exception e) {
       }
     }
@@ -367,10 +378,4 @@ public class BlockMergeTask extends Task<MergeWork> implements Serializable,
   public void updateCounters(Counters ctrs, RunningJob rj) throws IOException {
     // no op
   }
-
-  @Override
-  protected void localizeMRTmpFilesImpl(Context ctx) {
-    // no op
-  }
-
 }

@@ -3,16 +3,16 @@ PREHOOK: type: CREATETABLE
 POSTHOOK: query: CREATE TABLE nullscript(KEY STRING, VALUE STRING) STORED AS TEXTFILE
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@nullscript
-PREHOOK: query: LOAD DATA LOCAL INPATH '../data/files/kv1.txt' INTO TABLE nullscript
+PREHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/kv1.txt' INTO TABLE nullscript
 PREHOOK: type: LOAD
 PREHOOK: Output: default@nullscript
-POSTHOOK: query: LOAD DATA LOCAL INPATH '../data/files/kv1.txt' INTO TABLE nullscript
+POSTHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/kv1.txt' INTO TABLE nullscript
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@nullscript
-PREHOOK: query: LOAD DATA LOCAL INPATH '../data/files/nullfile.txt' INTO TABLE nullscript
+PREHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/nullfile.txt' INTO TABLE nullscript
 PREHOOK: type: LOAD
 PREHOOK: Output: default@nullscript
-POSTHOOK: query: LOAD DATA LOCAL INPATH '../data/files/nullfile.txt' INTO TABLE nullscript
+POSTHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/nullfile.txt' INTO TABLE nullscript
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@nullscript
 PREHOOK: query: explain
@@ -45,12 +45,14 @@ STAGE PLANS:
                 output info:
                     input format: org.apache.hadoop.mapred.TextInputFormat
                     output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                 File Output Operator
                   compressed: false
                   GlobalTableId: 0
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator

@@ -68,16 +68,20 @@ public class ReduceSinkDesc extends AbstractOperatorDesc {
 
   private int numReducers;
 
+  private int topN = -1;
+  private float topNMemoryUsage = -1;
+  private boolean mapGroupBy;  // for group-by, values with same key on top-K should be forwarded
+
   public ReduceSinkDesc() {
   }
 
-  public ReduceSinkDesc(java.util.ArrayList<ExprNodeDesc> keyCols,
+  public ReduceSinkDesc(ArrayList<ExprNodeDesc> keyCols,
       int numDistributionKeys,
-      java.util.ArrayList<ExprNodeDesc> valueCols,
-      java.util.ArrayList<java.lang.String> outputKeyColumnNames,
+      ArrayList<ExprNodeDesc> valueCols,
+      ArrayList<String> outputKeyColumnNames,
       List<List<Integer>> distinctColumnIndices,
-      java.util.ArrayList<java.lang.String> outputValueColumnNames, int tag,
-      java.util.ArrayList<ExprNodeDesc> partitionCols, int numReducers,
+      ArrayList<String> outputValueColumnNames, int tag,
+      ArrayList<ExprNodeDesc> partitionCols, int numReducers,
       final TableDesc keySerializeInfo, final TableDesc valueSerializeInfo) {
     this.keyCols = keyCols;
     this.numDistributionKeys = numDistributionKeys;
@@ -178,6 +182,40 @@ public class ReduceSinkDesc extends AbstractOperatorDesc {
     this.tag = tag;
   }
 
+  public int getTopN() {
+    return topN;
+  }
+
+  public void setTopN(int topN) {
+    this.topN = topN;
+  }
+
+  @Explain(displayName = "TopN")
+  public Integer getTopNExplain() {
+    return topN > 0 ? topN : null;
+  }
+
+  public float getTopNMemoryUsage() {
+    return topNMemoryUsage;
+  }
+
+  public void setTopNMemoryUsage(float topNMemoryUsage) {
+    this.topNMemoryUsage = topNMemoryUsage;
+  }
+
+  @Explain(displayName = "TopN Hash Memory Usage")
+  public Float getTopNMemoryUsageExplain() {
+    return topN > 0 && topNMemoryUsage > 0 ? topNMemoryUsage : null;
+  }
+
+  public boolean isMapGroupBy() {
+    return mapGroupBy;
+  }
+
+  public void setMapGroupBy(boolean mapGroupBy) {
+    this.mapGroupBy = mapGroupBy;
+  }
+
   /**
    * Returns the number of reducers for the map-reduce job. -1 means to decide
    * the number of reducers at runtime. This enables Hive to estimate the number
@@ -218,12 +256,12 @@ public class ReduceSinkDesc extends AbstractOperatorDesc {
   @Explain(displayName = "sort order")
   public String getOrder() {
     return keySerializeInfo.getProperties().getProperty(
-        org.apache.hadoop.hive.serde.Constants.SERIALIZATION_SORT_ORDER);
+        org.apache.hadoop.hive.serde.serdeConstants.SERIALIZATION_SORT_ORDER);
   }
 
   public void setOrder(String orderStr) {
     keySerializeInfo.getProperties().setProperty(
-        org.apache.hadoop.hive.serde.Constants.SERIALIZATION_SORT_ORDER,
+        org.apache.hadoop.hive.serde.serdeConstants.SERIALIZATION_SORT_ORDER,
         orderStr);
   }
 

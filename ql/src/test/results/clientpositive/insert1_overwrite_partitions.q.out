@@ -3,17 +3,17 @@ PREHOOK: type: CREATETABLE
 POSTHOOK: query: CREATE TABLE sourceTable (one string,two string) PARTITIONED BY (ds string,hr string)
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@sourceTable
-PREHOOK: query: load data local inpath '../data/files/kv1.txt' INTO TABLE sourceTable partition(ds='2011-11-11', hr='11')
+PREHOOK: query: load data local inpath '../../data/files/kv1.txt' INTO TABLE sourceTable partition(ds='2011-11-11', hr='11')
 PREHOOK: type: LOAD
 PREHOOK: Output: default@sourcetable
-POSTHOOK: query: load data local inpath '../data/files/kv1.txt' INTO TABLE sourceTable partition(ds='2011-11-11', hr='11')
+POSTHOOK: query: load data local inpath '../../data/files/kv1.txt' INTO TABLE sourceTable partition(ds='2011-11-11', hr='11')
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@sourcetable
 POSTHOOK: Output: default@sourcetable@ds=2011-11-11/hr=11
-PREHOOK: query: load data local inpath '../data/files/kv3.txt' INTO TABLE sourceTable partition(ds='2011-11-11', hr='12')
+PREHOOK: query: load data local inpath '../../data/files/kv3.txt' INTO TABLE sourceTable partition(ds='2011-11-11', hr='12')
 PREHOOK: type: LOAD
 PREHOOK: Output: default@sourcetable
-POSTHOOK: query: load data local inpath '../data/files/kv3.txt' INTO TABLE sourceTable partition(ds='2011-11-11', hr='12')
+POSTHOOK: query: load data local inpath '../../data/files/kv3.txt' INTO TABLE sourceTable partition(ds='2011-11-11', hr='12')
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@sourcetable
 POSTHOOK: Output: default@sourcetable@ds=2011-11-11/hr=12
@@ -33,9 +33,8 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-2 depends on stages: Stage-1
-  Stage-0 depends on stages: Stage-2
-  Stage-3 depends on stages: Stage-0
+  Stage-0 depends on stages: Stage-1
+  Stage-2 depends on stages: Stage-0
 
 STAGE PLANS:
   Stage: Stage-1
@@ -69,33 +68,6 @@ STAGE PLANS:
           Limit
             File Output Operator
               compressed: false
-              GlobalTableId: 0
-              table:
-                  input format: org.apache.hadoop.mapred.SequenceFileInputFormat
-                  output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
-
-  Stage: Stage-2
-    Map Reduce
-      Alias -> Map Operator Tree:
-#### A masked pattern was here ####
-            Reduce Output Operator
-              key expressions:
-                    expr: _col0
-                    type: string
-                    expr: _col1
-                    type: string
-              sort order: --
-              tag: -1
-              value expressions:
-                    expr: _col0
-                    type: string
-                    expr: _col1
-                    type: string
-      Reduce Operator Tree:
-        Extract
-          Limit
-            File Output Operator
-              compressed: false
               GlobalTableId: 1
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
@@ -116,28 +88,32 @@ STAGE PLANS:
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.destintable
 
-  Stage: Stage-3
+  Stage: Stage-2
     Stats-Aggr Operator
 
 
 PREHOOK: query: INSERT OVERWRITE TABLE destinTable PARTITION (ds='2011-11-11', hr='11') if not exists
 SELECT one,two FROM sourceTable WHERE ds='2011-11-11' AND hr='11' order by one desc, two desc limit 5
 PREHOOK: type: QUERY
+PREHOOK: Input: default@sourcetable
 PREHOOK: Input: default@sourcetable@ds=2011-11-11/hr=11
 PREHOOK: Output: default@destintable@ds=2011-11-11/hr=11
 POSTHOOK: query: INSERT OVERWRITE TABLE destinTable PARTITION (ds='2011-11-11', hr='11') if not exists
 SELECT one,two FROM sourceTable WHERE ds='2011-11-11' AND hr='11' order by one desc, two desc limit 5
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@sourcetable
 POSTHOOK: Input: default@sourcetable@ds=2011-11-11/hr=11
 POSTHOOK: Output: default@destintable@ds=2011-11-11/hr=11
 POSTHOOK: Lineage: destintable PARTITION(ds=2011-11-11,hr=11).one SIMPLE [(sourcetable)sourcetable.FieldSchema(name:one, type:string, comment:null), ]
 POSTHOOK: Lineage: destintable PARTITION(ds=2011-11-11,hr=11).two SIMPLE [(sourcetable)sourcetable.FieldSchema(name:two, type:string, comment:null), ]
 PREHOOK: query: select one,two from destinTable order by one desc, two desc
 PREHOOK: type: QUERY
+PREHOOK: Input: default@destintable
 PREHOOK: Input: default@destintable@ds=2011-11-11/hr=11
 #### A masked pattern was here ####
 POSTHOOK: query: select one,two from destinTable order by one desc, two desc
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@destintable
 POSTHOOK: Input: default@destintable@ds=2011-11-11/hr=11
 #### A masked pattern was here ####
 POSTHOOK: Lineage: destintable PARTITION(ds=2011-11-11,hr=11).one SIMPLE [(sourcetable)sourcetable.FieldSchema(name:one, type:string, comment:null), ]
@@ -172,10 +148,12 @@ POSTHOOK: Lineage: destintable PARTITION(ds=2011-11-11,hr=11).one SIMPLE [(sourc
 POSTHOOK: Lineage: destintable PARTITION(ds=2011-11-11,hr=11).two SIMPLE [(sourcetable)sourcetable.FieldSchema(name:two, type:string, comment:null), ]
 PREHOOK: query: select one,two from destinTable order by one desc, two desc
 PREHOOK: type: QUERY
+PREHOOK: Input: default@destintable
 PREHOOK: Input: default@destintable@ds=2011-11-11/hr=11
 #### A masked pattern was here ####
 POSTHOOK: query: select one,two from destinTable order by one desc, two desc
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@destintable
 POSTHOOK: Input: default@destintable@ds=2011-11-11/hr=11
 #### A masked pattern was here ####
 POSTHOOK: Lineage: destintable PARTITION(ds=2011-11-11,hr=11).one SIMPLE [(sourcetable)sourcetable.FieldSchema(name:one, type:string, comment:null), ]
@@ -213,9 +191,8 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-2 depends on stages: Stage-1
-  Stage-0 depends on stages: Stage-2
-  Stage-3 depends on stages: Stage-0
+  Stage-0 depends on stages: Stage-1
+  Stage-2 depends on stages: Stage-0
 
 STAGE PLANS:
   Stage: Stage-1
@@ -249,33 +226,6 @@ STAGE PLANS:
           Limit
             File Output Operator
               compressed: false
-              GlobalTableId: 0
-              table:
-                  input format: org.apache.hadoop.mapred.SequenceFileInputFormat
-                  output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
-
-  Stage: Stage-2
-    Map Reduce
-      Alias -> Map Operator Tree:
-#### A masked pattern was here ####
-            Reduce Output Operator
-              key expressions:
-                    expr: _col0
-                    type: string
-                    expr: _col1
-                    type: string
-              sort order: --
-              tag: -1
-              value expressions:
-                    expr: _col0
-                    type: string
-                    expr: _col1
-                    type: string
-      Reduce Operator Tree:
-        Extract
-          Limit
-            File Output Operator
-              compressed: false
               GlobalTableId: 1
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
@@ -293,16 +243,18 @@ STAGE PLANS:
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.destintable
 
-  Stage: Stage-3
+  Stage: Stage-2
     Stats-Aggr Operator
 
 
 PREHOOK: query: INSERT OVERWRITE TABLE destinTable SELECT one,two FROM sourceTable WHERE ds='2011-11-11' AND hr='11' order by one desc, two desc limit 5
 PREHOOK: type: QUERY
+PREHOOK: Input: default@sourcetable
 PREHOOK: Input: default@sourcetable@ds=2011-11-11/hr=11
 PREHOOK: Output: default@destintable
 POSTHOOK: query: INSERT OVERWRITE TABLE destinTable SELECT one,two FROM sourceTable WHERE ds='2011-11-11' AND hr='11' order by one desc, two desc limit 5
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@sourcetable
 POSTHOOK: Input: default@sourcetable@ds=2011-11-11/hr=11
 POSTHOOK: Output: default@destintable
 POSTHOOK: Lineage: destintable.one SIMPLE [(sourcetable)sourcetable.FieldSchema(name:one, type:string, comment:null), ]

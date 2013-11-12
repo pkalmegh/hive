@@ -1,6 +1,10 @@
-PREHOOK: query: create table authorization_part (key int, value string) partitioned by (ds string)
+PREHOOK: query: -- SORT_BEFORE_DIFF
+
+create table authorization_part (key int, value string) partitioned by (ds string)
 PREHOOK: type: CREATETABLE
-POSTHOOK: query: create table authorization_part (key int, value string) partitioned by (ds string)
+POSTHOOK: query: -- SORT_BEFORE_DIFF
+
+create table authorization_part (key int, value string) partitioned by (ds string)
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@authorization_part
 PREHOOK: query: create table src_auth_tmp as select * from src
@@ -61,7 +65,7 @@ database	default
 table	authorization_part	
 principalName	hive_test_user	
 principalType	USER	
-privilege	Update	
+privilege	Drop	
 #### A masked pattern was here ####
 grantor	hive_test_user	
 
@@ -69,7 +73,7 @@ database	default
 table	authorization_part	
 principalName	hive_test_user	
 principalType	USER	
-privilege	Drop	
+privilege	Update	
 #### A masked pattern was here ####
 grantor	hive_test_user	
 PREHOOK: query: alter table authorization_part add partition (ds='2010')
@@ -98,7 +102,7 @@ table	authorization_part
 partition	ds=2010	
 principalName	hive_test_user	
 principalType	USER	
-privilege	Update	
+privilege	Drop	
 #### A masked pattern was here ####
 grantor	hive_test_user	
 
@@ -107,7 +111,7 @@ table	authorization_part
 partition	ds=2010	
 principalName	hive_test_user	
 principalType	USER	
-privilege	Drop	
+privilege	Update	
 #### A masked pattern was here ####
 grantor	hive_test_user	
 PREHOOK: query: grant select(key) on table authorization_part to user hive_test_user
@@ -167,10 +171,12 @@ privilege	Select
 grantor	hive_test_user	
 PREHOOK: query: select key from authorization_part where ds='2010' order by key limit 20
 PREHOOK: type: QUERY
+PREHOOK: Input: default@authorization_part
 PREHOOK: Input: default@authorization_part@ds=2010
 #### A masked pattern was here ####
 POSTHOOK: query: select key from authorization_part where ds='2010' order by key limit 20
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@authorization_part
 POSTHOOK: Input: default@authorization_part@ds=2010
 #### A masked pattern was here ####
 POSTHOOK: Lineage: authorization_part PARTITION(ds=2010).key EXPRESSION [(src_auth_tmp)src_auth_tmp.FieldSchema(name:key, type:string, comment:null), ]
@@ -227,10 +233,12 @@ privilege	Select
 grantor	hive_test_user	
 PREHOOK: query: select key from authorization_part where ds='2010' order by key limit 20
 PREHOOK: type: QUERY
+PREHOOK: Input: default@authorization_part
 PREHOOK: Input: default@authorization_part@ds=2010
 #### A masked pattern was here ####
 POSTHOOK: query: select key from authorization_part where ds='2010' order by key limit 20
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@authorization_part
 POSTHOOK: Input: default@authorization_part@ds=2010
 #### A masked pattern was here ####
 POSTHOOK: Lineage: authorization_part PARTITION(ds=2010).key EXPRESSION [(src_auth_tmp)src_auth_tmp.FieldSchema(name:key, type:string, comment:null), ]
@@ -300,7 +308,7 @@ database	default
 table	authorization_part	
 principalName	hive_test_user	
 principalType	USER	
-privilege	Update	
+privilege	Drop	
 #### A masked pattern was here ####
 grantor	hive_test_user	
 
@@ -308,7 +316,7 @@ database	default
 table	authorization_part	
 principalName	hive_test_user	
 principalType	USER	
-privilege	Drop	
+privilege	Update	
 #### A masked pattern was here ####
 grantor	hive_test_user	
 PREHOOK: query: alter table authorization_part add partition (ds='2010')
@@ -341,7 +349,7 @@ table	authorization_part
 partition	ds=2010	
 principalName	hive_test_user	
 principalType	USER	
-privilege	Update	
+privilege	Drop	
 #### A masked pattern was here ####
 grantor	hive_test_user	
 
@@ -350,7 +358,7 @@ table	authorization_part
 partition	ds=2010	
 principalName	hive_test_user	
 principalType	USER	
-privilege	Drop	
+privilege	Update	
 #### A masked pattern was here ####
 grantor	hive_test_user	
 PREHOOK: query: grant select on table authorization_part to user hive_test_user
@@ -406,15 +414,6 @@ table	authorization_part
 partition	ds=2010	
 principalName	hive_test_user	
 principalType	USER	
-privilege	Update	
-#### A masked pattern was here ####
-grantor	hive_test_user	
-
-database	default	
-table	authorization_part	
-partition	ds=2010	
-principalName	hive_test_user	
-principalType	USER	
 privilege	Drop	
 #### A masked pattern was here ####
 grantor	hive_test_user	
@@ -425,6 +424,15 @@ partition	ds=2010
 principalName	hive_test_user	
 principalType	USER	
 privilege	Select	
+#### A masked pattern was here ####
+grantor	hive_test_user	
+
+database	default	
+table	authorization_part	
+partition	ds=2010	
+principalName	hive_test_user	
+principalType	USER	
+privilege	Update	
 #### A masked pattern was here ####
 grantor	hive_test_user	
 PREHOOK: query: show grant user hive_test_user on table authorization_part
@@ -448,14 +456,6 @@ database	default
 table	authorization_part	
 principalName	hive_test_user	
 principalType	USER	
-privilege	Update	
-#### A masked pattern was here ####
-grantor	hive_test_user	
-
-database	default	
-table	authorization_part	
-principalName	hive_test_user	
-principalType	USER	
 privilege	Drop	
 #### A masked pattern was here ####
 grantor	hive_test_user	
@@ -467,12 +467,22 @@ principalType	USER
 privilege	Select	
 #### A masked pattern was here ####
 grantor	hive_test_user	
+
+database	default	
+table	authorization_part	
+principalName	hive_test_user	
+principalType	USER	
+privilege	Update	
+#### A masked pattern was here ####
+grantor	hive_test_user	
 PREHOOK: query: select key from authorization_part where ds='2010' order by key limit 20
 PREHOOK: type: QUERY
+PREHOOK: Input: default@authorization_part
 PREHOOK: Input: default@authorization_part@ds=2010
 #### A masked pattern was here ####
 POSTHOOK: query: select key from authorization_part where ds='2010' order by key limit 20
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@authorization_part
 POSTHOOK: Input: default@authorization_part@ds=2010
 #### A masked pattern was here ####
 POSTHOOK: Lineage: authorization_part PARTITION(ds=2010).key EXPRESSION [(src_auth_tmp)src_auth_tmp.FieldSchema(name:key, type:string, comment:null), ]
@@ -530,7 +540,7 @@ database	default
 table	authorization_part	
 principalName	hive_test_user	
 principalType	USER	
-privilege	Update	
+privilege	Drop	
 #### A masked pattern was here ####
 grantor	hive_test_user	
 
@@ -538,7 +548,7 @@ database	default
 table	authorization_part	
 principalName	hive_test_user	
 principalType	USER	
-privilege	Drop	
+privilege	Update	
 #### A masked pattern was here ####
 grantor	hive_test_user	
 PREHOOK: query: show grant user hive_test_user on table authorization_part partition (ds='2010')
@@ -564,15 +574,6 @@ table	authorization_part
 partition	ds=2010	
 principalName	hive_test_user	
 principalType	USER	
-privilege	Update	
-#### A masked pattern was here ####
-grantor	hive_test_user	
-
-database	default	
-table	authorization_part	
-partition	ds=2010	
-principalName	hive_test_user	
-principalType	USER	
 privilege	Drop	
 #### A masked pattern was here ####
 grantor	hive_test_user	
@@ -585,12 +586,23 @@ principalType	USER
 privilege	Select	
 #### A masked pattern was here ####
 grantor	hive_test_user	
+
+database	default	
+table	authorization_part	
+partition	ds=2010	
+principalName	hive_test_user	
+principalType	USER	
+privilege	Update	
+#### A masked pattern was here ####
+grantor	hive_test_user	
 PREHOOK: query: select key from authorization_part where ds='2010' order by key limit 20
 PREHOOK: type: QUERY
+PREHOOK: Input: default@authorization_part
 PREHOOK: Input: default@authorization_part@ds=2010
 #### A masked pattern was here ####
 POSTHOOK: query: select key from authorization_part where ds='2010' order by key limit 20
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@authorization_part
 POSTHOOK: Input: default@authorization_part@ds=2010
 #### A masked pattern was here ####
 POSTHOOK: Lineage: authorization_part PARTITION(ds=2010).key EXPRESSION [(src_auth_tmp)src_auth_tmp.FieldSchema(name:key, type:string, comment:null), ]
@@ -650,7 +662,7 @@ table	authorization_part
 partition	ds=2010	
 principalName	hive_test_user	
 principalType	USER	
-privilege	Update	
+privilege	Drop	
 #### A masked pattern was here ####
 grantor	hive_test_user	
 
@@ -659,7 +671,7 @@ table	authorization_part
 partition	ds=2010	
 principalName	hive_test_user	
 principalType	USER	
-privilege	Drop	
+privilege	Update	
 #### A masked pattern was here ####
 grantor	hive_test_user	
 PREHOOK: query: alter table authorization_part drop partition (ds='2010')
@@ -782,10 +794,12 @@ privilege	Select
 grantor	hive_test_user	
 PREHOOK: query: select key from authorization_part where ds='2010' order by key limit 20
 PREHOOK: type: QUERY
+PREHOOK: Input: default@authorization_part
 PREHOOK: Input: default@authorization_part@ds=2010
 #### A masked pattern was here ####
 POSTHOOK: query: select key from authorization_part where ds='2010' order by key limit 20
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@authorization_part
 POSTHOOK: Input: default@authorization_part@ds=2010
 #### A masked pattern was here ####
 POSTHOOK: Lineage: authorization_part PARTITION(ds=2010).key EXPRESSION [(src_auth_tmp)src_auth_tmp.FieldSchema(name:key, type:string, comment:null), ]
@@ -858,10 +872,12 @@ privilege	Select
 grantor	hive_test_user	
 PREHOOK: query: select key from authorization_part where ds='2010' order by key limit 20
 PREHOOK: type: QUERY
+PREHOOK: Input: default@authorization_part
 PREHOOK: Input: default@authorization_part@ds=2010
 #### A masked pattern was here ####
 POSTHOOK: query: select key from authorization_part where ds='2010' order by key limit 20
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@authorization_part
 POSTHOOK: Input: default@authorization_part@ds=2010
 #### A masked pattern was here ####
 POSTHOOK: Lineage: authorization_part PARTITION(ds=2010).key EXPRESSION [(src_auth_tmp)src_auth_tmp.FieldSchema(name:key, type:string, comment:null), ]
@@ -1046,10 +1062,12 @@ privilege	Select
 grantor	hive_test_user	
 PREHOOK: query: select key from authorization_part where ds='2010' order by key limit 20
 PREHOOK: type: QUERY
+PREHOOK: Input: default@authorization_part
 PREHOOK: Input: default@authorization_part@ds=2010
 #### A masked pattern was here ####
 POSTHOOK: query: select key from authorization_part where ds='2010' order by key limit 20
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@authorization_part
 POSTHOOK: Input: default@authorization_part@ds=2010
 #### A masked pattern was here ####
 POSTHOOK: Lineage: authorization_part PARTITION(ds=2010).key EXPRESSION [(src_auth_tmp)src_auth_tmp.FieldSchema(name:key, type:string, comment:null), ]
@@ -1129,10 +1147,12 @@ privilege	Select
 grantor	hive_test_user	
 PREHOOK: query: select key from authorization_part where ds='2010' order by key limit 20
 PREHOOK: type: QUERY
+PREHOOK: Input: default@authorization_part
 PREHOOK: Input: default@authorization_part@ds=2010
 #### A masked pattern was here ####
 POSTHOOK: query: select key from authorization_part where ds='2010' order by key limit 20
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@authorization_part
 POSTHOOK: Input: default@authorization_part@ds=2010
 #### A masked pattern was here ####
 POSTHOOK: Lineage: authorization_part PARTITION(ds=2010).key EXPRESSION [(src_auth_tmp)src_auth_tmp.FieldSchema(name:key, type:string, comment:null), ]

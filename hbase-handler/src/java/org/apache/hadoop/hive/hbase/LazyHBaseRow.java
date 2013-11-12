@@ -133,7 +133,6 @@ public class LazyHBaseRow extends LazyStruct {
     boolean [] fieldsInited = getFieldInited();
 
     if (!fieldsInited[fieldID]) {
-      fieldsInited[fieldID] = true;
       ByteArrayRef ref = null;
       ColumnMapping colMap = columnsMapping.get(fieldID);
 
@@ -143,9 +142,11 @@ public class LazyHBaseRow extends LazyStruct {
       } else {
         if (colMap.qualifierName == null) {
           // it is a column family
-          // primitive type for Map<Key, Value> can be stored in binary format
+          // primitive type for Map<Key, Value> can be stored in binary format. Pass in the
+          // qualifier prefix to cherry pick the qualifiers that match the prefix instead of picking
+          // up everything
           ((LazyHBaseCellMap) fields[fieldID]).init(
-              result, colMap.familyNameBytes, colMap.binaryStorage);
+              result, colMap.familyNameBytes, colMap.binaryStorage, colMap.qualifierPrefixBytes);
         } else {
           // it is a column i.e. a column-family with column-qualifier
           byte [] res = result.getValue(colMap.familyNameBytes, colMap.qualifierNameBytes);
@@ -163,6 +164,9 @@ public class LazyHBaseRow extends LazyStruct {
         fields[fieldID].init(ref, 0, ref.getData().length);
       }
     }
+
+    // Has to be set last because of HIVE-3179: NULL fields would not work otherwise
+    fieldsInited[fieldID] = true;
 
     return fields[fieldID].getObject();
   }

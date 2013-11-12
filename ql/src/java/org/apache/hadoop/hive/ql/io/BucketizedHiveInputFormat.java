@@ -66,29 +66,34 @@ public class BucketizedHiveInputFormat<K extends WritableComparable, V extends W
       throw new IOException("cannot find class " + inputFormatClassName);
     }
 
-    // clone a jobConf for setting needed columns for reading
-    JobConf cloneJobConf = new JobConf(job);
-    pushProjectionsAndFilters(cloneJobConf, inputFormatClass, hsplit.getPath()
+    pushProjectionsAndFilters(job, inputFormatClass, hsplit.getPath()
         .toString(), hsplit.getPath().toUri().getPath());
 
-    InputFormat inputFormat = getInputFormatFromCache(inputFormatClass,
-        cloneJobConf);
-    BucketizedHiveRecordReader<K, V> rr= new BucketizedHiveRecordReader(inputFormat, hsplit, cloneJobConf,
+    InputFormat inputFormat = getInputFormatFromCache(inputFormatClass, job);
+
+    BucketizedHiveRecordReader<K, V> rr= new BucketizedHiveRecordReader(inputFormat, hsplit, job,
         reporter);
-    rr.initIOContext(hsplit, cloneJobConf, inputFormatClass);
+    rr.initIOContext(hsplit, job, inputFormatClass);
     return rr;
   }
 
-  protected FileStatus[] listStatus(JobConf job, Path path) throws IOException {
+  /**
+   * Recursively lists status for all files starting from the directory dir
+   * @param job
+   * @param dir
+   * @return
+   * @throws IOException
+   */
+  protected FileStatus[] listStatus(JobConf job, Path dir) throws IOException {
     ArrayList<FileStatus> result = new ArrayList<FileStatus>();
     List<IOException> errors = new ArrayList<IOException>();
 
-    FileSystem fs = path.getFileSystem(job);
-    FileStatus[] matches = fs.globStatus(path);
+    FileSystem fs = dir.getFileSystem(job);
+    FileStatus[] matches = fs.globStatus(dir);
     if (matches == null) {
-      errors.add(new IOException("Input path does not exist: " + path));
+      errors.add(new IOException("Input path does not exist: " + dir));
     } else if (matches.length == 0) {
-      errors.add(new IOException("Input Pattern " + path + " matches 0 files"));
+      errors.add(new IOException("Input Pattern " + dir + " matches 0 files"));
     } else {
       for (FileStatus globStat : matches) {
         FileUtils.listStatusRecursively(fs, globStat, result);

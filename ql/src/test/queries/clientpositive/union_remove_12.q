@@ -1,6 +1,7 @@
 set hive.stats.autogather=false;
 set hive.optimize.union.remove=true;
 set hive.mapred.supports.subdirectories=true;
+set hive.auto.convert.join=true;
 
 set hive.merge.mapfiles=true;
 set hive.merge.mapredfiles=true;
@@ -23,7 +24,7 @@ set mapred.input.dir.recursive=true;
 create table inputTbl1(key string, val string) stored as textfile;
 create table outputTbl1(key string, values bigint) stored as rcfile;
 
-load data local inpath '../data/files/T1.txt' into table inputTbl1;
+load data local inpath '../../data/files/T1.txt' into table inputTbl1;
 
 explain
 insert overwrite table outputTbl1
@@ -31,7 +32,7 @@ SELECT * FROM
 (
 select key, 1 as values from inputTbl1
 union all
-select /*+ mapjoin(a) */ a.key as key, b.val as values
+select a.key as key, b.val as values
 FROM inputTbl1 a join inputTbl1 b on a.key=b.key
 )c;
 
@@ -40,7 +41,7 @@ SELECT * FROM
 (
 select key, 1 as values from inputTbl1
 union all
-select /*+ mapjoin(a) */ a.key as key, b.val as values
+select a.key as key, b.val as values
 FROM inputTbl1 a join inputTbl1 b on a.key=b.key
 )c;
 

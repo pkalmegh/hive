@@ -19,18 +19,20 @@
 package org.apache.hadoop.hive.ql.metadata.formatting;
 
 import java.io.DataOutputStream;
-import java.io.OutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.common.FileUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -39,6 +41,7 @@ import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.Partition;
 import org.apache.hadoop.hive.ql.metadata.Table;
+import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.session.SessionState.LogHelper;
 import org.apache.hadoop.hive.shims.ShimLoader;
 
@@ -46,63 +49,53 @@ import org.apache.hadoop.hive.shims.ShimLoader;
  * Format table and index information for human readability using
  * simple lines of text.
  */
-public class TextMetaDataFormatter implements MetaDataFormatter {
-    private static final Log LOG = LogFactory.getLog("hive.ql.exec.DDLTask");
+class TextMetaDataFormatter implements MetaDataFormatter {
+    private static final Log LOG = LogFactory.getLog(TextMetaDataFormatter.class);
 
     private static final int separator = Utilities.tabCode;
     private static final int terminator = Utilities.newLineCode;
 
+    /** The number of columns to be used in pretty formatting metadata output.
+     * If -1, then the current terminal width is auto-detected and used.
+     */
+    private final int prettyOutputNumCols;
+
+    public TextMetaDataFormatter(int prettyOutputNumCols) {
+      this.prettyOutputNumCols = prettyOutputNumCols;
+    }
+
     /**
      * Write an error message.
      */
-    public void error(OutputStream out, String msg, int errorCode)
+    @Override
+    public void error(OutputStream out, String msg, int errorCode, String sqlState)
         throws HiveException
     {
-        try {
-            out.write(msg.getBytes("UTF-8"));
-            out.write(terminator);
-        } catch (Exception e) {
-            throw new HiveException(e);
+        error(out, msg, errorCode, sqlState, null);
+    }
+
+    @Override
+    public void error(OutputStream out, String errorMessage, int errorCode, String sqlState, String errorDetail)
+          throws HiveException
+    {
+      try {
+        out.write(errorMessage.getBytes("UTF-8"));
+        if(errorDetail != null) {
+          out.write(errorDetail.getBytes("UTF-8"));
+        }
+        out.write(errorCode);
+        if(sqlState != null) {
+          out.write(sqlState.getBytes("UTF-8"));//this breaks all the tests in .q files
+        }
+        out.write(terminator);
+      } catch (Exception e) {
+          throw new HiveException(e);
         }
     }
-
-    /**
-     * Write a log warn message.
-     */
-    public void logWarn(OutputStream out, String msg, int errorCode)
-        throws HiveException
-    {
-        LOG.warn(msg);
-    }
-
-    /**
-     * Write a log info message.
-     */
-    public void logInfo(OutputStream out, String msg, int errorCode)
-        throws HiveException
-    {
-        LOG.info(msg);
-    }
-
-    /**
-     * Write a console error message.
-     */
-    public void consoleError(LogHelper console, String msg, int errorCode) {
-        console.printError(msg);
-    }
-
-    /**
-     * Write a console error message.
-     */
-    public void consoleError(LogHelper console, String msg, String detail,
-                             int errorCode)
-    {
-        console.printError(msg, detail);
-    }
-
     /**
      * Show a list of tables.
      */
+    @Override
     public void showTables(DataOutputStream out, Set<String> tables)
         throws HiveException
     {
@@ -119,66 +112,64 @@ public class TextMetaDataFormatter implements MetaDataFormatter {
         }
     }
 
+    @Override
     public void describeTable(DataOutputStream outStream,
                               String colPath, String tableName,
                               Table tbl, Partition part, List<FieldSchema> cols,
-                              boolean isFormatted, boolean isExt)
-         throws HiveException
-   {
-       try {
-         if (colPath.equals(tableName)) {
-           if (!isFormatted) {
-             outStream.writeBytes(MetaDataFormatUtils.displayColsUnformatted(cols));
-           } else {
-             outStream.writeBytes(
-               MetaDataFormatUtils.getAllColumnsInformation(cols,
-                 tbl.isPartitioned() ? tbl.getPartCols() : null));
-           }
-         } else {
-           if (isFormatted) {
-             outStream.writeBytes(MetaDataFormatUtils.getAllColumnsInformation(cols));
-           } else {
-             outStream.writeBytes(MetaDataFormatUtils.displayColsUnformatted(cols));
-           }
-         }
+                              boolean isFormatted, boolean isExt, boolean isPretty)
+         throws HiveException {
+        try {
+          String output;
+          if (colPath.equals(tableName)) {
+            List<FieldSchema> partCols = tbl.isPartitioned() ? tbl.getPartCols() : null;
+            output = isPretty ?
+                MetaDataPrettyFormatUtils.getAllColumnsInformation(
+                    cols, partCols, prettyOutputNumCols)
+                :
+                MetaDataFormatUtils.getAllColumnsInformation(cols, partCols, isFormatted);
+          } else {
+            output = MetaDataFormatUtils.getAllColumnsInformation(cols, isFormatted);
+          }
+          outStream.write(output.getBytes());
 
-         if (tableName.equals(colPath)) {
+          if (tableName.equals(colPath)) {
+            if (isFormatted) {
+              if (part != null) {
+                output = MetaDataFormatUtils.getPartitionInformation(part);
+              } else {
+                output = MetaDataFormatUtils.getTableInformation(tbl);
+              }
+              outStream.write(output.getBytes());
+            }
 
-           if (isFormatted) {
-             if (part != null) {
-               outStream.writeBytes(MetaDataFormatUtils.getPartitionInformation(part));
-             } else {
-               outStream.writeBytes(MetaDataFormatUtils.getTableInformation(tbl));
-             }
-           }
-
-           // if extended desc table then show the complete details of the table
-           if (isExt) {
-             // add empty line
-             outStream.write(terminator);
-             if (part != null) {
-               // show partition information
-               outStream.writeBytes("Detailed Partition Information");
-               outStream.write(separator);
-               outStream.writeBytes(part.getTPartition().toString());
-               outStream.write(separator);
-               // comment column is empty
-               outStream.write(terminator);
-             } else {
-               // show table information
-               outStream.writeBytes("Detailed Table Information");
-               outStream.write(separator);
-               outStream.writeBytes(tbl.getTTable().toString());
-               outStream.write(separator);
-               outStream.write(terminator);
-             }
-           }
-         }
-       } catch (IOException e) {
-           throw new HiveException(e);
-       }
+          // if extended desc table then show the complete details of the table
+            if (isExt) {
+              // add empty line
+              outStream.write(terminator);
+              if (part != null) {
+                // show partition information
+                outStream.writeBytes("Detailed Partition Information");
+                outStream.write(separator);
+                outStream.write(part.getTPartition().toString().getBytes());
+                outStream.write(separator);
+                // comment column is empty
+                outStream.write(terminator);
+              } else {
+                // show table information
+                outStream.writeBytes("Detailed Table Information");
+                outStream.write(separator);
+                outStream.write(tbl.getTTable().toString().getBytes());
+                outStream.write(separator);
+                outStream.write(terminator);
+              }
+            }
+          }
+        } catch (IOException e) {
+          throw new HiveException(e);
+        }
     }
 
+    @Override
     public void showTableStatus(DataOutputStream outStream,
                                 Hive db,
                                 HiveConf conf,
@@ -287,7 +278,7 @@ public class TextMetaDataFormatter implements MetaDataFormatter {
       // in case all files in locations do not exist
       try {
         FileStatus tmpStatus = fs.getFileStatus(tblPath);
-        lastAccessTime = ShimLoader.getHadoopShims().getAccessTime(tmpStatus);
+        lastAccessTime = tmpStatus.getAccessTime();
         lastUpdateTime = tmpStatus.getModificationTime();
         if (partSpecified) {
           // check whether the part exists or not in fs
@@ -304,7 +295,7 @@ public class TextMetaDataFormatter implements MetaDataFormatter {
           try {
             FileStatus status = fs.getFileStatus(tblPath);
             FileStatus[] files = fs.listStatus(loc);
-            long accessTime = ShimLoader.getHadoopShims().getAccessTime(status);
+            long accessTime = status.getAccessTime();
             long updateTime = status.getModificationTime();
             // no matter loc is the table location or part location, it must be a
             // directory.
@@ -330,8 +321,7 @@ public class TextMetaDataFormatter implements MetaDataFormatter {
               if (fileLen < minFileSize) {
                 minFileSize = fileLen;
               }
-              accessTime = ShimLoader.getHadoopShims().getAccessTime(
-                  currentStatus);
+              accessTime = currentStatus.getAccessTime();
               updateTime = currentStatus.getModificationTime();
               if (accessTime > lastAccessTime) {
                 lastAccessTime = accessTime;
@@ -398,12 +388,21 @@ public class TextMetaDataFormatter implements MetaDataFormatter {
     /**
      * Show the table partitions.
      */
+    @Override
     public void showTablePartitons(DataOutputStream outStream, List<String> parts)
         throws HiveException
     {
         try {
             for (String part : parts) {
-                outStream.writeBytes(part);
+                // Partition names are URL encoded. We decode the names unless Hive
+                // is configured to use the encoded names.
+                SessionState ss = SessionState.get();
+                if (ss != null && ss.getConf() != null &&
+                      !ss.getConf().getBoolVar(HiveConf.ConfVars.HIVE_DECODE_PARTITION_NAME)) {
+                    outStream.writeBytes(part);
+                } else {
+                    outStream.writeBytes(FileUtils.unescapePathName(part));
+                }
                 outStream.write(terminator);
             }
         } catch (IOException e) {
@@ -414,6 +413,7 @@ public class TextMetaDataFormatter implements MetaDataFormatter {
     /**
      * Show the list of databases
      */
+    @Override
     public void showDatabases(DataOutputStream outStream, List<String> databases)
         throws HiveException
         {
@@ -431,6 +431,7 @@ public class TextMetaDataFormatter implements MetaDataFormatter {
     /**
      * Describe a database
      */
+    @Override
     public void showDatabaseDescription(DataOutputStream outStream,
                                         String database,
                                         String comment,
@@ -441,11 +442,13 @@ public class TextMetaDataFormatter implements MetaDataFormatter {
         try {
             outStream.writeBytes(database);
             outStream.write(separator);
-            if (comment != null)
-                outStream.writeBytes(comment);
+            if (comment != null) {
+              outStream.write(comment.getBytes());
+            }
             outStream.write(separator);
-            if (location != null)
-                outStream.writeBytes(location);
+            if (location != null) {
+              outStream.writeBytes(location);
+            }
             outStream.write(separator);
             if (params != null && !params.isEmpty()) {
                 outStream.writeBytes(params.toString());

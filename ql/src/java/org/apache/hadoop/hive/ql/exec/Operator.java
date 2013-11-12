@@ -21,14 +21,18 @@ package org.apache.hadoop.hive.ql.exec;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.ql.exec.mr.ExecMapperContext;
 import org.apache.hadoop.hive.ql.lib.Node;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
@@ -41,7 +45,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.Counters;
-import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
 
 /**
@@ -54,6 +57,7 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
 
   private static final long serialVersionUID = 1L;
 
+  private transient Configuration configuration;
   protected List<Operator<? extends OperatorDesc>> childOperators;
   protected List<Operator<? extends OperatorDesc>> parentOperators;
   protected String operatorId;
@@ -73,7 +77,7 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
 
   private transient ExecMapperContext execContext;
 
-  private static int seqId;
+  private static AtomicInteger seqId;
 
   // It can be optimized later so that an operator operator (init/close) is performed
   // only after that operation has been performed on all the parents. This will require
@@ -96,21 +100,21 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
 
   protected transient State state = State.UNINIT;
 
-  static transient boolean fatalError = false; // fatalError is shared acorss
+  protected static transient boolean fatalError = false; // fatalError is shared acorss
   // all operators
 
   static {
-    seqId = 0;
+    seqId = new AtomicInteger(0);
   }
 
   private boolean useBucketizedHiveInputFormat;
 
   public Operator() {
-    id = String.valueOf(seqId++);
+    id = String.valueOf(seqId.getAndIncrement());
   }
 
   public static void resetId() {
-    seqId = 0;
+    seqId.set(0);
   }
 
   /**
@@ -120,8 +124,8 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
    *          Used to report progress of certain operators.
    */
   public Operator(Reporter reporter) {
+    this();
     this.reporter = reporter;
-    id = String.valueOf(seqId++);
   }
 
   public void setChildOperators(
@@ -129,8 +133,15 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
     this.childOperators = childOperators;
   }
 
+  public Configuration getConfiguration() {
+    return configuration;
+  }
   public List<Operator<? extends OperatorDesc>> getChildOperators() {
     return childOperators;
+  }
+
+  public int getNumChild() {
+    return childOperators == null ? 0 : childOperators.size();
   }
 
   /**
@@ -159,6 +170,10 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
     return parentOperators;
   }
 
+  public int getNumParent() {
+    return parentOperators == null ? 0 : parentOperators.size();
+  }
+
   protected T conf;
   protected boolean done;
 
@@ -180,7 +195,7 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
   }
 
   // non-bean fields needed during compilation
-  private transient RowSchema rowSchema;
+  private RowSchema rowSchema;
 
   public void setSchema(RowSchema rowSchema) {
     this.rowSchema = rowSchema;
@@ -193,7 +208,6 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
   // non-bean ..
 
   protected transient HashMap<Enum<?>, LongWritable> statsMap = new HashMap<Enum<?>, LongWritable>();
-  protected transient OutputCollector out;
   protected transient Log LOG = LogFactory.getLog(this.getClass().getName());
   protected transient boolean isLogInfoEnabled = LOG.isInfoEnabled();
   protected transient String alias;
@@ -210,7 +224,7 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
    * optimizer and built during semantic analysis contains only key elements for
    * reduce sink and group by op
    */
-  protected transient Map<String, ExprNodeDesc> colExprMap;
+  protected Map<String, ExprNodeDesc> colExprMap;
 
   public void setId(String id) {
     this.id = id;
@@ -236,19 +250,6 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
 
     for (Operator<? extends OperatorDesc> op : childOperators) {
       op.setReporter(rep);
-    }
-  }
-
-  public void setOutputCollector(OutputCollector out) {
-    this.out = out;
-
-    // the collector is same across all operators
-    if (childOperators == null) {
-      return;
-    }
-
-    for (Operator<? extends OperatorDesc> op : childOperators) {
-      op.setOutputCollector(out);
     }
   }
 
@@ -313,7 +314,7 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
       return;
     }
 
-    this.out = null;
+    this.configuration = hconf;
     if (!areAllParentsInitialized()) {
       return;
     }
@@ -420,7 +421,7 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
    *          parent operator id
    * @throws HiveException
    */
-  private void initialize(Configuration hconf, ObjectInspector inputOI,
+  protected void initialize(Configuration hconf, ObjectInspector inputOI,
       int parentId) throws HiveException {
     LOG.info("Initializing child " + id + " " + getName());
     // Double the size of the array if needed
@@ -470,9 +471,22 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
     if (fatalError) {
       return;
     }
-    preProcessCounter();
-    processOp(row, tag);
-    postProcessCounter();
+
+    if (counterNameToEnum != null) {
+      inputRows++;
+      if ((inputRows % 1000) == 0) {
+        incrCounter(numInputRowsCntr, inputRows);
+        incrCounter(timeTakenCntr, totalTime);
+        inputRows = 0;
+        totalTime = 0;
+      }
+
+      beginTime = System.currentTimeMillis();
+      processOp(row, tag);
+      totalTime += (System.currentTimeMillis() - beginTime);
+    } else {
+      processOp(row, tag);
+    }
   }
 
   // If a operator wants to do some work at the beginning of a group
@@ -495,7 +509,7 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
     LOG.debug("Start group Done");
   }
 
-  // If a operator wants to do some work at the end of a group
+  // If an operator wants to do some work at the end of a group
   public void endGroup() throws HiveException {
     LOG.debug("Ending group");
 
@@ -513,6 +527,20 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
     }
 
     LOG.debug("End group Done");
+  }
+
+  // an blocking operator (e.g. GroupByOperator and JoinOperator) can
+  // override this method to forward its outputs
+  public void flush() throws HiveException {
+  }
+
+  public void processGroup(int tag) throws HiveException {
+    if (childOperators == null) {
+      return;
+    }
+    for (int i = 0; i < childOperatorsArray.length; i++) {
+      childOperatorsArray[i].processGroup(childOperatorsTag[i]);
+    }
   }
 
   protected boolean allInitializedParentsAreClosed() {
@@ -548,14 +576,16 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
     state = State.CLOSE;
     LOG.info(id + " finished. closing... ");
 
-    incrCounter(numInputRowsCntr, inputRows);
-    incrCounter(numOutputRowsCntr, outputRows);
-    incrCounter(timeTakenCntr, totalTime);
-
-    LOG.info(id + " forwarded " + cntr + " rows");
-
     // call the operator specific close routine
     closeOp(abort);
+
+    if (counterNameToEnum != null) {
+      incrCounter(numInputRowsCntr, inputRows);
+      incrCounter(numOutputRowsCntr, outputRows);
+      incrCounter(timeTakenCntr, totalTime);
+    }
+
+    LOG.info(id + " forwarded " + cntr + " rows");
 
     try {
       logStats();
@@ -749,7 +779,7 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
     parentOperators.set(parentIndex, newParent);
   }
 
-  private long getNextCntr(long cntr) {
+  protected long getNextCntr(long cntr) {
     // A very simple counter to keep track of number of rows processed by an
     // operator. It dumps
     // every 1 million times, and quickly before that
@@ -763,18 +793,14 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
   protected void forward(Object row, ObjectInspector rowInspector)
       throws HiveException {
 
-    if ((++outputRows % 1000) == 0) {
-      incrCounter(numOutputRowsCntr, outputRows);
-      outputRows = 0;
-    }
-
-    if (isLogInfoEnabled) {
-      cntr++;
-      if (cntr == nextCntr) {
-        LOG.info(id + " forwarding " + cntr + " rows");
-        nextCntr = getNextCntr(cntr);
+    if (counterNameToEnum != null) {
+      if ((++outputRows % 1000) == 0) {
+        incrCounter(numOutputRowsCntr, outputRows);
+        outputRows = 0;
       }
     }
+
+    increaseForward(1);
 
     // For debugging purposes:
     // System.out.println("" + this.getClass() + ": " +
@@ -804,6 +830,18 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
     // if all children are done, this operator is also done
     if (childrenDone == childOperatorsArray.length) {
       setDone(true);
+    }
+  }
+
+  void increaseForward(long counter) {
+    if (isLogInfoEnabled) {
+      cntr += counter;
+      if (cntr >= nextCntr) {
+        LOG.info(id + " forwarding " + cntr + " rows");
+        do {
+          nextCntr = getNextCntr(nextCntr);
+        } while(cntr >= nextCntr);
+      }
     }
   }
 
@@ -1099,39 +1137,12 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
   protected transient Object groupKeyObject;
 
   /**
-   * this is called before operator process to buffer some counters.
-   */
-  private void preProcessCounter() {
-    inputRows++;
-    if ((inputRows % 1000) == 0) {
-      incrCounter(numInputRowsCntr, inputRows);
-      incrCounter(timeTakenCntr, totalTime);
-      inputRows = 0;
-      totalTime = 0;
-    }
-    beginTime = System.currentTimeMillis();
-  }
-
-  /**
-   * this is called after operator process to buffer some counters.
-   */
-  private void postProcessCounter() {
-    if (counterNameToEnum != null) {
-      totalTime += (System.currentTimeMillis() - beginTime);
-    }
-  }
-
-  /**
    * this is called in operators in map or reduce tasks.
    *
    * @param name
    * @param amount
    */
   protected void incrCounter(String name, long amount) {
-    if(counterNameToEnum == null) {
-      return;
-    }
-
     String counterName = getWrappedCounterName(name);
     ProgressCounter pc = counterNameToEnum.get(counterName);
 
@@ -1409,6 +1420,60 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
     return ret;
   }
 
+  /**
+   * Clones only the operator. The children and parent are set
+   * to null.
+   * @return Cloned operator
+   * @throws CloneNotSupportedException
+   */
+  public Operator<? extends OperatorDesc> cloneOp() throws CloneNotSupportedException {
+    T descClone = (T) conf.clone();
+    Operator<? extends OperatorDesc> ret =
+        (Operator<? extends OperatorDesc>) OperatorFactory.getAndMakeChild(
+            descClone, getSchema());
+    return ret;
+  }
+
+  /**
+   * Recursively clones all the children of the tree,
+   * Fixes the pointers to children, parents and the pointers to itself coming from the children.
+   * It does not fix the pointers to itself coming from parents, parents continue to point to
+   * the original child.
+   * @return Cloned operator
+   * @throws CloneNotSupportedException
+   */
+  public Operator<? extends OperatorDesc> cloneRecursiveChildren()
+      throws CloneNotSupportedException {
+    Operator<? extends OperatorDesc> newOp = this.cloneOp();
+    newOp.setParentOperators(this.parentOperators);
+    // Fix parent in all children
+    if (this.getChildOperators() == null) {
+      newOp.setChildOperators(null);
+      return newOp;
+    }
+    List<Operator<? extends OperatorDesc>> newChildren =
+        new ArrayList<Operator<? extends OperatorDesc>>();
+
+    for (Operator<? extends OperatorDesc> childOp : this.getChildOperators()) {
+      List<Operator<? extends OperatorDesc>> parentList =
+          new ArrayList<Operator<? extends OperatorDesc>>();
+      for (Operator<? extends OperatorDesc> parent : childOp.getParentOperators()) {
+        if (parent.equals(this)) {
+          parentList.add(newOp);
+        } else {
+          parentList.add(parent);
+        }
+      }
+      // Recursively clone the children
+      Operator<? extends OperatorDesc> clonedChildOp = childOp.cloneRecursiveChildren();
+      clonedChildOp.setParentOperators(parentList);
+    }
+
+    newOp.setChildOperators(newChildren);
+    return newOp;
+  }
+
+
   /*
    * True only for operators which produce atmost 1 output row per input
    * row to it. This will allow the output column names to be directly
@@ -1426,7 +1491,107 @@ public abstract class Operator<T extends OperatorDesc> implements Serializable,C
     this.useBucketizedHiveInputFormat = useBucketizedHiveInputFormat;
   }
 
+  /**
+   * Whether this operator supports automatic sort merge join.
+   * The stack is traversed, and this method is invoked for all the operators.
+   * @return TRUE if yes, FALSE otherwise.
+   */
+  public boolean supportAutomaticSortMergeJoin() {
+    return false;
+  }
+
   public boolean supportUnionRemoveOptimization() {
+    return false;
+  }
+
+  /*
+   * This operator is allowed before mapjoin. Eventually, mapjoin hint should be done away with.
+   * But, since bucketized mapjoin and sortmerge join depend on it completely. it is needed.
+   * Check the operators which are allowed before mapjoin.
+   */
+  public boolean opAllowedBeforeMapJoin() {
+    return true;
+  }
+
+  /*
+   * This operator is allowed after mapjoin. Eventually, mapjoin hint should be done away with.
+   * But, since bucketized mapjoin and sortmerge join depend on it completely. it is needed.
+   * Check the operators which are allowed after mapjoin.
+   */
+  public boolean opAllowedAfterMapJoin() {
+    return true;
+  }
+
+  /*
+   * If this task contains a join, it can be converted to a map-join task if this operator is
+   * present in the mapper. For eg. if a sort-merge join operator is present followed by a regular
+   * join, it cannot be converted to a auto map-join.
+   */
+  public boolean opAllowedConvertMapJoin() {
+    return true;
+  }
+
+  /*
+   * If this task contains a sortmergejoin, it can be converted to a map-join task if this operator
+   * is present in the mapper. For eg. if a sort-merge join operator is present followed by a
+   * regular join, it cannot be converted to a auto map-join.
+   */
+  public boolean opAllowedBeforeSortMergeJoin() {
+    return true;
+  }
+
+  /**
+   * used for LimitPushdownOptimizer
+   *
+   * if all of the operators between limit and reduce-sink does not remove any input rows
+   * in the range of limit count, limit can be pushed down to reduce-sink operator.
+   * forward, select, etc.
+   */
+  public boolean acceptLimitPushdown() {
+    return false;
+  }
+
+  @Override
+  public String toString() {
+    return getName() + "[" + getIdentifier() + "]";
+  }
+
+  public static String toString(Collection<Operator<? extends OperatorDesc>> top) {
+    StringBuilder builder = new StringBuilder();
+    Set<String> visited = new HashSet<String>();
+    for (Operator<?> op : top) {
+      if (builder.length() > 0) {
+        builder.append('\n');
+      }
+      toString(builder, visited, op, 0);
+    }
+    return builder.toString();
+  }
+
+  static boolean toString(StringBuilder builder, Set<String> visited, Operator<?> op, int start) {
+    String name = op.toString();
+    boolean added = visited.add(name);
+    if (start > 0) {
+      builder.append("-");
+      start++;
+    }
+    builder.append(name);
+    start += name.length();
+    if (added) {
+      if (op.getNumChild() > 0) {
+        List<Operator<?>> children = op.getChildOperators();
+        for (int i = 0; i < children.size(); i++) {
+          if (i > 0) {
+            builder.append('\n');
+            for (int j = 0; j < start; j++) {
+              builder.append(' ');
+            }
+          }
+          toString(builder, visited, children.get(i), start);
+        }
+      }
+      return true;
+    }
     return false;
   }
 }

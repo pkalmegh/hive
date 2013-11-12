@@ -24,7 +24,7 @@ import junit.framework.TestCase;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.io.ByteWritable;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
@@ -51,23 +51,23 @@ public class TestLazySimpleSerDe extends TestCase {
       LazySimpleSerDe serDe = new LazySimpleSerDe();
       Configuration conf = new Configuration();
       Properties tbl = new Properties();
-      tbl.setProperty(Constants.SERIALIZATION_FORMAT, "9");
+      tbl.setProperty(serdeConstants.SERIALIZATION_FORMAT, "9");
       tbl.setProperty("columns",
           "abyte,ashort,aint,along,adouble,astring,anullint,anullstring,aba");
       tbl.setProperty("columns.types",
           "tinyint:smallint:int:bigint:double:string:int:string:binary");
-      tbl.setProperty(Constants.SERIALIZATION_NULL_FORMAT, "NULL");
+      tbl.setProperty(serdeConstants.SERIALIZATION_NULL_FORMAT, "NULL");
       serDe.initialize(conf, tbl);
 
       // Data
       Text t = new Text("123\t456\t789\t1000\t5.3\thive and hadoop\t1.\tNULL\t");
       t.append(new byte[]{(byte)Integer.parseInt("10111111", 2)}, 0, 1);
-      StringBuffer sb = new StringBuffer("123\t456\t789\t1000\t5.3\thive and hadoop\tNULL\tNULL\t");
+      StringBuffer sb = new StringBuffer("123\t456\t789\t1000\t5.3\thive and hadoop\t1\tNULL\t");
       String s = sb.append(new String(Base64.encodeBase64(new byte[]{(byte)Integer.parseInt("10111111", 2)}))).toString();
       Object[] expectedFieldsData = {new ByteWritable((byte) 123),
           new ShortWritable((short) 456), new IntWritable(789),
           new LongWritable(1000), new DoubleWritable(5.3),
-          new Text("hive and hadoop"), null, null, new BytesWritable(new byte[]{(byte)Integer.parseInt("10111111", 2)})};
+          new Text("hive and hadoop"), new IntWritable(1), null, new BytesWritable(new byte[]{(byte)Integer.parseInt("10111111", 2)})};
 
       // Test
       deserializeAndSerialize(serDe, t, s, expectedFieldsData);
@@ -105,12 +105,12 @@ public class TestLazySimpleSerDe extends TestCase {
     Properties tbl = new Properties();
 
     // Set the configuration parameters
-    tbl.setProperty(Constants.SERIALIZATION_FORMAT, "9");
+    tbl.setProperty(serdeConstants.SERIALIZATION_FORMAT, "9");
     tbl.setProperty("columns",
         "abyte,ashort,aint,along,adouble,astring,anullint,anullstring");
     tbl.setProperty("columns.types",
         "tinyint:smallint:int:bigint:double:string:int:string");
-    tbl.setProperty(Constants.SERIALIZATION_NULL_FORMAT, "NULL");
+    tbl.setProperty(serdeConstants.SERIALIZATION_NULL_FORMAT, "NULL");
     return tbl;
   }
 
@@ -123,16 +123,16 @@ public class TestLazySimpleSerDe extends TestCase {
       LazySimpleSerDe serDe = new LazySimpleSerDe();
       Configuration conf = new Configuration();
       Properties tbl = createProperties();
-      tbl.setProperty(Constants.SERIALIZATION_LAST_COLUMN_TAKES_REST, "true");
+      tbl.setProperty(serdeConstants.SERIALIZATION_LAST_COLUMN_TAKES_REST, "true");
       serDe.initialize(conf, tbl);
 
       // Data
       Text t = new Text("123\t456\t789\t1000\t5.3\thive and hadoop\t1.\ta\tb\t");
-      String s = "123\t456\t789\t1000\t5.3\thive and hadoop\tNULL\ta\tb\t";
+      String s = "123\t456\t789\t1000\t5.3\thive and hadoop\t1\ta\tb\t";
       Object[] expectedFieldsData = {new ByteWritable((byte) 123),
           new ShortWritable((short) 456), new IntWritable(789),
           new LongWritable(1000), new DoubleWritable(5.3),
-          new Text("hive and hadoop"), null, new Text("a\tb\t")};
+          new Text("hive and hadoop"), new IntWritable(1), new Text("a\tb\t")};
 
       // Test
       deserializeAndSerialize(serDe, t, s, expectedFieldsData);
@@ -156,11 +156,11 @@ public class TestLazySimpleSerDe extends TestCase {
 
       // Data
       Text t = new Text("123\t456\t789\t1000\t5.3\thive and hadoop\t1.\ta\tb\t");
-      String s = "123\t456\t789\t1000\t5.3\thive and hadoop\tNULL\ta";
+      String s = "123\t456\t789\t1000\t5.3\thive and hadoop\t1\ta";
       Object[] expectedFieldsData = {new ByteWritable((byte) 123),
           new ShortWritable((short) 456), new IntWritable(789),
           new LongWritable(1000), new DoubleWritable(5.3),
-          new Text("hive and hadoop"), null, new Text("a")};
+          new Text("hive and hadoop"), new IntWritable(1), new Text("a")};
 
       // Test
       deserializeAndSerialize(serDe, t, s, expectedFieldsData);

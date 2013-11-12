@@ -3,17 +3,17 @@ PREHOOK: type: CREATETABLE
 POSTHOOK: query: CREATE TABLE tstparttbl(KEY STRING, VALUE STRING) PARTITIONED BY(ds string) STORED AS TEXTFILE
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@tstparttbl
-PREHOOK: query: LOAD DATA LOCAL INPATH '../data/files/kv1.txt' INTO TABLE tstparttbl PARTITION (ds='2008-04-09')
+PREHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/kv1.txt' INTO TABLE tstparttbl PARTITION (ds='2008-04-09')
 PREHOOK: type: LOAD
 PREHOOK: Output: default@tstparttbl
-POSTHOOK: query: LOAD DATA LOCAL INPATH '../data/files/kv1.txt' INTO TABLE tstparttbl PARTITION (ds='2008-04-09')
+POSTHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/kv1.txt' INTO TABLE tstparttbl PARTITION (ds='2008-04-09')
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@tstparttbl
 POSTHOOK: Output: default@tstparttbl@ds=2008-04-09
-PREHOOK: query: LOAD DATA LOCAL INPATH '../data/files/nullfile.txt' INTO TABLE tstparttbl PARTITION (ds='2008-04-08')
+PREHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/nullfile.txt' INTO TABLE tstparttbl PARTITION (ds='2008-04-08')
 PREHOOK: type: LOAD
 PREHOOK: Output: default@tstparttbl
-POSTHOOK: query: LOAD DATA LOCAL INPATH '../data/files/nullfile.txt' INTO TABLE tstparttbl PARTITION (ds='2008-04-08')
+POSTHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/nullfile.txt' INTO TABLE tstparttbl PARTITION (ds='2008-04-08')
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@tstparttbl
 POSTHOOK: Output: default@tstparttbl@ds=2008-04-08
@@ -68,6 +68,7 @@ STAGE PLANS:
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator
@@ -76,11 +77,13 @@ STAGE PLANS:
 
 PREHOOK: query: select count(1) from tstparttbl
 PREHOOK: type: QUERY
+PREHOOK: Input: default@tstparttbl
 PREHOOK: Input: default@tstparttbl@ds=2008-04-08
 PREHOOK: Input: default@tstparttbl@ds=2008-04-09
 #### A masked pattern was here ####
 POSTHOOK: query: select count(1) from tstparttbl
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@tstparttbl
 POSTHOOK: Input: default@tstparttbl@ds=2008-04-08
 POSTHOOK: Input: default@tstparttbl@ds=2008-04-09
 #### A masked pattern was here ####
@@ -90,17 +93,17 @@ PREHOOK: type: CREATETABLE
 POSTHOOK: query: CREATE TABLE tstparttbl2(KEY STRING, VALUE STRING) PARTITIONED BY(ds string) STORED AS TEXTFILE
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@tstparttbl2
-PREHOOK: query: LOAD DATA LOCAL INPATH '../data/files/nullfile.txt' INTO TABLE tstparttbl2 PARTITION (ds='2008-04-09')
+PREHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/nullfile.txt' INTO TABLE tstparttbl2 PARTITION (ds='2008-04-09')
 PREHOOK: type: LOAD
 PREHOOK: Output: default@tstparttbl2
-POSTHOOK: query: LOAD DATA LOCAL INPATH '../data/files/nullfile.txt' INTO TABLE tstparttbl2 PARTITION (ds='2008-04-09')
+POSTHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/nullfile.txt' INTO TABLE tstparttbl2 PARTITION (ds='2008-04-09')
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@tstparttbl2
 POSTHOOK: Output: default@tstparttbl2@ds=2008-04-09
-PREHOOK: query: LOAD DATA LOCAL INPATH '../data/files/nullfile.txt' INTO TABLE tstparttbl2 PARTITION (ds='2008-04-08')
+PREHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/nullfile.txt' INTO TABLE tstparttbl2 PARTITION (ds='2008-04-08')
 PREHOOK: type: LOAD
 PREHOOK: Output: default@tstparttbl2
-POSTHOOK: query: LOAD DATA LOCAL INPATH '../data/files/nullfile.txt' INTO TABLE tstparttbl2 PARTITION (ds='2008-04-08')
+POSTHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/nullfile.txt' INTO TABLE tstparttbl2 PARTITION (ds='2008-04-08')
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@tstparttbl2
 POSTHOOK: Output: default@tstparttbl2@ds=2008-04-08
@@ -155,6 +158,7 @@ STAGE PLANS:
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator
@@ -163,11 +167,13 @@ STAGE PLANS:
 
 PREHOOK: query: select count(1) from tstparttbl2
 PREHOOK: type: QUERY
+PREHOOK: Input: default@tstparttbl2
 PREHOOK: Input: default@tstparttbl2@ds=2008-04-08
 PREHOOK: Input: default@tstparttbl2@ds=2008-04-09
 #### A masked pattern was here ####
 POSTHOOK: query: select count(1) from tstparttbl2
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@tstparttbl2
 POSTHOOK: Input: default@tstparttbl2@ds=2008-04-08
 POSTHOOK: Input: default@tstparttbl2@ds=2008-04-09
 #### A masked pattern was here ####
@@ -185,17 +191,17 @@ PREHOOK: type: CREATETABLE
 POSTHOOK: query: CREATE TABLE tstparttbl(KEY STRING, VALUE STRING) PARTITIONED BY(ds string) STORED AS TEXTFILE
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@tstparttbl
-PREHOOK: query: LOAD DATA LOCAL INPATH '../data/files/kv1.txt' INTO TABLE tstparttbl PARTITION (ds='2008-04-09')
+PREHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/kv1.txt' INTO TABLE tstparttbl PARTITION (ds='2008-04-09')
 PREHOOK: type: LOAD
 PREHOOK: Output: default@tstparttbl
-POSTHOOK: query: LOAD DATA LOCAL INPATH '../data/files/kv1.txt' INTO TABLE tstparttbl PARTITION (ds='2008-04-09')
+POSTHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/kv1.txt' INTO TABLE tstparttbl PARTITION (ds='2008-04-09')
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@tstparttbl
 POSTHOOK: Output: default@tstparttbl@ds=2008-04-09
-PREHOOK: query: LOAD DATA LOCAL INPATH '../data/files/nullfile.txt' INTO TABLE tstparttbl PARTITION (ds='2008-04-08')
+PREHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/nullfile.txt' INTO TABLE tstparttbl PARTITION (ds='2008-04-08')
 PREHOOK: type: LOAD
 PREHOOK: Output: default@tstparttbl
-POSTHOOK: query: LOAD DATA LOCAL INPATH '../data/files/nullfile.txt' INTO TABLE tstparttbl PARTITION (ds='2008-04-08')
+POSTHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/nullfile.txt' INTO TABLE tstparttbl PARTITION (ds='2008-04-08')
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@tstparttbl
 POSTHOOK: Output: default@tstparttbl@ds=2008-04-08
@@ -250,6 +256,7 @@ STAGE PLANS:
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator
@@ -258,11 +265,13 @@ STAGE PLANS:
 
 PREHOOK: query: select count(1) from tstparttbl
 PREHOOK: type: QUERY
+PREHOOK: Input: default@tstparttbl
 PREHOOK: Input: default@tstparttbl@ds=2008-04-08
 PREHOOK: Input: default@tstparttbl@ds=2008-04-09
 #### A masked pattern was here ####
 POSTHOOK: query: select count(1) from tstparttbl
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@tstparttbl
 POSTHOOK: Input: default@tstparttbl@ds=2008-04-08
 POSTHOOK: Input: default@tstparttbl@ds=2008-04-09
 #### A masked pattern was here ####
@@ -280,17 +289,17 @@ PREHOOK: type: CREATETABLE
 POSTHOOK: query: CREATE TABLE tstparttbl2(KEY STRING, VALUE STRING) PARTITIONED BY(ds string) STORED AS TEXTFILE
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@tstparttbl2
-PREHOOK: query: LOAD DATA LOCAL INPATH '../data/files/nullfile.txt' INTO TABLE tstparttbl2 PARTITION (ds='2008-04-09')
+PREHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/nullfile.txt' INTO TABLE tstparttbl2 PARTITION (ds='2008-04-09')
 PREHOOK: type: LOAD
 PREHOOK: Output: default@tstparttbl2
-POSTHOOK: query: LOAD DATA LOCAL INPATH '../data/files/nullfile.txt' INTO TABLE tstparttbl2 PARTITION (ds='2008-04-09')
+POSTHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/nullfile.txt' INTO TABLE tstparttbl2 PARTITION (ds='2008-04-09')
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@tstparttbl2
 POSTHOOK: Output: default@tstparttbl2@ds=2008-04-09
-PREHOOK: query: LOAD DATA LOCAL INPATH '../data/files/nullfile.txt' INTO TABLE tstparttbl2 PARTITION (ds='2008-04-08')
+PREHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/nullfile.txt' INTO TABLE tstparttbl2 PARTITION (ds='2008-04-08')
 PREHOOK: type: LOAD
 PREHOOK: Output: default@tstparttbl2
-POSTHOOK: query: LOAD DATA LOCAL INPATH '../data/files/nullfile.txt' INTO TABLE tstparttbl2 PARTITION (ds='2008-04-08')
+POSTHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/nullfile.txt' INTO TABLE tstparttbl2 PARTITION (ds='2008-04-08')
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@tstparttbl2
 POSTHOOK: Output: default@tstparttbl2@ds=2008-04-08
@@ -345,6 +354,7 @@ STAGE PLANS:
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator
@@ -353,11 +363,13 @@ STAGE PLANS:
 
 PREHOOK: query: select count(1) from tstparttbl2
 PREHOOK: type: QUERY
+PREHOOK: Input: default@tstparttbl2
 PREHOOK: Input: default@tstparttbl2@ds=2008-04-08
 PREHOOK: Input: default@tstparttbl2@ds=2008-04-09
 #### A masked pattern was here ####
 POSTHOOK: query: select count(1) from tstparttbl2
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@tstparttbl2
 POSTHOOK: Input: default@tstparttbl2@ds=2008-04-08
 POSTHOOK: Input: default@tstparttbl2@ds=2008-04-09
 #### A masked pattern was here ####

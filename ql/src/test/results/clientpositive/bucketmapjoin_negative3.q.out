@@ -34,76 +34,76 @@ PREHOOK: type: CREATETABLE
 POSTHOOK: query: create table test4 (key string, value string) clustered by (value, key) sorted by (value, key) into 3 buckets
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@test4
-PREHOOK: query: load data local inpath '../data/files/srcbucket20.txt' INTO TABLE test1
+PREHOOK: query: load data local inpath '../../data/files/srcbucket20.txt' INTO TABLE test1
 PREHOOK: type: LOAD
 PREHOOK: Output: default@test1
-POSTHOOK: query: load data local inpath '../data/files/srcbucket20.txt' INTO TABLE test1
+POSTHOOK: query: load data local inpath '../../data/files/srcbucket20.txt' INTO TABLE test1
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@test1
-PREHOOK: query: load data local inpath '../data/files/srcbucket21.txt' INTO TABLE test1
+PREHOOK: query: load data local inpath '../../data/files/srcbucket21.txt' INTO TABLE test1
 PREHOOK: type: LOAD
 PREHOOK: Output: default@test1
-POSTHOOK: query: load data local inpath '../data/files/srcbucket21.txt' INTO TABLE test1
+POSTHOOK: query: load data local inpath '../../data/files/srcbucket21.txt' INTO TABLE test1
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@test1
-PREHOOK: query: load data local inpath '../data/files/srcbucket22.txt' INTO TABLE test1
+PREHOOK: query: load data local inpath '../../data/files/srcbucket22.txt' INTO TABLE test1
 PREHOOK: type: LOAD
 PREHOOK: Output: default@test1
-POSTHOOK: query: load data local inpath '../data/files/srcbucket22.txt' INTO TABLE test1
+POSTHOOK: query: load data local inpath '../../data/files/srcbucket22.txt' INTO TABLE test1
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@test1
-PREHOOK: query: load data local inpath '../data/files/srcbucket20.txt' INTO TABLE test2
+PREHOOK: query: load data local inpath '../../data/files/srcbucket20.txt' INTO TABLE test2
 PREHOOK: type: LOAD
 PREHOOK: Output: default@test2
-POSTHOOK: query: load data local inpath '../data/files/srcbucket20.txt' INTO TABLE test2
+POSTHOOK: query: load data local inpath '../../data/files/srcbucket20.txt' INTO TABLE test2
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@test2
-PREHOOK: query: load data local inpath '../data/files/srcbucket21.txt' INTO TABLE test2
+PREHOOK: query: load data local inpath '../../data/files/srcbucket21.txt' INTO TABLE test2
 PREHOOK: type: LOAD
 PREHOOK: Output: default@test2
-POSTHOOK: query: load data local inpath '../data/files/srcbucket21.txt' INTO TABLE test2
+POSTHOOK: query: load data local inpath '../../data/files/srcbucket21.txt' INTO TABLE test2
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@test2
-PREHOOK: query: load data local inpath '../data/files/srcbucket22.txt' INTO TABLE test2
+PREHOOK: query: load data local inpath '../../data/files/srcbucket22.txt' INTO TABLE test2
 PREHOOK: type: LOAD
 PREHOOK: Output: default@test2
-POSTHOOK: query: load data local inpath '../data/files/srcbucket22.txt' INTO TABLE test2
+POSTHOOK: query: load data local inpath '../../data/files/srcbucket22.txt' INTO TABLE test2
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@test2
-PREHOOK: query: load data local inpath '../data/files/srcbucket20.txt' INTO TABLE test3
+PREHOOK: query: load data local inpath '../../data/files/srcbucket20.txt' INTO TABLE test3
 PREHOOK: type: LOAD
 PREHOOK: Output: default@test3
-POSTHOOK: query: load data local inpath '../data/files/srcbucket20.txt' INTO TABLE test3
+POSTHOOK: query: load data local inpath '../../data/files/srcbucket20.txt' INTO TABLE test3
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@test3
-PREHOOK: query: load data local inpath '../data/files/srcbucket21.txt' INTO TABLE test3
+PREHOOK: query: load data local inpath '../../data/files/srcbucket21.txt' INTO TABLE test3
 PREHOOK: type: LOAD
 PREHOOK: Output: default@test3
-POSTHOOK: query: load data local inpath '../data/files/srcbucket21.txt' INTO TABLE test3
+POSTHOOK: query: load data local inpath '../../data/files/srcbucket21.txt' INTO TABLE test3
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@test3
-PREHOOK: query: load data local inpath '../data/files/srcbucket22.txt' INTO TABLE test3
+PREHOOK: query: load data local inpath '../../data/files/srcbucket22.txt' INTO TABLE test3
 PREHOOK: type: LOAD
 PREHOOK: Output: default@test3
-POSTHOOK: query: load data local inpath '../data/files/srcbucket22.txt' INTO TABLE test3
+POSTHOOK: query: load data local inpath '../../data/files/srcbucket22.txt' INTO TABLE test3
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@test3
-PREHOOK: query: load data local inpath '../data/files/srcbucket20.txt' INTO TABLE test4
+PREHOOK: query: load data local inpath '../../data/files/srcbucket20.txt' INTO TABLE test4
 PREHOOK: type: LOAD
 PREHOOK: Output: default@test4
-POSTHOOK: query: load data local inpath '../data/files/srcbucket20.txt' INTO TABLE test4
+POSTHOOK: query: load data local inpath '../../data/files/srcbucket20.txt' INTO TABLE test4
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@test4
-PREHOOK: query: load data local inpath '../data/files/srcbucket21.txt' INTO TABLE test4
+PREHOOK: query: load data local inpath '../../data/files/srcbucket21.txt' INTO TABLE test4
 PREHOOK: type: LOAD
 PREHOOK: Output: default@test4
-POSTHOOK: query: load data local inpath '../data/files/srcbucket21.txt' INTO TABLE test4
+POSTHOOK: query: load data local inpath '../../data/files/srcbucket21.txt' INTO TABLE test4
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@test4
-PREHOOK: query: load data local inpath '../data/files/srcbucket22.txt' INTO TABLE test4
+PREHOOK: query: load data local inpath '../../data/files/srcbucket22.txt' INTO TABLE test4
 PREHOOK: type: LOAD
 PREHOOK: Output: default@test4
-POSTHOOK: query: load data local inpath '../data/files/srcbucket22.txt' INTO TABLE test4
+POSTHOOK: query: load data local inpath '../../data/files/srcbucket22.txt' INTO TABLE test4
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@test4
 PREHOOK: query: -- should be allowed
@@ -168,6 +168,7 @@ STAGE PLANS:
                 1 [Column[key], Column[value]]
               outputColumnNames: _col0, _col1, _col4, _col5
               Position of Big Table: 0
+              BucketMapJoin: true
               Select Operator
                 expressions:
                       expr: _col0
@@ -178,38 +179,29 @@ STAGE PLANS:
                       type: string
                       expr: _col5
                       type: string
-                outputColumnNames: _col0, _col1, _col4, _col5
-                Select Operator
-                  expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: string
-                        expr: _col4
-                        type: string
-                        expr: _col5
-                        type: string
-                  outputColumnNames: _col0, _col1, _col2, _col3
-                  File Output Operator
-                    compressed: false
-                    GlobalTableId: 0
+                outputColumnNames: _col0, _col1, _col2, _col3
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 0
 #### A masked pattern was here ####
-                    NumFilesPerFileSink: 1
+                  NumFilesPerFileSink: 1
 #### A masked pattern was here ####
-                    table:
-                        input format: org.apache.hadoop.mapred.TextInputFormat
-                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                        properties:
-                          columns _col0,_col1,_col2,_col3
-                          columns.types string:string:string:string
-                          escape.delim \
-                          serialization.format 1
-                    TotalFiles: 1
-                    GatherStats: false
-                    MultiFileSpray: false
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      properties:
+                        columns _col0,_col1,_col2,_col3
+                        columns.types string:string:string:string
+                        escape.delim \
+                        hive.serialization.extend.nesting.levels true
+                        serialization.format 1
+                        serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  TotalFiles: 1
+                  GatherStats: false
+                  MultiFileSpray: false
       Local Work:
         Map Reduce Local Work
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -219,6 +211,7 @@ STAGE PLANS:
             input format: org.apache.hadoop.mapred.TextInputFormat
             output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
             properties:
+              COLUMN_STATS_ACCURATE true
               SORTBUCKETCOLSPREFIX TRUE
               bucket_count 3
               bucket_field_name key
@@ -227,7 +220,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.test1
               numFiles 3
-              numPartitions 0
               numRows 0
               rawDataSize 0
               serialization.ddl struct test1 { string key, string value}
@@ -240,6 +232,7 @@ STAGE PLANS:
               input format: org.apache.hadoop.mapred.TextInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
               properties:
+                COLUMN_STATS_ACCURATE true
                 SORTBUCKETCOLSPREFIX TRUE
                 bucket_count 3
                 bucket_field_name key
@@ -248,7 +241,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
                 name default.test1
                 numFiles 3
-                numPartitions 0
                 numRows 0
                 rawDataSize 0
                 serialization.ddl struct test1 { string key, string value}
@@ -327,6 +319,7 @@ STAGE PLANS:
                 1 [Column[key], Column[value]]
               outputColumnNames: _col0, _col1, _col4, _col5
               Position of Big Table: 0
+              BucketMapJoin: true
               Select Operator
                 expressions:
                       expr: _col0
@@ -337,38 +330,29 @@ STAGE PLANS:
                       type: string
                       expr: _col5
                       type: string
-                outputColumnNames: _col0, _col1, _col4, _col5
-                Select Operator
-                  expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: string
-                        expr: _col4
-                        type: string
-                        expr: _col5
-                        type: string
-                  outputColumnNames: _col0, _col1, _col2, _col3
-                  File Output Operator
-                    compressed: false
-                    GlobalTableId: 0
+                outputColumnNames: _col0, _col1, _col2, _col3
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 0
 #### A masked pattern was here ####
-                    NumFilesPerFileSink: 1
+                  NumFilesPerFileSink: 1
 #### A masked pattern was here ####
-                    table:
-                        input format: org.apache.hadoop.mapred.TextInputFormat
-                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                        properties:
-                          columns _col0,_col1,_col2,_col3
-                          columns.types string:string:string:string
-                          escape.delim \
-                          serialization.format 1
-                    TotalFiles: 1
-                    GatherStats: false
-                    MultiFileSpray: false
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      properties:
+                        columns _col0,_col1,_col2,_col3
+                        columns.types string:string:string:string
+                        escape.delim \
+                        hive.serialization.extend.nesting.levels true
+                        serialization.format 1
+                        serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  TotalFiles: 1
+                  GatherStats: false
+                  MultiFileSpray: false
       Local Work:
         Map Reduce Local Work
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -378,6 +362,7 @@ STAGE PLANS:
             input format: org.apache.hadoop.mapred.TextInputFormat
             output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
             properties:
+              COLUMN_STATS_ACCURATE true
               SORTBUCKETCOLSPREFIX TRUE
               bucket_count 3
               bucket_field_name value
@@ -386,7 +371,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.test2
               numFiles 3
-              numPartitions 0
               numRows 0
               rawDataSize 0
               serialization.ddl struct test2 { string key, string value}
@@ -399,6 +383,7 @@ STAGE PLANS:
               input format: org.apache.hadoop.mapred.TextInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
               properties:
+                COLUMN_STATS_ACCURATE true
                 SORTBUCKETCOLSPREFIX TRUE
                 bucket_count 3
                 bucket_field_name value
@@ -407,7 +392,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
                 name default.test2
                 numFiles 3
-                numPartitions 0
                 numRows 0
                 rawDataSize 0
                 serialization.ddl struct test2 { string key, string value}
@@ -491,38 +475,29 @@ STAGE PLANS:
                       type: string
                       expr: _col5
                       type: string
-                outputColumnNames: _col0, _col1, _col4, _col5
-                Select Operator
-                  expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: string
-                        expr: _col4
-                        type: string
-                        expr: _col5
-                        type: string
-                  outputColumnNames: _col0, _col1, _col2, _col3
-                  File Output Operator
-                    compressed: false
-                    GlobalTableId: 0
+                outputColumnNames: _col0, _col1, _col2, _col3
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 0
 #### A masked pattern was here ####
-                    NumFilesPerFileSink: 1
+                  NumFilesPerFileSink: 1
 #### A masked pattern was here ####
-                    table:
-                        input format: org.apache.hadoop.mapred.TextInputFormat
-                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                        properties:
-                          columns _col0,_col1,_col2,_col3
-                          columns.types string:string:string:string
-                          escape.delim \
-                          serialization.format 1
-                    TotalFiles: 1
-                    GatherStats: false
-                    MultiFileSpray: false
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      properties:
+                        columns _col0,_col1,_col2,_col3
+                        columns.types string:string:string:string
+                        escape.delim \
+                        hive.serialization.extend.nesting.levels true
+                        serialization.format 1
+                        serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  TotalFiles: 1
+                  GatherStats: false
+                  MultiFileSpray: false
       Local Work:
         Map Reduce Local Work
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -532,6 +507,7 @@ STAGE PLANS:
             input format: org.apache.hadoop.mapred.TextInputFormat
             output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
             properties:
+              COLUMN_STATS_ACCURATE true
               SORTBUCKETCOLSPREFIX TRUE
               bucket_count 3
               bucket_field_name key
@@ -540,7 +516,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.test1
               numFiles 3
-              numPartitions 0
               numRows 0
               rawDataSize 0
               serialization.ddl struct test1 { string key, string value}
@@ -553,6 +528,7 @@ STAGE PLANS:
               input format: org.apache.hadoop.mapred.TextInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
               properties:
+                COLUMN_STATS_ACCURATE true
                 SORTBUCKETCOLSPREFIX TRUE
                 bucket_count 3
                 bucket_field_name key
@@ -561,7 +537,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
                 name default.test1
                 numFiles 3
-                numPartitions 0
                 numRows 0
                 rawDataSize 0
                 serialization.ddl struct test1 { string key, string value}
@@ -643,38 +618,29 @@ STAGE PLANS:
                       type: string
                       expr: _col5
                       type: string
-                outputColumnNames: _col0, _col1, _col4, _col5
-                Select Operator
-                  expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: string
-                        expr: _col4
-                        type: string
-                        expr: _col5
-                        type: string
-                  outputColumnNames: _col0, _col1, _col2, _col3
-                  File Output Operator
-                    compressed: false
-                    GlobalTableId: 0
+                outputColumnNames: _col0, _col1, _col2, _col3
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 0
 #### A masked pattern was here ####
-                    NumFilesPerFileSink: 1
+                  NumFilesPerFileSink: 1
 #### A masked pattern was here ####
-                    table:
-                        input format: org.apache.hadoop.mapred.TextInputFormat
-                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                        properties:
-                          columns _col0,_col1,_col2,_col3
-                          columns.types string:string:string:string
-                          escape.delim \
-                          serialization.format 1
-                    TotalFiles: 1
-                    GatherStats: false
-                    MultiFileSpray: false
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      properties:
+                        columns _col0,_col1,_col2,_col3
+                        columns.types string:string:string:string
+                        escape.delim \
+                        hive.serialization.extend.nesting.levels true
+                        serialization.format 1
+                        serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  TotalFiles: 1
+                  GatherStats: false
+                  MultiFileSpray: false
       Local Work:
         Map Reduce Local Work
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -684,6 +650,7 @@ STAGE PLANS:
             input format: org.apache.hadoop.mapred.TextInputFormat
             output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
             properties:
+              COLUMN_STATS_ACCURATE true
               SORTBUCKETCOLSPREFIX TRUE
               bucket_count 3
               bucket_field_name key
@@ -692,7 +659,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.test1
               numFiles 3
-              numPartitions 0
               numRows 0
               rawDataSize 0
               serialization.ddl struct test1 { string key, string value}
@@ -705,6 +671,7 @@ STAGE PLANS:
               input format: org.apache.hadoop.mapred.TextInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
               properties:
+                COLUMN_STATS_ACCURATE true
                 SORTBUCKETCOLSPREFIX TRUE
                 bucket_count 3
                 bucket_field_name key
@@ -713,7 +680,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
                 name default.test1
                 numFiles 3
-                numPartitions 0
                 numRows 0
                 rawDataSize 0
                 serialization.ddl struct test1 { string key, string value}
@@ -795,38 +761,29 @@ STAGE PLANS:
                       type: string
                       expr: _col5
                       type: string
-                outputColumnNames: _col0, _col1, _col4, _col5
-                Select Operator
-                  expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: string
-                        expr: _col4
-                        type: string
-                        expr: _col5
-                        type: string
-                  outputColumnNames: _col0, _col1, _col2, _col3
-                  File Output Operator
-                    compressed: false
-                    GlobalTableId: 0
+                outputColumnNames: _col0, _col1, _col2, _col3
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 0
 #### A masked pattern was here ####
-                    NumFilesPerFileSink: 1
+                  NumFilesPerFileSink: 1
 #### A masked pattern was here ####
-                    table:
-                        input format: org.apache.hadoop.mapred.TextInputFormat
-                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                        properties:
-                          columns _col0,_col1,_col2,_col3
-                          columns.types string:string:string:string
-                          escape.delim \
-                          serialization.format 1
-                    TotalFiles: 1
-                    GatherStats: false
-                    MultiFileSpray: false
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      properties:
+                        columns _col0,_col1,_col2,_col3
+                        columns.types string:string:string:string
+                        escape.delim \
+                        hive.serialization.extend.nesting.levels true
+                        serialization.format 1
+                        serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  TotalFiles: 1
+                  GatherStats: false
+                  MultiFileSpray: false
       Local Work:
         Map Reduce Local Work
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -836,6 +793,7 @@ STAGE PLANS:
             input format: org.apache.hadoop.mapred.TextInputFormat
             output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
             properties:
+              COLUMN_STATS_ACCURATE true
               SORTBUCKETCOLSPREFIX TRUE
               bucket_count 3
               bucket_field_name key
@@ -844,7 +802,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.test1
               numFiles 3
-              numPartitions 0
               numRows 0
               rawDataSize 0
               serialization.ddl struct test1 { string key, string value}
@@ -857,6 +814,7 @@ STAGE PLANS:
               input format: org.apache.hadoop.mapred.TextInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
               properties:
+                COLUMN_STATS_ACCURATE true
                 SORTBUCKETCOLSPREFIX TRUE
                 bucket_count 3
                 bucket_field_name key
@@ -865,7 +823,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
                 name default.test1
                 numFiles 3
-                numPartitions 0
                 numRows 0
                 rawDataSize 0
                 serialization.ddl struct test1 { string key, string value}
@@ -947,38 +904,29 @@ STAGE PLANS:
                       type: string
                       expr: _col5
                       type: string
-                outputColumnNames: _col0, _col1, _col4, _col5
-                Select Operator
-                  expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: string
-                        expr: _col4
-                        type: string
-                        expr: _col5
-                        type: string
-                  outputColumnNames: _col0, _col1, _col2, _col3
-                  File Output Operator
-                    compressed: false
-                    GlobalTableId: 0
+                outputColumnNames: _col0, _col1, _col2, _col3
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 0
 #### A masked pattern was here ####
-                    NumFilesPerFileSink: 1
+                  NumFilesPerFileSink: 1
 #### A masked pattern was here ####
-                    table:
-                        input format: org.apache.hadoop.mapred.TextInputFormat
-                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                        properties:
-                          columns _col0,_col1,_col2,_col3
-                          columns.types string:string:string:string
-                          escape.delim \
-                          serialization.format 1
-                    TotalFiles: 1
-                    GatherStats: false
-                    MultiFileSpray: false
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      properties:
+                        columns _col0,_col1,_col2,_col3
+                        columns.types string:string:string:string
+                        escape.delim \
+                        hive.serialization.extend.nesting.levels true
+                        serialization.format 1
+                        serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  TotalFiles: 1
+                  GatherStats: false
+                  MultiFileSpray: false
       Local Work:
         Map Reduce Local Work
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -988,6 +936,7 @@ STAGE PLANS:
             input format: org.apache.hadoop.mapred.TextInputFormat
             output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
             properties:
+              COLUMN_STATS_ACCURATE true
               SORTBUCKETCOLSPREFIX TRUE
               bucket_count 3
               bucket_field_name key
@@ -996,7 +945,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.test1
               numFiles 3
-              numPartitions 0
               numRows 0
               rawDataSize 0
               serialization.ddl struct test1 { string key, string value}
@@ -1009,6 +957,7 @@ STAGE PLANS:
               input format: org.apache.hadoop.mapred.TextInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
               properties:
+                COLUMN_STATS_ACCURATE true
                 SORTBUCKETCOLSPREFIX TRUE
                 bucket_count 3
                 bucket_field_name key
@@ -1017,7 +966,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
                 name default.test1
                 numFiles 3
-                numPartitions 0
                 numRows 0
                 rawDataSize 0
                 serialization.ddl struct test1 { string key, string value}
@@ -1099,38 +1047,29 @@ STAGE PLANS:
                       type: string
                       expr: _col5
                       type: string
-                outputColumnNames: _col0, _col1, _col4, _col5
-                Select Operator
-                  expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: string
-                        expr: _col4
-                        type: string
-                        expr: _col5
-                        type: string
-                  outputColumnNames: _col0, _col1, _col2, _col3
-                  File Output Operator
-                    compressed: false
-                    GlobalTableId: 0
+                outputColumnNames: _col0, _col1, _col2, _col3
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 0
 #### A masked pattern was here ####
-                    NumFilesPerFileSink: 1
+                  NumFilesPerFileSink: 1
 #### A masked pattern was here ####
-                    table:
-                        input format: org.apache.hadoop.mapred.TextInputFormat
-                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                        properties:
-                          columns _col0,_col1,_col2,_col3
-                          columns.types string:string:string:string
-                          escape.delim \
-                          serialization.format 1
-                    TotalFiles: 1
-                    GatherStats: false
-                    MultiFileSpray: false
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      properties:
+                        columns _col0,_col1,_col2,_col3
+                        columns.types string:string:string:string
+                        escape.delim \
+                        hive.serialization.extend.nesting.levels true
+                        serialization.format 1
+                        serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  TotalFiles: 1
+                  GatherStats: false
+                  MultiFileSpray: false
       Local Work:
         Map Reduce Local Work
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -1140,6 +1079,7 @@ STAGE PLANS:
             input format: org.apache.hadoop.mapred.TextInputFormat
             output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
             properties:
+              COLUMN_STATS_ACCURATE true
               SORTBUCKETCOLSPREFIX TRUE
               bucket_count 3
               bucket_field_name value
@@ -1148,7 +1088,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.test2
               numFiles 3
-              numPartitions 0
               numRows 0
               rawDataSize 0
               serialization.ddl struct test2 { string key, string value}
@@ -1161,6 +1100,7 @@ STAGE PLANS:
               input format: org.apache.hadoop.mapred.TextInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
               properties:
+                COLUMN_STATS_ACCURATE true
                 SORTBUCKETCOLSPREFIX TRUE
                 bucket_count 3
                 bucket_field_name value
@@ -1169,7 +1109,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
                 name default.test2
                 numFiles 3
-                numPartitions 0
                 numRows 0
                 rawDataSize 0
                 serialization.ddl struct test2 { string key, string value}
@@ -1251,38 +1190,29 @@ STAGE PLANS:
                       type: string
                       expr: _col5
                       type: string
-                outputColumnNames: _col0, _col1, _col4, _col5
-                Select Operator
-                  expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: string
-                        expr: _col4
-                        type: string
-                        expr: _col5
-                        type: string
-                  outputColumnNames: _col0, _col1, _col2, _col3
-                  File Output Operator
-                    compressed: false
-                    GlobalTableId: 0
+                outputColumnNames: _col0, _col1, _col2, _col3
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 0
 #### A masked pattern was here ####
-                    NumFilesPerFileSink: 1
+                  NumFilesPerFileSink: 1
 #### A masked pattern was here ####
-                    table:
-                        input format: org.apache.hadoop.mapred.TextInputFormat
-                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                        properties:
-                          columns _col0,_col1,_col2,_col3
-                          columns.types string:string:string:string
-                          escape.delim \
-                          serialization.format 1
-                    TotalFiles: 1
-                    GatherStats: false
-                    MultiFileSpray: false
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      properties:
+                        columns _col0,_col1,_col2,_col3
+                        columns.types string:string:string:string
+                        escape.delim \
+                        hive.serialization.extend.nesting.levels true
+                        serialization.format 1
+                        serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  TotalFiles: 1
+                  GatherStats: false
+                  MultiFileSpray: false
       Local Work:
         Map Reduce Local Work
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -1292,6 +1222,7 @@ STAGE PLANS:
             input format: org.apache.hadoop.mapred.TextInputFormat
             output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
             properties:
+              COLUMN_STATS_ACCURATE true
               SORTBUCKETCOLSPREFIX TRUE
               bucket_count 3
               bucket_field_name value
@@ -1300,7 +1231,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.test2
               numFiles 3
-              numPartitions 0
               numRows 0
               rawDataSize 0
               serialization.ddl struct test2 { string key, string value}
@@ -1313,6 +1243,7 @@ STAGE PLANS:
               input format: org.apache.hadoop.mapred.TextInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
               properties:
+                COLUMN_STATS_ACCURATE true
                 SORTBUCKETCOLSPREFIX TRUE
                 bucket_count 3
                 bucket_field_name value
@@ -1321,7 +1252,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
                 name default.test2
                 numFiles 3
-                numPartitions 0
                 numRows 0
                 rawDataSize 0
                 serialization.ddl struct test2 { string key, string value}
@@ -1403,38 +1333,29 @@ STAGE PLANS:
                       type: string
                       expr: _col5
                       type: string
-                outputColumnNames: _col0, _col1, _col4, _col5
-                Select Operator
-                  expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: string
-                        expr: _col4
-                        type: string
-                        expr: _col5
-                        type: string
-                  outputColumnNames: _col0, _col1, _col2, _col3
-                  File Output Operator
-                    compressed: false
-                    GlobalTableId: 0
+                outputColumnNames: _col0, _col1, _col2, _col3
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 0
 #### A masked pattern was here ####
-                    NumFilesPerFileSink: 1
+                  NumFilesPerFileSink: 1
 #### A masked pattern was here ####
-                    table:
-                        input format: org.apache.hadoop.mapred.TextInputFormat
-                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                        properties:
-                          columns _col0,_col1,_col2,_col3
-                          columns.types string:string:string:string
-                          escape.delim \
-                          serialization.format 1
-                    TotalFiles: 1
-                    GatherStats: false
-                    MultiFileSpray: false
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      properties:
+                        columns _col0,_col1,_col2,_col3
+                        columns.types string:string:string:string
+                        escape.delim \
+                        hive.serialization.extend.nesting.levels true
+                        serialization.format 1
+                        serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  TotalFiles: 1
+                  GatherStats: false
+                  MultiFileSpray: false
       Local Work:
         Map Reduce Local Work
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -1444,6 +1365,7 @@ STAGE PLANS:
             input format: org.apache.hadoop.mapred.TextInputFormat
             output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
             properties:
+              COLUMN_STATS_ACCURATE true
               SORTBUCKETCOLSPREFIX TRUE
               bucket_count 3
               bucket_field_name key
@@ -1452,7 +1374,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
               name default.test3
               numFiles 3
-              numPartitions 0
               numRows 0
               rawDataSize 0
               serialization.ddl struct test3 { string key, string value}
@@ -1465,6 +1386,7 @@ STAGE PLANS:
               input format: org.apache.hadoop.mapred.TextInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
               properties:
+                COLUMN_STATS_ACCURATE true
                 SORTBUCKETCOLSPREFIX TRUE
                 bucket_count 3
                 bucket_field_name key
@@ -1473,7 +1395,6 @@ STAGE PLANS:
 #### A masked pattern was here ####
                 name default.test3
                 numFiles 3
-                numPartitions 0
                 numRows 0
                 rawDataSize 0
                 serialization.ddl struct test3 { string key, string value}

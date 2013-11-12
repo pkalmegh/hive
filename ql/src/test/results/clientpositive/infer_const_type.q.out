@@ -7,10 +7,10 @@ PREHOOK: type: CREATETABLE
 POSTHOOK: query: CREATE TABLE infertypes(ti TINYINT, si SMALLINT, i INT, bi BIGINT, fl FLOAT, db DOUBLE, str STRING)
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@infertypes
-PREHOOK: query: LOAD DATA LOCAL INPATH '../data/files/infer_const_type.txt' OVERWRITE INTO TABLE infertypes
+PREHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/infer_const_type.txt' OVERWRITE INTO TABLE infertypes
 PREHOOK: type: LOAD
 PREHOOK: Output: default@infertypes
-POSTHOOK: query: LOAD DATA LOCAL INPATH '../data/files/infer_const_type.txt' OVERWRITE INTO TABLE infertypes
+POSTHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/infer_const_type.txt' OVERWRITE INTO TABLE infertypes
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@infertypes
 PREHOOK: query: SELECT * FROM infertypes
@@ -58,7 +58,7 @@ STAGE PLANS:
             alias: infertypes
             Filter Operator
               predicate:
-                  expr: (((((((ti = 127) and (si = 32767)) and (i = 12345)) and (bi = -12345)) and (fl = 906.0)) and (db = -307.0)) and (str = 1234.0))
+                  expr: (((((((ti = 127) and (si = 32767)) and (i = 12345)) and (bi = -12345)) and (fl = 906.0)) and (db = -307.0)) and (str = 1234))
                   type: boolean
               Select Operator
                 expressions:
@@ -83,6 +83,7 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator
@@ -175,6 +176,7 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator
@@ -254,6 +256,7 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator
@@ -325,6 +328,7 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator

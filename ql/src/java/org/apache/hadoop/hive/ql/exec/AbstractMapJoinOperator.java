@@ -20,13 +20,10 @@ package org.apache.hadoop.hive.ql.exec;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.ql.exec.persistence.AbstractMapJoinKey;
+import org.apache.hadoop.hive.ql.exec.persistence.MapJoinKey;
 import org.apache.hadoop.hive.ql.exec.persistence.RowContainer;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc;
@@ -44,20 +41,19 @@ public abstract class AbstractMapJoinOperator <T extends MapJoinDesc> extends Co
   /**
    * The expressions for join inputs's join keys.
    */
-  protected transient Map<Byte, List<ExprNodeEvaluator>> joinKeys;
+  protected transient List<ExprNodeEvaluator>[] joinKeys;
   /**
    * The ObjectInspectors for the join inputs's join keys.
    */
-  protected transient Map<Byte, List<ObjectInspector>> joinKeysObjectInspectors;
+  protected transient List<ObjectInspector>[] joinKeysObjectInspectors;
   /**
    * The standard ObjectInspectors for the join inputs's join keys.
    */
-  protected transient Map<Byte, List<ObjectInspector>> joinKeysStandardObjectInspectors;
+  protected transient List<ObjectInspector>[] joinKeysStandardObjectInspectors;
 
-  protected transient int posBigTable = -1; // one of the tables that is not in memory
-  transient int mapJoinRowsKey; // rows for a given key
+  protected transient byte posBigTable = -1; // one of the tables that is not in memory
 
-  protected transient RowContainer<ArrayList<Object>> emptyList = null;
+  protected transient RowContainer<List<Object>> emptyList = null;
 
   transient int numMapRowsRead;
 
@@ -78,32 +74,33 @@ public abstract class AbstractMapJoinOperator <T extends MapJoinDesc> extends Co
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   protected void initializeOp(Configuration hconf) throws HiveException {
     super.initializeOp(hconf);
 
     numMapRowsRead = 0;
     firstRow = true;
 
-    joinKeys = new HashMap<Byte, List<ExprNodeEvaluator>>();
+    int tagLen = conf.getTagLength();
 
-    JoinUtil.populateJoinKeyValue(joinKeys, conf.getKeys(),order,NOTSKIPBIGTABLE);
+    joinKeys = new List[tagLen];
+
+    JoinUtil.populateJoinKeyValue(joinKeys, conf.getKeys(), NOTSKIPBIGTABLE);
     joinKeysObjectInspectors = JoinUtil.getObjectInspectorsFromEvaluators(joinKeys,
-        inputObjInspectors,NOTSKIPBIGTABLE);
+        inputObjInspectors,NOTSKIPBIGTABLE, tagLen);
     joinKeysStandardObjectInspectors = JoinUtil.getStandardObjectInspectors(
-        joinKeysObjectInspectors,NOTSKIPBIGTABLE);
+        joinKeysObjectInspectors,NOTSKIPBIGTABLE, tagLen);
 
     // all other tables are small, and are cached in the hash table
-    posBigTable = conf.getPosBigTable();
+    posBigTable = (byte) conf.getPosBigTable();
 
-    emptyList = new RowContainer<ArrayList<Object>>(1, hconf);
+    emptyList = new RowContainer<List<Object>>(1, hconf, reporter);
 
-    RowContainer bigPosRC = JoinUtil.getRowContainer(hconf,
-        rowContainerStandardObjectInspectors.get((byte) posBigTable),
-        order[posBigTable], joinCacheSize,spillTableDesc, conf, !hasFilter(posBigTable));
-    storage.put((byte) posBigTable, bigPosRC);
-
-    mapJoinRowsKey = HiveConf.getIntVar(hconf,
-        HiveConf.ConfVars.HIVEMAPJOINROWSIZE);
+    RowContainer<List<Object>> bigPosRC = JoinUtil.getRowContainer(hconf,
+        rowContainerStandardObjectInspectors[posBigTable],
+        posBigTable, joinCacheSize,spillTableDesc, conf,
+        !hasFilter(posBigTable), reporter);
+    storage[posBigTable] = bigPosRC;
 
     List<? extends StructField> structFields = ((StructObjectInspector) outputObjInspector)
         .getAllStructFieldRefs();
@@ -162,8 +159,7 @@ public abstract class AbstractMapJoinOperator <T extends MapJoinDesc> extends Co
   }
 
   // returns true if there are elements in key list and any of them is null
-  protected boolean hasAnyNulls(AbstractMapJoinKey key) {
+  protected boolean hasAnyNulls(MapJoinKey key) {
     return key.hasAnyNulls(nullsafes);
   }
-
 }

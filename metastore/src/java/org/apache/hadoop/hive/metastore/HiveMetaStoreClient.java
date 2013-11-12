@@ -28,11 +28,14 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import javax.security.auth.login.LoginException;
 
@@ -41,12 +44,15 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
+import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
 import org.apache.hadoop.hive.metastore.api.ConfigValSecurityException;
 import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.HiveObjectPrivilege;
 import org.apache.hadoop.hive.metastore.api.HiveObjectRef;
 import org.apache.hadoop.hive.metastore.api.Index;
+import org.apache.hadoop.hive.metastore.api.InvalidInputException;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
 import org.apache.hadoop.hive.metastore.api.InvalidPartitionException;
@@ -54,6 +60,8 @@ import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.PartitionEventType;
+import org.apache.hadoop.hive.metastore.api.PartitionsByExprRequest;
+import org.apache.hadoop.hive.metastore.api.PartitionsByExprResult;
 import org.apache.hadoop.hive.metastore.api.PrincipalPrivilegeSet;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.hive.metastore.api.PrivilegeBag;
@@ -69,6 +77,7 @@ import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.StringUtils;
+import org.apache.thrift.TApplicationException;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TFramedTransport;
@@ -120,7 +129,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
     }
 
     // get the number retries
-    retries = HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORETHRIFTRETRIES);
+    retries = HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES);
     retryDelaySeconds = conf.getIntVar(ConfVars.METASTORE_CLIENT_CONNECT_RETRY_DELAY);
 
     // user wants file store based configuration
@@ -161,6 +170,35 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
   }
 
   /**
+   * Swaps the first element of the metastoreUris array with a random element from the
+   * remainder of the array.
+   */
+  private void promoteRandomMetaStoreURI() {
+    if (metastoreUris.length <= 1) {
+      return;
+    }
+    Random rng = new Random();
+    int index = rng.nextInt(metastoreUris.length - 1) + 1;
+    URI tmp = metastoreUris[0];
+    metastoreUris[0] = metastoreUris[index];
+    metastoreUris[index] = tmp;
+  }
+
+  public void reconnect() throws MetaException {
+    if (localMetaStore) {
+      // For direct DB connections we don't yet support reestablishing connections.
+      throw new MetaException("For direct MetaStore DB connections, we don't support retries" +
+          " at the client level.");
+    } else {
+      // Swap the first element of the metastoreUris[] with a random element from the rest
+      // of the array. Rationale being that this method will generally be called when the default
+      // connection has died and the default connection is likely to be the first array element.
+      promoteRandomMetaStoreURI();
+      open();
+    }
+  }
+
+  /**
    * @param dbname
    * @param tbl_name
    * @param new_tbl
@@ -174,7 +212,12 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
    */
   public void alter_table(String dbname, String tbl_name, Table new_tbl)
       throws InvalidOperationException, MetaException, TException {
-    client.alter_table(dbname, tbl_name, new_tbl);
+    alter_table(dbname, tbl_name, new_tbl, null);
+  }
+
+  public void alter_table(String dbname, String tbl_name, Table new_tbl,
+      EnvironmentContext envContext) throws InvalidOperationException, MetaException, TException {
+    client.alter_table_with_environment_context(dbname, tbl_name, new_tbl, envContext);
   }
 
   /**
@@ -194,113 +237,104 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
   }
 
   private void open() throws MetaException {
-    for (URI store : metastoreUris) {
-      LOG.info("Trying to connect to metastore with URI " + store);
-      try {
-        openStore(store);
-      } catch (MetaException e) {
-        LOG.error("Unable to connect to metastore with URI " + store, e);
-      }
-      if (isConnected) {
-        break;
-      }
-    }
-    if (!isConnected) {
-      throw new MetaException(
-          "Could not connect to meta store using any of the URIs provided");
-    }
-    LOG.info("Connected to metastore.");
-  }
-
-  private void openStore(URI store) throws MetaException {
-
     isConnected = false;
     TTransportException tte = null;
     HadoopShims shim = ShimLoader.getHadoopShims();
     boolean useSasl = conf.getBoolVar(ConfVars.METASTORE_USE_THRIFT_SASL);
     boolean useFramedTransport = conf.getBoolVar(ConfVars.METASTORE_USE_THRIFT_FRAMED_TRANSPORT);
-    transport = new TSocket(store.getHost(), store.getPort());
     int clientSocketTimeout = conf.getIntVar(ConfVars.METASTORE_CLIENT_SOCKET_TIMEOUT);
 
-    transport = new TSocket(store.getHost(), store.getPort(), 1000 * clientSocketTimeout);
-
-    if (useSasl) {
-      // Wrap thrift connection with SASL for secure connection.
-      try {
-        HadoopThriftAuthBridge.Client authBridge =
-          ShimLoader.getHadoopThriftAuthBridge().createClient();
-
-        // check if we should use delegation tokens to authenticate
-        // the call below gets hold of the tokens if they are set up by hadoop
-        // this should happen on the map/reduce tasks if the client added the
-        // tokens into hadoop's credential store in the front end during job
-        // submission.
-        String tokenSig = conf.get("hive.metastore.token.signature");
-        // tokenSig could be null
-        tokenStrForm = shim.getTokenStrForm(tokenSig);
-
-        if(tokenStrForm != null) {
-          // authenticate using delegation tokens via the "DIGEST" mechanism
-          transport = authBridge.createClientTransport(null, store.getHost(),
-              "DIGEST", tokenStrForm, transport);
-        } else {
-          String principalConfig = conf.getVar(HiveConf.ConfVars.METASTORE_KERBEROS_PRINCIPAL);
-          transport = authBridge.createClientTransport(
-              principalConfig, store.getHost(), "KERBEROS", null,
-              transport);
-        }
-      } catch (IOException ioe) {
-        LOG.error("Couldn't create client transport", ioe);
-        throw new MetaException(ioe.toString());
-      }
-    } else if (useFramedTransport) {
-      transport = new TFramedTransport(transport);
-    }
-
-    client = new ThriftHiveMetastore.Client(new TBinaryProtocol(transport));
-
     for (int attempt = 0; !isConnected && attempt < retries; ++attempt) {
-      if (attempt > 0 && retryDelaySeconds > 0) {
+      for (URI store : metastoreUris) {
+        LOG.info("Trying to connect to metastore with URI " + store);
+        try {
+          transport = new TSocket(store.getHost(), store.getPort(), 1000 * clientSocketTimeout);
+          if (useSasl) {
+            // Wrap thrift connection with SASL for secure connection.
+            try {
+              HadoopThriftAuthBridge.Client authBridge =
+                ShimLoader.getHadoopThriftAuthBridge().createClient();
+
+              // check if we should use delegation tokens to authenticate
+              // the call below gets hold of the tokens if they are set up by hadoop
+              // this should happen on the map/reduce tasks if the client added the
+              // tokens into hadoop's credential store in the front end during job
+              // submission.
+              String tokenSig = conf.get("hive.metastore.token.signature");
+              // tokenSig could be null
+              tokenStrForm = shim.getTokenStrForm(tokenSig);
+              if(tokenStrForm != null) {
+                // authenticate using delegation tokens via the "DIGEST" mechanism
+                transport = authBridge.createClientTransport(null, store.getHost(),
+                    "DIGEST", tokenStrForm, transport,
+                        MetaStoreUtils.getMetaStoreSaslProperties(conf));
+              } else {
+                String principalConfig =
+                    conf.getVar(HiveConf.ConfVars.METASTORE_KERBEROS_PRINCIPAL);
+                transport = authBridge.createClientTransport(
+                    principalConfig, store.getHost(), "KERBEROS", null,
+                    transport, MetaStoreUtils.getMetaStoreSaslProperties(conf));
+              }
+            } catch (IOException ioe) {
+              LOG.error("Couldn't create client transport", ioe);
+              throw new MetaException(ioe.toString());
+            }
+          } else if (useFramedTransport) {
+            transport = new TFramedTransport(transport);
+          }
+
+          client = new ThriftHiveMetastore.Client(new TBinaryProtocol(transport));
+          try {
+            transport.open();
+            isConnected = true;
+          } catch (TTransportException e) {
+            tte = e;
+            if (LOG.isDebugEnabled()) {
+              LOG.warn("Failed to connect to the MetaStore Server...", e);
+            } else {
+              // Don't print full exception trace if DEBUG is not on.
+              LOG.warn("Failed to connect to the MetaStore Server...");
+            }
+          }
+
+          if (isConnected && !useSasl && conf.getBoolVar(ConfVars.METASTORE_EXECUTE_SET_UGI)){
+            // Call set_ugi, only in unsecure mode.
+            try {
+              UserGroupInformation ugi = shim.getUGIForConf(conf);
+              client.set_ugi(ugi.getUserName(), Arrays.asList(ugi.getGroupNames()));
+            } catch (LoginException e) {
+              LOG.warn("Failed to do login. set_ugi() is not successful, " +
+                       "Continuing without it.", e);
+            } catch (IOException e) {
+              LOG.warn("Failed to find ugi of client set_ugi() is not successful, " +
+                  "Continuing without it.", e);
+            } catch (TException e) {
+              LOG.warn("set_ugi() not successful, Likely cause: new client talking to old server. "
+                  + "Continuing without it.", e);
+            }
+          }
+        } catch (MetaException e) {
+          LOG.error("Unable to connect to metastore with URI " + store
+                    + " in attempt " + attempt, e);
+        }
+        if (isConnected) {
+          break;
+        }
+      }
+      // Wait before launching the next round of connection retries.
+      if (retryDelaySeconds > 0) {
         try {
           LOG.info("Waiting " + retryDelaySeconds + " seconds before next connection attempt.");
           Thread.sleep(retryDelaySeconds * 1000);
         } catch (InterruptedException ignore) {}
       }
-
-      try {
-        transport.open();
-        isConnected = true;
-      } catch (TTransportException e) {
-        tte = e;
-        if (LOG.isDebugEnabled()) {
-          LOG.warn("Failed to connect to the MetaStore Server...", e);
-        } else {
-          // Don't print full exception trace if DEBUG is not on.
-          LOG.warn("Failed to connect to the MetaStore Server...");
-        }
-      }
     }
 
     if (!isConnected) {
-      throw new MetaException("Could not connect to the MetaStore server! Caused by: " +
-          StringUtils.stringifyException(tte));
+      throw new MetaException("Could not connect to meta store using any of the URIs provided." +
+        " Most recent failure: " + StringUtils.stringifyException(tte));
     }
-
-    if (!useSasl && conf.getBoolVar(ConfVars.METASTORE_EXECUTE_SET_UGI)){
-      // Call set_ugi, only in unsecure mode.
-      try {
-        UserGroupInformation ugi = shim.getUGIForConf(conf);
-        client.set_ugi(ugi.getUserName(), Arrays.asList(ugi.getGroupNames()));
-      } catch (LoginException e) {
-        LOG.warn("Failed to do login. set_ugi() is not successful, Continuing without it.", e);
-      } catch (IOException e) {
-        LOG.warn("Failed to find ugi of client set_ugi() is not successful, " +
-            "Continuing without it.", e);
-      } catch (TException e) {
-        LOG.warn("set_ugi() not successful, Likely cause: new client talking to old server. " +
-            "Continuing without it.", e);
-      }
-    }
+    LOG.info("Connected to metastore.");
   }
 
   public String getTokenStrForm() throws IOException {
@@ -335,7 +369,13 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
   public Partition add_partition(Partition new_part)
       throws InvalidObjectException, AlreadyExistsException, MetaException,
       TException {
-    return deepCopy(client.add_partition(new_part));
+    return add_partition(new_part, null);
+  }
+
+  public Partition add_partition(Partition new_part, EnvironmentContext envContext)
+      throws InvalidObjectException, AlreadyExistsException, MetaException,
+      TException {
+    return deepCopy(client.add_partition_with_environment_context(new_part, envContext));
   }
 
   /**
@@ -367,14 +407,47 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
   public Partition appendPartition(String db_name, String table_name,
       List<String> part_vals) throws InvalidObjectException,
       AlreadyExistsException, MetaException, TException {
-    return deepCopy(client.append_partition(db_name, table_name, part_vals));
+    return appendPartition(db_name, table_name, part_vals, null);
+  }
+
+  public Partition appendPartition(String db_name, String table_name, List<String> part_vals,
+      EnvironmentContext envContext) throws InvalidObjectException, AlreadyExistsException,
+      MetaException, TException {
+    return deepCopy(client.append_partition_with_environment_context(db_name, table_name,
+        part_vals, envContext));
   }
 
   public Partition appendPartition(String dbName, String tableName, String partName)
-      throws InvalidObjectException, AlreadyExistsException,
-             MetaException, TException {
-    return deepCopy(
-        client.append_partition_by_name(dbName, tableName, partName));
+      throws InvalidObjectException, AlreadyExistsException, MetaException, TException {
+    return appendPartition(dbName, tableName, partName, null);
+  }
+
+  public Partition appendPartition(String dbName, String tableName, String partName,
+      EnvironmentContext envContext) throws InvalidObjectException, AlreadyExistsException,
+      MetaException, TException {
+    return deepCopy(client.append_partition_by_name_with_environment_context(dbName, tableName,
+        partName, envContext));
+  }
+
+  /**
+   * Exchange the partition between two tables
+   * @param partitionSpecs partitions specs of the parent partition to be exchanged
+   * @param destDb the db of the destination table
+   * @param destinationTableName the destination table name
+   @ @return new partition after exchanging
+   */
+  @Override
+  public Partition exchange_partition(Map<String, String> partitionSpecs,
+      String sourceDb, String sourceTable, String destDb,
+      String destinationTableName) throws MetaException,
+      NoSuchObjectException, InvalidObjectException, TException {
+    return client.exchange_partition(partitionSpecs, sourceDb, sourceTable,
+        destDb, destinationTableName);
+  }
+
+  public void validatePartitionNameCharacters(List<String> partVals)
+      throws TException, MetaException {
+    client.partition_name_has_valid_characters(partVals, true);
   }
 
   /**
@@ -400,13 +473,18 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
    */
   public void createTable(Table tbl) throws AlreadyExistsException,
       InvalidObjectException, MetaException, NoSuchObjectException, TException {
+    createTable(tbl, null);
+  }
+
+  public void createTable(Table tbl, EnvironmentContext envContext) throws AlreadyExistsException,
+      InvalidObjectException, MetaException, NoSuchObjectException, TException {
     HiveMetaHook hook = getHook(tbl);
     if (hook != null) {
       hook.preCreateTable(tbl);
     }
     boolean success = false;
     try {
-      client.create_table(tbl);
+      client.create_table_with_environment_context(tbl, envContext);
       if (hook != null) {
         hook.commitCreateTable(tbl);
       }
@@ -489,13 +567,25 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
   public boolean dropPartition(String db_name, String tbl_name,
       List<String> part_vals) throws NoSuchObjectException, MetaException,
       TException {
-    return dropPartition(db_name, tbl_name, part_vals, true);
+    return dropPartition(db_name, tbl_name, part_vals, true, null);
+  }
+
+  public boolean dropPartition(String db_name, String tbl_name, List<String> part_vals,
+      EnvironmentContext env_context) throws NoSuchObjectException, MetaException, TException {
+    return dropPartition(db_name, tbl_name, part_vals, true, env_context);
   }
 
   public boolean dropPartition(String dbName, String tableName, String partName, boolean deleteData)
       throws NoSuchObjectException, MetaException, TException {
-    return client.drop_partition_by_name(dbName, tableName, partName, deleteData);
+    return dropPartition(dbName, tableName, partName, deleteData, null);
   }
+
+  public boolean dropPartition(String dbName, String tableName, String partName, boolean deleteData,
+      EnvironmentContext envContext) throws NoSuchObjectException, MetaException, TException {
+    return client.drop_partition_by_name_with_environment_context(dbName, tableName, partName,
+        deleteData, envContext);
+  }
+
   /**
    * @param db_name
    * @param tbl_name
@@ -512,7 +602,14 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
   public boolean dropPartition(String db_name, String tbl_name,
       List<String> part_vals, boolean deleteData) throws NoSuchObjectException,
       MetaException, TException {
-    return client.drop_partition(db_name, tbl_name, part_vals, deleteData);
+    return dropPartition(db_name, tbl_name, part_vals, deleteData, null);
+  }
+
+  public boolean dropPartition(String db_name, String tbl_name, List<String> part_vals,
+      boolean deleteData, EnvironmentContext envContext) throws NoSuchObjectException,
+      MetaException, TException {
+    return client.drop_partition_with_environment_context(db_name, tbl_name, part_vals, deleteData,
+        envContext);
   }
 
   /**
@@ -527,14 +624,14 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
    */
   public void dropTable(String dbname, String name)
       throws NoSuchObjectException, MetaException, TException {
-    dropTable(dbname, name, true, true);
+    dropTable(dbname, name, true, true, null);
   }
 
   /** {@inheritDoc} */
   @Deprecated
   public void dropTable(String tableName, boolean deleteData)
       throws MetaException, UnknownTableException, TException, NoSuchObjectException {
-    dropTable(DEFAULT_DATABASE_NAME, tableName, deleteData, false);
+    dropTable(DEFAULT_DATABASE_NAME, tableName, deleteData, false, null);
   }
 
   /**
@@ -550,14 +647,19 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
    *      java.lang.String, boolean)
    */
   public void dropTable(String dbname, String name, boolean deleteData,
-      boolean ignoreUknownTab) throws MetaException, TException,
+      boolean ignoreUnknownTab) throws MetaException, TException,
       NoSuchObjectException, UnsupportedOperationException {
+    dropTable(dbname, name, deleteData, ignoreUnknownTab, null);
+  }
 
+  public void dropTable(String dbname, String name, boolean deleteData,
+      boolean ignoreUnknownTab, EnvironmentContext envContext) throws MetaException, TException,
+      NoSuchObjectException, UnsupportedOperationException {
     Table tbl;
     try {
       tbl = getTable(dbname, name);
     } catch (NoSuchObjectException e) {
-      if (!ignoreUknownTab) {
+      if (!ignoreUnknownTab) {
         throw e;
       }
       return;
@@ -571,13 +673,13 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
     }
     boolean success = false;
     try {
-      client.drop_table(dbname, name, deleteData);
+      client.drop_table_with_environment_context(dbname, name, deleteData, envContext);
       if (hook != null) {
         hook.commitDropTable(tbl, deleteData);
       }
       success=true;
     } catch (NoSuchObjectException e) {
-      if (!ignoreUknownTab) {
+      if (!ignoreUnknownTab) {
         throw e;
       }
     } finally {
@@ -699,6 +801,37 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
     return deepCopyPartitions(
         client.get_partitions_by_filter(db_name, tbl_name, filter, max_parts));
   }
+
+  @Override
+  public boolean listPartitionsByExpr(String db_name, String tbl_name, byte[] expr,
+      String default_partition_name, short max_parts, List<Partition> result)
+          throws TException {
+    assert result != null;
+    PartitionsByExprRequest req = new PartitionsByExprRequest(
+        db_name, tbl_name, ByteBuffer.wrap(expr));
+    if (default_partition_name != null) {
+      req.setDefaultPartitionName(default_partition_name);
+    }
+    if (max_parts >= 0) {
+      req.setMaxParts(max_parts);
+    }
+    PartitionsByExprResult r = null;
+    try {
+      r = client.get_partitions_by_expr(req);
+    } catch (TApplicationException te) {
+      // TODO: backward compat for Hive <= 0.12. Can be removed later.
+      if (te.getType() != TApplicationException.UNKNOWN_METHOD
+          && te.getType() != TApplicationException.WRONG_METHOD_NAME) {
+        throw te;
+      }
+      throw new IncompatibleMetastoreException(
+          "Metastore doesn't support listPartitionsByExpr: " + te.getMessage());
+    }
+    // TODO: in these methods, do we really need to deepcopy?
+    deepCopyPartitions(r.getPartitions(), result);
+    return !r.isSetHasUnknownPartitions() || r.isHasUnknownPartitions(); // Assume the worst.
+  }
+
 
   /**
    * @param name
@@ -943,6 +1076,50 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
     return client.get_indexes(dbName, tblName, max);
   }
 
+  /** {@inheritDoc} */
+  public boolean updateTableColumnStatistics(ColumnStatistics statsObj)
+    throws NoSuchObjectException, InvalidObjectException, MetaException, TException,
+    InvalidInputException{
+    return client.update_table_column_statistics(statsObj);
+  }
+
+  /** {@inheritDoc} */
+  public boolean updatePartitionColumnStatistics(ColumnStatistics statsObj)
+    throws NoSuchObjectException, InvalidObjectException, MetaException, TException,
+    InvalidInputException{
+    return client.update_partition_column_statistics(statsObj);
+  }
+
+  /** {@inheritDoc} */
+  public ColumnStatistics getTableColumnStatistics(String dbName, String tableName,String colName)
+    throws NoSuchObjectException, MetaException, TException, InvalidInputException,
+    InvalidObjectException {
+    return client.get_table_column_statistics(dbName, tableName, colName);
+  }
+
+  /** {@inheritDoc} */
+  public ColumnStatistics getPartitionColumnStatistics(String dbName, String tableName,
+    String partName, String colName) throws NoSuchObjectException, MetaException, TException,
+    InvalidInputException, InvalidObjectException {
+    return client.get_partition_column_statistics(dbName, tableName, partName, colName);
+  }
+
+  /** {@inheritDoc} */
+  public boolean deletePartitionColumnStatistics(String dbName, String tableName, String partName,
+    String colName) throws NoSuchObjectException, InvalidObjectException, MetaException,
+    TException, InvalidInputException
+  {
+    return client.delete_partition_column_statistics(dbName, tableName, partName, colName);
+  }
+
+  /** {@inheritDoc} */
+  public boolean deleteTableColumnStatistics(String dbName, String tableName, String colName)
+    throws NoSuchObjectException, InvalidObjectException, MetaException, TException,
+    InvalidInputException
+  {
+    return client.delete_table_column_statistics(dbName, tableName, colName);
+  }
+
   /**
    * @param db
    * @param tableName
@@ -971,13 +1148,26 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
 
   public Partition appendPartitionByName(String dbName, String tableName, String partName)
       throws InvalidObjectException, AlreadyExistsException, MetaException, TException {
-    return deepCopy(
-        client.append_partition_by_name(dbName, tableName, partName));
+    return appendPartitionByName(dbName, tableName, partName, null);
   }
 
-  public boolean dropPartitionByName(String dbName, String tableName, String partName, boolean deleteData)
-      throws NoSuchObjectException, MetaException, TException {
-    return client.drop_partition_by_name(dbName, tableName, partName, deleteData);
+  public Partition appendPartitionByName(String dbName, String tableName, String partName,
+      EnvironmentContext envContext) throws InvalidObjectException, AlreadyExistsException,
+      MetaException, TException {
+    return deepCopy(client.append_partition_by_name_with_environment_context(dbName, tableName,
+        partName, envContext));
+  }
+
+  public boolean dropPartitionByName(String dbName, String tableName, String partName,
+      boolean deleteData) throws NoSuchObjectException, MetaException, TException {
+    return dropPartitionByName(dbName, tableName, partName, deleteData, null);
+  }
+
+  public boolean dropPartitionByName(String dbName, String tableName, String partName,
+      boolean deleteData, EnvironmentContext envContext) throws NoSuchObjectException,
+      MetaException, TException {
+    return client.drop_partition_by_name_with_environment_context(dbName, tableName, partName,
+        deleteData, envContext);
   }
 
   private HiveMetaHook getHook(Table tbl) throws MetaException {
@@ -1050,14 +1240,21 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
   }
 
   private List<Partition> deepCopyPartitions(List<Partition> partitions) {
-    List<Partition> copy = null;
-    if (partitions != null) {
-      copy = new ArrayList<Partition>();
-      for (Partition part : partitions) {
-        copy.add(deepCopy(part));
-      }
+    return deepCopyPartitions(partitions, null);
+  }
+
+  private List<Partition> deepCopyPartitions(
+      Collection<Partition> src, List<Partition> dest) {
+    if (src == null) {
+      return dest;
     }
-    return copy;
+    if (dest == null) {
+      dest = new ArrayList<Partition>(src.size());
+    }
+    for (Partition part : src) {
+      dest.add(deepCopy(part));
+    }
+    return dest;
   }
 
   private List<Table> deepCopyTables(List<Table> tables) {
@@ -1244,5 +1441,4 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
     assert partKVs != null;
     return client.isPartitionMarkedForEvent(db_name, tbl_name, partKVs, eventType);
   }
-
 }

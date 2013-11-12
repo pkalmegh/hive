@@ -19,6 +19,8 @@
 package org.apache.hadoop.hive.serde2.binarysortable;
 
 import java.io.IOException;
+import java.math.BigInteger;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -29,12 +31,17 @@ import java.util.Properties;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.serde.Constants;
-import org.apache.hadoop.hive.serde2.SerDe;
+import org.apache.hadoop.hive.common.type.HiveDecimal;
+import org.apache.hadoop.hive.serde.serdeConstants;
+import org.apache.hadoop.hive.serde2.AbstractSerDe;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.io.ByteWritable;
+import org.apache.hadoop.hive.serde2.io.DateWritable;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
+import org.apache.hadoop.hive.serde2.io.HiveCharWritable;
+import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
+import org.apache.hadoop.hive.serde2.io.HiveVarcharWritable;
 import org.apache.hadoop.hive.serde2.io.ShortWritable;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
@@ -48,13 +55,18 @@ import org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.ByteObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.DateObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.FloatObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveCharObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveDecimalObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveVarcharObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.ShortObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
+import org.apache.hadoop.hive.serde2.typeinfo.BaseCharTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.ListTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.MapTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
@@ -63,6 +75,7 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.hadoop.hive.serde2.typeinfo.UnionTypeInfo;
+import org.apache.hadoop.hive.serde2.typeinfo.VarcharTypeInfo;
 import org.apache.hadoop.io.BooleanWritable;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.FloatWritable;
@@ -94,7 +107,7 @@ import org.apache.hadoop.io.Writable;
  * fields in the same top-level field will have the same sort order.
  *
  */
-public class BinarySortableSerDe implements SerDe {
+public class BinarySortableSerDe extends AbstractSerDe {
 
   public static final Log LOG = LogFactory.getLog(BinarySortableSerDe.class
       .getName());
@@ -107,13 +120,16 @@ public class BinarySortableSerDe implements SerDe {
 
   boolean[] columnSortOrderIsDesc;
 
+  private static byte[] decimalBuffer = null;
+  private static Charset decimalCharSet = Charset.forName("US-ASCII");
+
   @Override
   public void initialize(Configuration conf, Properties tbl)
       throws SerDeException {
 
     // Get column names and sort order
-    String columnNameProperty = tbl.getProperty(Constants.LIST_COLUMNS);
-    String columnTypeProperty = tbl.getProperty(Constants.LIST_COLUMN_TYPES);
+    String columnNameProperty = tbl.getProperty(serdeConstants.LIST_COLUMNS);
+    String columnTypeProperty = tbl.getProperty(serdeConstants.LIST_COLUMN_TYPES);
     if (columnNameProperty.length() == 0) {
       columnNames = new ArrayList<String>();
     } else {
@@ -138,7 +154,7 @@ public class BinarySortableSerDe implements SerDe {
 
     // Get the sort order
     String columnSortOrder = tbl
-        .getProperty(Constants.SERIALIZATION_SORT_ORDER);
+        .getProperty(serdeConstants.SERIALIZATION_SORT_ORDER);
     columnSortOrderIsDesc = new boolean[columnNames.size()];
     for (int i = 0; i < columnSortOrderIsDesc.length; i++) {
       columnSortOrderIsDesc[i] = (columnSortOrder != null && columnSortOrder
@@ -217,11 +233,7 @@ public class BinarySortableSerDe implements SerDe {
       }
       case INT: {
         IntWritable r = reuse == null ? new IntWritable() : (IntWritable) reuse;
-        int v = buffer.read(invert) ^ 0x80;
-        for (int i = 0; i < 3; i++) {
-          v = (v << 8) + (buffer.read(invert) & 0xff);
-        }
-        r.set(v);
+        r.set(deserializeInt(buffer, invert));
         return r;
       }
       case LONG: {
@@ -270,48 +282,27 @@ public class BinarySortableSerDe implements SerDe {
       }
       case STRING: {
         Text r = reuse == null ? new Text() : (Text) reuse;
-        // Get the actual length first
-        int start = buffer.tell();
-        int length = 0;
-        do {
-          byte b = buffer.read(invert);
-          if (b == 0) {
-            // end of string
-            break;
-          }
-          if (b == 1) {
-            // the last char is an escape char. read the actual char
-            buffer.read(invert);
-          }
-          length++;
-        } while (true);
+        return deserializeText(buffer, invert, r);
+      }
 
-        if (length == buffer.tell() - start) {
-          // No escaping happened, so we are already done.
-          r.set(buffer.getData(), start, length);
-        } else {
-          // Escaping happened, we need to copy byte-by-byte.
-          // 1. Set the length first.
-          r.set(buffer.getData(), start, length);
-          // 2. Reset the pointer.
-          buffer.seek(start);
-          // 3. Copy the data.
-          byte[] rdata = r.getBytes();
-          for (int i = 0; i < length; i++) {
-            byte b = buffer.read(invert);
-            if (b == 1) {
-              // The last char is an escape char, read the actual char.
-              // The serialization format escape \0 to \1, and \1 to \2,
-              // to make sure the string is null-terminated.
-              b = (byte) (buffer.read(invert) - 1);
-            }
-            rdata[i] = b;
-          }
-          // 4. Read the null terminator.
-          byte b = buffer.read(invert);
-          assert (b == 0);
-        }
+      case CHAR: {
+        HiveCharWritable r =
+            reuse == null ? new HiveCharWritable() : (HiveCharWritable) reuse;
+        // Use internal text member to read value
+        deserializeText(buffer, invert, r.getTextValue());
+        r.enforceMaxLength(getCharacterMaxLength(type));
         return r;
+      }
+
+      case VARCHAR: {
+        HiveVarcharWritable r =
+            reuse == null ? new HiveVarcharWritable() : (HiveVarcharWritable) reuse;
+            // Use HiveVarchar's internal Text member to read the value.
+            deserializeText(buffer, invert, r.getTextValue());
+            // If we cache helper data for deserialization we could avoid having
+            // to call getVarcharMaxLength() on every deserialize call.
+            r.enforceMaxLength(getCharacterMaxLength(type));
+            return r;
       }
 
       case BINARY: {
@@ -360,10 +351,17 @@ public class BinarySortableSerDe implements SerDe {
         return bw;
       }
 
+      case DATE: {
+        DateWritable d = reuse == null ? new DateWritable()
+            : (DateWritable) reuse;
+        d.set(deserializeInt(buffer, invert));
+        return d;
+      }
+
       case TIMESTAMP:
         TimestampWritable t = (reuse == null ? new TimestampWritable() :
             (TimestampWritable) reuse);
-        byte[] bytes = new byte[8];
+        byte[] bytes = new byte[TimestampWritable.BINARY_SORTABLE_LENGTH];
 
         for (int i = 0; i < bytes.length; i++) {
           bytes[i] = buffer.read(invert);
@@ -371,12 +369,71 @@ public class BinarySortableSerDe implements SerDe {
         t.setBinarySortable(bytes, 0);
         return t;
 
+      case DECIMAL: {
+        // See serialization of decimal for explanation (below)
+
+        HiveDecimalWritable bdw = (reuse == null ? new HiveDecimalWritable() :
+          (HiveDecimalWritable) reuse);
+
+        int b = buffer.read(invert) - 1;
+        assert (b == 1 || b == -1 || b == 0);
+        boolean positive = b != -1;
+
+        int factor = buffer.read(invert) ^ 0x80;
+        for (int i = 0; i < 3; i++) {
+          factor = (factor << 8) + (buffer.read(invert) & 0xff);
+        }
+
+        if (!positive) {
+          factor = -factor;
+        }
+
+        int start = buffer.tell();
+        int length = 0;
+
+        do {
+          b = buffer.read(positive ? invert : !invert);
+          assert(b != 1);
+
+          if (b == 0) {
+            // end of digits
+            break;
+          }
+
+          length++;
+        } while (true);
+
+        if(decimalBuffer == null || decimalBuffer.length < length) {
+          decimalBuffer = new byte[length];
+        }
+
+        buffer.seek(start);
+        for (int i = 0; i < length; ++i) {
+          decimalBuffer[i] = buffer.read(positive ? invert : !invert);
+        }
+
+        // read the null byte again
+        buffer.read(positive ? invert : !invert);
+
+        String digits = new String(decimalBuffer, 0, length, decimalCharSet);
+        BigInteger bi = new BigInteger(digits);
+        HiveDecimal bd = HiveDecimal.create(bi).scaleByPowerOfTen(factor-length);
+
+        if (!positive) {
+          bd = bd.negate();
+        }
+
+        bdw.set(bd);
+        return bdw;
+      }
+
       default: {
         throw new RuntimeException("Unrecognized type: "
             + ptype.getPrimitiveCategory());
       }
       }
     }
+
     case LIST: {
       ListTypeInfo ltype = (ListTypeInfo) type;
       TypeInfo etype = ltype.getListElementTypeInfo();
@@ -472,6 +529,64 @@ public class BinarySortableSerDe implements SerDe {
     }
   }
 
+  private static int deserializeInt(InputByteBuffer buffer, boolean invert) throws IOException {
+    int v = buffer.read(invert) ^ 0x80;
+    for (int i = 0; i < 3; i++) {
+      v = (v << 8) + (buffer.read(invert) & 0xff);
+    }
+    return v;
+  }
+
+  static int getCharacterMaxLength(TypeInfo type) {
+    return ((BaseCharTypeInfo)type).getLength();
+  }
+
+  static Text deserializeText(InputByteBuffer buffer, boolean invert, Text r)
+      throws IOException {
+    // Get the actual length first
+    int start = buffer.tell();
+    int length = 0;
+    do {
+      byte b = buffer.read(invert);
+      if (b == 0) {
+        // end of string
+        break;
+      }
+      if (b == 1) {
+        // the last char is an escape char. read the actual char
+        buffer.read(invert);
+      }
+      length++;
+    } while (true);
+
+    if (length == buffer.tell() - start) {
+      // No escaping happened, so we are already done.
+      r.set(buffer.getData(), start, length);
+    } else {
+      // Escaping happened, we need to copy byte-by-byte.
+      // 1. Set the length first.
+      r.set(buffer.getData(), start, length);
+      // 2. Reset the pointer.
+      buffer.seek(start);
+      // 3. Copy the data.
+      byte[] rdata = r.getBytes();
+      for (int i = 0; i < length; i++) {
+        byte b = buffer.read(invert);
+        if (b == 1) {
+          // The last char is an escape char, read the actual char.
+          // The serialization format escape \0 to \1, and \1 to \2,
+          // to make sure the string is null-terminated.
+          b = (byte) (buffer.read(invert) - 1);
+        }
+        rdata[i] = b;
+      }
+      // 4. Read the null terminator.
+      byte b = buffer.read(invert);
+      assert (b == 0);
+    }
+    return r;
+  }
+
   BytesWritable serializeBytesWritable = new BytesWritable();
   OutputByteBuffer outputByteBuffer = new OutputByteBuffer();
 
@@ -492,7 +607,7 @@ public class BinarySortableSerDe implements SerDe {
   }
 
   static void serialize(OutputByteBuffer buffer, Object o, ObjectInspector oi,
-      boolean invert) {
+      boolean invert) throws SerDeException {
     // Is this field a null?
     if (o == null) {
       buffer.write((byte) 0, invert);
@@ -529,10 +644,7 @@ public class BinarySortableSerDe implements SerDe {
       case INT: {
         IntObjectInspector ioi = (IntObjectInspector) poi;
         int v = ioi.get(o);
-        buffer.write((byte) ((v >> 24) ^ 0x80), invert);
-        buffer.write((byte) (v >> 16), invert);
-        buffer.write((byte) (v >> 8), invert);
-        buffer.write((byte) v, invert);
+        serializeInt(buffer, v, invert);
         return;
       }
       case LONG: {
@@ -589,7 +701,25 @@ public class BinarySortableSerDe implements SerDe {
         Text t = soi.getPrimitiveWritableObject(o);
         serializeBytes(buffer, t.getBytes(), t.getLength(), invert);
         return;
-          }
+      }
+
+      case CHAR: {
+        HiveCharObjectInspector hcoi = (HiveCharObjectInspector) poi;
+        HiveCharWritable hc = hcoi.getPrimitiveWritableObject(o);
+        // Trailing space should ignored for char comparisons.
+        // So write stripped values for this SerDe.
+        Text t = hc.getStrippedValue();
+        serializeBytes(buffer, t.getBytes(), t.getLength(), invert);
+        return;
+      }
+      case VARCHAR: {
+        HiveVarcharObjectInspector hcoi = (HiveVarcharObjectInspector)poi;
+        HiveVarcharWritable hc = hcoi.getPrimitiveWritableObject(o);
+        // use varchar's text field directly
+        Text t = hc.getTextValue();
+        serializeBytes(buffer, t.getBytes(), t.getLength(), invert);
+        return;
+      }
 
       case BINARY: {
         BinaryObjectInspector baoi = (BinaryObjectInspector) poi;
@@ -597,6 +727,12 @@ public class BinarySortableSerDe implements SerDe {
         byte[] toSer = new byte[ba.getLength()];
         System.arraycopy(ba.getBytes(), 0, toSer, 0, ba.getLength());
         serializeBytes(buffer, toSer, ba.getLength(), invert);
+        return;
+      }
+      case  DATE: {
+        DateObjectInspector doi = (DateObjectInspector) poi;
+        int v = doi.getPrimitiveWritableObject(o).getDays();
+        serializeInt(buffer, v, invert);
         return;
       }
       case TIMESTAMP: {
@@ -608,6 +744,47 @@ public class BinarySortableSerDe implements SerDe {
         }
         return;
       }
+      case DECIMAL: {
+        // decimals are encoded in three pieces:
+        // sign: 1, 2 or 3 for smaller, equal or larger than 0 respectively
+        // factor: Number that indicates the amount of digits you have to move
+        // the decimal point left or right until the resulting number is smaller
+        // than zero but has something other than 0 as the first digit.
+        // digits: which is a string of all the digits in the decimal. If the number
+        // is negative the binary string will be inverted to get the correct ordering.
+        // Example: 0.00123
+        // Sign is 3 (bigger than 0)
+        // Factor is -2 (move decimal point 2 positions right)
+        // Digits are: 123
+
+        HiveDecimalObjectInspector boi = (HiveDecimalObjectInspector) poi;
+        HiveDecimal dec = boi.getPrimitiveJavaObject(o);
+
+        // get the sign of the big decimal
+        int sign = dec.compareTo(HiveDecimal.ZERO);
+
+        // we'll encode the absolute value (sign is separate)
+        dec = dec.abs();
+
+        // get the scale factor to turn big decimal into a decimal < 1
+        int factor = dec.precision() - dec.scale();
+        factor = sign == 1 ? factor : -factor;
+
+        // convert the absolute big decimal to string
+        dec.scaleByPowerOfTen(Math.abs(dec.scale()));
+        String digits = dec.unscaledValue().toString();
+
+        // finally write out the pieces (sign, scale, digits)
+        buffer.write((byte) ( sign + 1), invert);
+        buffer.write((byte) ((factor >> 24) ^ 0x80), invert);
+        buffer.write((byte) ( factor >> 16), invert);
+        buffer.write((byte) ( factor >> 8), invert);
+        buffer.write((byte)   factor, invert);
+        serializeBytes(buffer, digits.getBytes(decimalCharSet),
+            digits.length(), sign == -1 ? !invert : invert);
+        return;
+      }
+
       default: {
         throw new RuntimeException("Unrecognized type: "
             + poi.getPrimitiveCategory());
@@ -680,6 +857,15 @@ public class BinarySortableSerDe implements SerDe {
     }
     buffer.write((byte) 0, invert);
   }
+
+  private static void serializeInt(OutputByteBuffer buffer, int v, boolean invert) {
+    buffer.write((byte) ((v >> 24) ^ 0x80), invert);
+    buffer.write((byte) (v >> 16), invert);
+    buffer.write((byte) (v >> 8), invert);
+    buffer.write((byte) v, invert);
+  }
+
+  @Override
   public SerDeStats getSerDeStats() {
     // no support for statistics
     return null;

@@ -28,7 +28,7 @@ import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category;
@@ -51,9 +51,9 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
     + "  > SELECT _FUNC_(array('b', 'd', 'c', 'a')) FROM src LIMIT 1;\n"
     + "  'a', 'b', 'c', 'd'")
 public class GenericUDFSortArray extends GenericUDF {
-  private Converter[] converters;
+  private transient Converter[] converters;
   private final List<Object> ret = new ArrayList<Object>();
-  private ObjectInspector[] argumentOIs;
+  private transient ObjectInspector[] argumentOIs;
 
   @Override
   public ObjectInspector initialize(ObjectInspector[] arguments) throws UDFArgumentException {
@@ -73,7 +73,7 @@ public class GenericUDFSortArray extends GenericUDF {
         }
       default:
         throw new UDFArgumentTypeException(0, "Argument 1"
-          + " of function SORT_ARRAY must be " + Constants.LIST_TYPE_NAME
+          + " of function SORT_ARRAY must be " + serdeConstants.LIST_TYPE_NAME
           + "<" + Category.PRIMITIVE + ">, but " + arguments[0].getTypeName()
           + " was found.");
     }

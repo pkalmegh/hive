@@ -18,26 +18,21 @@
 
 package org.apache.hadoop.hive.ql.udf.generic;
 
+import java.text.DecimalFormat;
+
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.io.Text;
-
-import java.text.DecimalFormat;
-import java.text.NumberFormat;
-import java.lang.Number;
-import java.lang.NumberFormatException;
 
 /**
  * Generic UDF for format_number function
@@ -58,11 +53,11 @@ import java.lang.NumberFormatException;
     + "  > SELECT _FUNC_(12332.123456, 4) FROM src LIMIT 1;\n"
     + "  '12,332.1235'")
 public class GenericUDFFormatNumber extends GenericUDF {
-  private ObjectInspector[] argumentOIs;
-  private final Text resultText = new Text();
-  private final StringBuilder pattern = new StringBuilder("");
-  private final DecimalFormat numberFormat = new DecimalFormat("");
-  private int lastDValue = -1;
+  private transient ObjectInspector[] argumentOIs;
+  private transient final Text resultText = new Text();
+  private transient final StringBuilder pattern = new StringBuilder("");
+  private transient final DecimalFormat numberFormat = new DecimalFormat("");
+  private transient int lastDValue = -1;
 
   @Override
   public ObjectInspector initialize(ObjectInspector[] arguments) throws UDFArgumentException {
@@ -77,12 +72,12 @@ public class GenericUDFFormatNumber extends GenericUDF {
       default:
         throw new UDFArgumentTypeException(0, "Argument 1"
           + " of function FORMAT_NUMBER must be \""
-          + Constants.TINYINT_TYPE_NAME + "\""
-          + " or \"" + Constants.SMALLINT_TYPE_NAME + "\""
-          + " or \"" + Constants.INT_TYPE_NAME + "\""
-          + " or \"" + Constants.BIGINT_TYPE_NAME + "\""
-          + " or \"" + Constants.DOUBLE_TYPE_NAME + "\""
-          + " or \"" + Constants.FLOAT_TYPE_NAME + "\", but \""
+          + serdeConstants.TINYINT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.SMALLINT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.INT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.BIGINT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.DOUBLE_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.FLOAT_TYPE_NAME + "\", but \""
           + arguments[0].getTypeName() + "\" was found.");
     }
 
@@ -92,10 +87,10 @@ public class GenericUDFFormatNumber extends GenericUDF {
       default:
         throw new UDFArgumentTypeException(1, "Argument 2"
           + " of function FORMAT_NUMBER must be \""
-          + Constants.TINYINT_TYPE_NAME + "\""
-          + " or \"" + Constants.SMALLINT_TYPE_NAME + "\""
-          + " or \"" + Constants.INT_TYPE_NAME + "\""
-          + " or \"" + Constants.BIGINT_TYPE_NAME + "\", but \""
+          + serdeConstants.TINYINT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.SMALLINT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.INT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.BIGINT_TYPE_NAME + "\", but \""
           + arguments[1].getTypeName() + "\" was found.");
     }
 
@@ -114,12 +109,12 @@ public class GenericUDFFormatNumber extends GenericUDF {
       default:
         throw new UDFArgumentTypeException(0, "Argument 1"
           + " of function FORMAT_NUMBER must be \""
-          + Constants.TINYINT_TYPE_NAME + "\""
-          + " or \"" + Constants.SMALLINT_TYPE_NAME + "\""
-          + " or \"" + Constants.INT_TYPE_NAME + "\""
-          + " or \"" + Constants.BIGINT_TYPE_NAME + "\""
-          + " or \"" + Constants.DOUBLE_TYPE_NAME + "\""
-          + " or \"" + Constants.FLOAT_TYPE_NAME + "\", but \""
+          + serdeConstants.TINYINT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.SMALLINT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.INT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.BIGINT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.DOUBLE_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.FLOAT_TYPE_NAME + "\", but \""
           + arguments[0].getTypeName() + "\" was found.");
     }
 
@@ -133,10 +128,10 @@ public class GenericUDFFormatNumber extends GenericUDF {
       default:
         throw new UDFArgumentTypeException(1, "Argument 2"
           + " of function FORMAT_NUMBER must be \""
-          + Constants.TINYINT_TYPE_NAME + "\""
-          + " or \"" + Constants.SMALLINT_TYPE_NAME + "\""
-          + " or \"" + Constants.INT_TYPE_NAME + "\""
-          + " or \"" + Constants.BIGINT_TYPE_NAME + "\", but \""
+          + serdeConstants.TINYINT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.SMALLINT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.INT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.BIGINT_TYPE_NAME + "\", but \""
           + arguments[1].getTypeName() + "\" was found.");
     }
 
@@ -194,12 +189,12 @@ public class GenericUDFFormatNumber extends GenericUDF {
         break;
       default:
         throw new HiveException("Argument 1 of function FORMAT_NUMBER must be "
-          + Constants.TINYINT_TYPE_NAME + "\""
-          + " or \"" + Constants.SMALLINT_TYPE_NAME + "\""
-          + " or \"" + Constants.INT_TYPE_NAME + "\""
-          + " or \"" + Constants.BIGINT_TYPE_NAME + "\""
-          + " or \"" + Constants.DOUBLE_TYPE_NAME + "\""
-          + " or \"" + Constants.FLOAT_TYPE_NAME + "\", but \""
+          + serdeConstants.TINYINT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.SMALLINT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.INT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.BIGINT_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.DOUBLE_TYPE_NAME + "\""
+          + " or \"" + serdeConstants.FLOAT_TYPE_NAME + "\", but \""
           + argumentOIs[0].getTypeName() + "\" was found.");
     }
     return resultText;

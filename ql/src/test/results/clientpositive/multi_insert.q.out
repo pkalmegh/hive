@@ -37,7 +37,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: (key < 10.0)
+                  expr: (key < 10)
                   type: boolean
               Select Operator
                 expressions:
@@ -56,7 +56,7 @@ STAGE PLANS:
                       name: default.src_multi1
             Filter Operator
               predicate:
-                  expr: ((key > 10.0) and (key < 20.0))
+                  expr: ((key > 10) and (key < 20))
                   type: boolean
               Select Operator
                 expressions:
@@ -205,7 +205,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: (key < 10.0)
+                  expr: (key < 10)
                   type: boolean
               Select Operator
                 expressions:
@@ -224,7 +224,7 @@ STAGE PLANS:
                       name: default.src_multi1
             Filter Operator
               predicate:
-                  expr: ((key > 10.0) and (key < 20.0))
+                  expr: ((key > 10) and (key < 20))
                   type: boolean
               Select Operator
                 expressions:
@@ -268,6 +268,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -281,6 +282,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -322,6 +324,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -335,6 +338,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -461,7 +465,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: (key < 10.0)
+                  expr: (key < 10)
                   type: boolean
               Select Operator
                 expressions:
@@ -480,7 +484,7 @@ STAGE PLANS:
                       name: default.src_multi1
             Filter Operator
               predicate:
-                  expr: ((key > 10.0) and (key < 20.0))
+                  expr: ((key > 10) and (key < 20))
                   type: boolean
               Select Operator
                 expressions:
@@ -661,7 +665,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: (key < 10.0)
+                  expr: (key < 10)
                   type: boolean
               Select Operator
                 expressions:
@@ -680,7 +684,7 @@ STAGE PLANS:
                       name: default.src_multi1
             Filter Operator
               predicate:
-                  expr: ((key > 10.0) and (key < 20.0))
+                  expr: ((key > 10) and (key < 20))
                   type: boolean
               Select Operator
                 expressions:
@@ -724,6 +728,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -737,6 +742,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -778,6 +784,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -791,6 +798,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -949,7 +957,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: ((key < 10.0) or ((key > 10.0) and (key < 20.0)))
+                  expr: ((key < 10) or ((key > 10) and (key < 20)))
                   type: boolean
               Select Operator
                 expressions:
@@ -973,54 +981,62 @@ STAGE PLANS:
                   tag: -1
       Reduce Operator Tree:
         Forward
-          Group By Operator
-            bucketGroup: false
-            keys:
-                  expr: KEY._col0
-                  type: string
-                  expr: KEY._col1
-                  type: string
-            mode: complete
-            outputColumnNames: _col0, _col1
-            Select Operator
-              expressions:
-                    expr: _col0
+          Filter Operator
+            predicate:
+                expr: (KEY._col0 < 10)
+                type: boolean
+            Group By Operator
+              bucketGroup: false
+              keys:
+                    expr: KEY._col0
                     type: string
-                    expr: _col1
+                    expr: KEY._col1
                     type: string
+              mode: complete
               outputColumnNames: _col0, _col1
-              File Output Operator
-                compressed: false
-                GlobalTableId: 1
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.src_multi1
-          Group By Operator
-            bucketGroup: false
-            keys:
-                  expr: KEY._col0
-                  type: string
-                  expr: KEY._col1
-                  type: string
-            mode: complete
-            outputColumnNames: _col0, _col1
-            Select Operator
-              expressions:
-                    expr: _col0
+              Select Operator
+                expressions:
+                      expr: _col0
+                      type: string
+                      expr: _col1
+                      type: string
+                outputColumnNames: _col0, _col1
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 1
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      name: default.src_multi1
+          Filter Operator
+            predicate:
+                expr: ((KEY._col0 > 10) and (KEY._col0 < 20))
+                type: boolean
+            Group By Operator
+              bucketGroup: false
+              keys:
+                    expr: KEY._col0
                     type: string
-                    expr: _col1
+                    expr: KEY._col1
                     type: string
+              mode: complete
               outputColumnNames: _col0, _col1
-              File Output Operator
-                compressed: false
-                GlobalTableId: 2
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.src_multi2
+              Select Operator
+                expressions:
+                      expr: _col0
+                      type: string
+                      expr: _col1
+                      type: string
+                outputColumnNames: _col0, _col1
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 2
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      name: default.src_multi2
 
   Stage: Stage-0
     Move Operator
@@ -1104,12 +1120,6 @@ POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, typ
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 0	val_0
-11	val_11
-12	val_12
-15	val_15
-17	val_17
-18	val_18
-19	val_19
 2	val_2
 4	val_4
 5	val_5
@@ -1139,18 +1149,12 @@ POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, typ
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-0	val_0
 11	val_11
 12	val_12
 15	val_15
 17	val_17
 18	val_18
 19	val_19
-2	val_2
-4	val_4
-5	val_5
-8	val_8
-9	val_9
 PREHOOK: query: explain
 from src
 insert overwrite table src_multi1 select * where key < 10 group by key, value
@@ -1206,7 +1210,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: ((key < 10.0) or ((key > 10.0) and (key < 20.0)))
+                  expr: ((key < 10) or ((key > 10) and (key < 20)))
                   type: boolean
               Select Operator
                 expressions:
@@ -1230,54 +1234,62 @@ STAGE PLANS:
                   tag: -1
       Reduce Operator Tree:
         Forward
-          Group By Operator
-            bucketGroup: false
-            keys:
-                  expr: KEY._col0
-                  type: string
-                  expr: KEY._col1
-                  type: string
-            mode: complete
-            outputColumnNames: _col0, _col1
-            Select Operator
-              expressions:
-                    expr: _col0
+          Filter Operator
+            predicate:
+                expr: (KEY._col0 < 10)
+                type: boolean
+            Group By Operator
+              bucketGroup: false
+              keys:
+                    expr: KEY._col0
                     type: string
-                    expr: _col1
+                    expr: KEY._col1
                     type: string
+              mode: complete
               outputColumnNames: _col0, _col1
-              File Output Operator
-                compressed: false
-                GlobalTableId: 1
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.src_multi1
-          Group By Operator
-            bucketGroup: false
-            keys:
-                  expr: KEY._col0
-                  type: string
-                  expr: KEY._col1
-                  type: string
-            mode: complete
-            outputColumnNames: _col0, _col1
-            Select Operator
-              expressions:
-                    expr: _col0
+              Select Operator
+                expressions:
+                      expr: _col0
+                      type: string
+                      expr: _col1
+                      type: string
+                outputColumnNames: _col0, _col1
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 1
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      name: default.src_multi1
+          Filter Operator
+            predicate:
+                expr: ((KEY._col0 > 10) and (KEY._col0 < 20))
+                type: boolean
+            Group By Operator
+              bucketGroup: false
+              keys:
+                    expr: KEY._col0
                     type: string
-                    expr: _col1
+                    expr: KEY._col1
                     type: string
+              mode: complete
               outputColumnNames: _col0, _col1
-              File Output Operator
-                compressed: false
-                GlobalTableId: 2
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.src_multi2
+              Select Operator
+                expressions:
+                      expr: _col0
+                      type: string
+                      expr: _col1
+                      type: string
+                outputColumnNames: _col0, _col1
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 2
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      name: default.src_multi2
 
   Stage: Stage-8
     Conditional Operator
@@ -1305,6 +1317,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -1318,6 +1331,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -1359,6 +1373,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -1372,6 +1387,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -1443,12 +1459,6 @@ POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, typ
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 0	val_0
-11	val_11
-12	val_12
-15	val_15
-17	val_17
-18	val_18
-19	val_19
 2	val_2
 4	val_4
 5	val_5
@@ -1478,18 +1488,12 @@ POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, typ
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-0	val_0
 11	val_11
 12	val_12
 15	val_15
 17	val_17
 18	val_18
 19	val_19
-2	val_2
-4	val_4
-5	val_5
-8	val_8
-9	val_9
 PREHOOK: query: explain
 from src
 insert overwrite table src_multi1 select * where key < 10 group by key, value
@@ -1535,7 +1539,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: ((key < 10.0) or ((key > 10.0) and (key < 20.0)))
+                  expr: ((key < 10) or ((key > 10) and (key < 20)))
                   type: boolean
               Select Operator
                 expressions:
@@ -1559,54 +1563,62 @@ STAGE PLANS:
                   tag: -1
       Reduce Operator Tree:
         Forward
-          Group By Operator
-            bucketGroup: false
-            keys:
-                  expr: KEY._col0
-                  type: string
-                  expr: KEY._col1
-                  type: string
-            mode: complete
-            outputColumnNames: _col0, _col1
-            Select Operator
-              expressions:
-                    expr: _col0
+          Filter Operator
+            predicate:
+                expr: (KEY._col0 < 10)
+                type: boolean
+            Group By Operator
+              bucketGroup: false
+              keys:
+                    expr: KEY._col0
                     type: string
-                    expr: _col1
+                    expr: KEY._col1
                     type: string
+              mode: complete
               outputColumnNames: _col0, _col1
-              File Output Operator
-                compressed: false
-                GlobalTableId: 1
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.src_multi1
-          Group By Operator
-            bucketGroup: false
-            keys:
-                  expr: KEY._col0
-                  type: string
-                  expr: KEY._col1
-                  type: string
-            mode: complete
-            outputColumnNames: _col0, _col1
-            Select Operator
-              expressions:
-                    expr: _col0
+              Select Operator
+                expressions:
+                      expr: _col0
+                      type: string
+                      expr: _col1
+                      type: string
+                outputColumnNames: _col0, _col1
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 1
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      name: default.src_multi1
+          Filter Operator
+            predicate:
+                expr: ((KEY._col0 > 10) and (KEY._col0 < 20))
+                type: boolean
+            Group By Operator
+              bucketGroup: false
+              keys:
+                    expr: KEY._col0
                     type: string
-                    expr: _col1
+                    expr: KEY._col1
                     type: string
+              mode: complete
               outputColumnNames: _col0, _col1
-              File Output Operator
-                compressed: false
-                GlobalTableId: 2
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.src_multi2
+              Select Operator
+                expressions:
+                      expr: _col0
+                      type: string
+                      expr: _col1
+                      type: string
+                outputColumnNames: _col0, _col1
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 2
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      name: default.src_multi2
 
   Stage: Stage-0
     Move Operator
@@ -1690,12 +1702,6 @@ POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, typ
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 0	val_0
-11	val_11
-12	val_12
-15	val_15
-17	val_17
-18	val_18
-19	val_19
 2	val_2
 4	val_4
 5	val_5
@@ -1725,18 +1731,12 @@ POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, typ
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-0	val_0
 11	val_11
 12	val_12
 15	val_15
 17	val_17
 18	val_18
 19	val_19
-2	val_2
-4	val_4
-5	val_5
-8	val_8
-9	val_9
 PREHOOK: query: explain
 from src
 insert overwrite table src_multi1 select * where key < 10 group by key, value
@@ -1792,7 +1792,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: ((key < 10.0) or ((key > 10.0) and (key < 20.0)))
+                  expr: ((key < 10) or ((key > 10) and (key < 20)))
                   type: boolean
               Select Operator
                 expressions:
@@ -1816,54 +1816,62 @@ STAGE PLANS:
                   tag: -1
       Reduce Operator Tree:
         Forward
-          Group By Operator
-            bucketGroup: false
-            keys:
-                  expr: KEY._col0
-                  type: string
-                  expr: KEY._col1
-                  type: string
-            mode: complete
-            outputColumnNames: _col0, _col1
-            Select Operator
-              expressions:
-                    expr: _col0
+          Filter Operator
+            predicate:
+                expr: (KEY._col0 < 10)
+                type: boolean
+            Group By Operator
+              bucketGroup: false
+              keys:
+                    expr: KEY._col0
                     type: string
-                    expr: _col1
+                    expr: KEY._col1
                     type: string
+              mode: complete
               outputColumnNames: _col0, _col1
-              File Output Operator
-                compressed: false
-                GlobalTableId: 1
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.src_multi1
-          Group By Operator
-            bucketGroup: false
-            keys:
-                  expr: KEY._col0
-                  type: string
-                  expr: KEY._col1
-                  type: string
-            mode: complete
-            outputColumnNames: _col0, _col1
-            Select Operator
-              expressions:
-                    expr: _col0
+              Select Operator
+                expressions:
+                      expr: _col0
+                      type: string
+                      expr: _col1
+                      type: string
+                outputColumnNames: _col0, _col1
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 1
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      name: default.src_multi1
+          Filter Operator
+            predicate:
+                expr: ((KEY._col0 > 10) and (KEY._col0 < 20))
+                type: boolean
+            Group By Operator
+              bucketGroup: false
+              keys:
+                    expr: KEY._col0
                     type: string
-                    expr: _col1
+                    expr: KEY._col1
                     type: string
+              mode: complete
               outputColumnNames: _col0, _col1
-              File Output Operator
-                compressed: false
-                GlobalTableId: 2
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.src_multi2
+              Select Operator
+                expressions:
+                      expr: _col0
+                      type: string
+                      expr: _col1
+                      type: string
+                outputColumnNames: _col0, _col1
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 2
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      name: default.src_multi2
 
   Stage: Stage-8
     Conditional Operator
@@ -1891,6 +1899,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -1904,6 +1913,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -1945,6 +1955,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -1958,6 +1969,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -2029,12 +2041,6 @@ POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, typ
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 0	val_0
-11	val_11
-12	val_12
-15	val_15
-17	val_17
-18	val_18
-19	val_19
 2	val_2
 4	val_4
 5	val_5
@@ -2064,18 +2070,12 @@ POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, typ
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: src_multi2.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-0	val_0
 11	val_11
 12	val_12
 15	val_15
 17	val_17
 18	val_18
 19	val_19
-2	val_2
-4	val_4
-5	val_5
-8	val_8
-9	val_9
 PREHOOK: query: explain
 from (select * from src  union all select * from src) s
 insert overwrite table src_multi1 select * where key < 10
@@ -2129,7 +2129,7 @@ STAGE PLANS:
               Union
                 Filter Operator
                   predicate:
-                      expr: (_col0 < 10.0)
+                      expr: (_col0 < 10)
                       type: boolean
                   Select Operator
                     expressions:
@@ -2148,7 +2148,7 @@ STAGE PLANS:
                           name: default.src_multi1
                 Filter Operator
                   predicate:
-                      expr: ((_col0 > 10.0) and (_col0 < 20.0))
+                      expr: ((_col0 > 10) and (_col0 < 20))
                       type: boolean
                   Select Operator
                     expressions:
@@ -2178,7 +2178,7 @@ STAGE PLANS:
               Union
                 Filter Operator
                   predicate:
-                      expr: (_col0 < 10.0)
+                      expr: (_col0 < 10)
                       type: boolean
                   Select Operator
                     expressions:
@@ -2197,7 +2197,7 @@ STAGE PLANS:
                           name: default.src_multi1
                 Filter Operator
                   predicate:
-                      expr: ((_col0 > 10.0) and (_col0 < 20.0))
+                      expr: ((_col0 > 10) and (_col0 < 20))
                       type: boolean
                   Select Operator
                     expressions:
@@ -2437,7 +2437,7 @@ STAGE PLANS:
               Union
                 Filter Operator
                   predicate:
-                      expr: (_col0 < 10.0)
+                      expr: (_col0 < 10)
                       type: boolean
                   Select Operator
                     expressions:
@@ -2456,7 +2456,7 @@ STAGE PLANS:
                           name: default.src_multi1
                 Filter Operator
                   predicate:
-                      expr: ((_col0 > 10.0) and (_col0 < 20.0))
+                      expr: ((_col0 > 10) and (_col0 < 20))
                       type: boolean
                   Select Operator
                     expressions:
@@ -2486,7 +2486,7 @@ STAGE PLANS:
               Union
                 Filter Operator
                   predicate:
-                      expr: (_col0 < 10.0)
+                      expr: (_col0 < 10)
                       type: boolean
                   Select Operator
                     expressions:
@@ -2505,7 +2505,7 @@ STAGE PLANS:
                           name: default.src_multi1
                 Filter Operator
                   predicate:
-                      expr: ((_col0 > 10.0) and (_col0 < 20.0))
+                      expr: ((_col0 > 10) and (_col0 < 20))
                       type: boolean
                   Select Operator
                     expressions:
@@ -2549,6 +2549,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -2562,6 +2563,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -2603,6 +2605,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -2616,6 +2619,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -2833,7 +2837,7 @@ STAGE PLANS:
               Union
                 Filter Operator
                   predicate:
-                      expr: (_col0 < 10.0)
+                      expr: (_col0 < 10)
                       type: boolean
                   Select Operator
                     expressions:
@@ -2852,7 +2856,7 @@ STAGE PLANS:
                           name: default.src_multi1
                 Filter Operator
                   predicate:
-                      expr: ((_col0 > 10.0) and (_col0 < 20.0))
+                      expr: ((_col0 > 10) and (_col0 < 20))
                       type: boolean
                   Select Operator
                     expressions:
@@ -2882,7 +2886,7 @@ STAGE PLANS:
               Union
                 Filter Operator
                   predicate:
-                      expr: (_col0 < 10.0)
+                      expr: (_col0 < 10)
                       type: boolean
                   Select Operator
                     expressions:
@@ -2901,7 +2905,7 @@ STAGE PLANS:
                           name: default.src_multi1
                 Filter Operator
                   predicate:
-                      expr: ((_col0 > 10.0) and (_col0 < 20.0))
+                      expr: ((_col0 > 10) and (_col0 < 20))
                       type: boolean
                   Select Operator
                     expressions:
@@ -3173,7 +3177,7 @@ STAGE PLANS:
               Union
                 Filter Operator
                   predicate:
-                      expr: (_col0 < 10.0)
+                      expr: (_col0 < 10)
                       type: boolean
                   Select Operator
                     expressions:
@@ -3192,7 +3196,7 @@ STAGE PLANS:
                           name: default.src_multi1
                 Filter Operator
                   predicate:
-                      expr: ((_col0 > 10.0) and (_col0 < 20.0))
+                      expr: ((_col0 > 10) and (_col0 < 20))
                       type: boolean
                   Select Operator
                     expressions:
@@ -3222,7 +3226,7 @@ STAGE PLANS:
               Union
                 Filter Operator
                   predicate:
-                      expr: (_col0 < 10.0)
+                      expr: (_col0 < 10)
                       type: boolean
                   Select Operator
                     expressions:
@@ -3241,7 +3245,7 @@ STAGE PLANS:
                           name: default.src_multi1
                 Filter Operator
                   predicate:
-                      expr: ((_col0 > 10.0) and (_col0 < 20.0))
+                      expr: ((_col0 > 10) and (_col0 < 20))
                       type: boolean
                   Select Operator
                     expressions:
@@ -3285,6 +3289,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -3298,6 +3303,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -3339,6 +3345,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -3352,6 +3359,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -3591,7 +3599,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: (key = 0.0)
+                  expr: (key = 0)
                   type: boolean
               Select Operator
                 expressions:
@@ -3606,9 +3614,10 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
             Filter Operator
               predicate:
-                  expr: (key = 2.0)
+                  expr: (key = 2)
                   type: boolean
               Select Operator
                 expressions:
@@ -3623,9 +3632,10 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
             Filter Operator
               predicate:
-                  expr: (key = 4.0)
+                  expr: (key = 4)
                   type: boolean
               Select Operator
                 expressions:
@@ -3640,6 +3650,7 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Move Operator
@@ -3762,7 +3773,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: (key = 0.0)
+                  expr: (key = 0)
                   type: boolean
               Select Operator
                 expressions:
@@ -3777,9 +3788,10 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
             Filter Operator
               predicate:
-                  expr: (key = 2.0)
+                  expr: (key = 2)
                   type: boolean
               Select Operator
                 expressions:
@@ -3794,9 +3806,10 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
             Filter Operator
               predicate:
-                  expr: (key = 4.0)
+                  expr: (key = 4)
                   type: boolean
               Select Operator
                 expressions:
@@ -3811,6 +3824,7 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Move Operator
@@ -3933,7 +3947,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: (key = 0.0)
+                  expr: (key = 0)
                   type: boolean
               Select Operator
                 expressions:
@@ -3948,9 +3962,10 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
             Filter Operator
               predicate:
-                  expr: (key = 2.0)
+                  expr: (key = 2)
                   type: boolean
               Select Operator
                 expressions:
@@ -3965,9 +3980,10 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
             Filter Operator
               predicate:
-                  expr: (key = 4.0)
+                  expr: (key = 4)
                   type: boolean
               Select Operator
                 expressions:
@@ -3982,6 +3998,7 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Move Operator
@@ -4104,7 +4121,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: (key = 0.0)
+                  expr: (key = 0)
                   type: boolean
               Select Operator
                 expressions:
@@ -4119,9 +4136,10 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
             Filter Operator
               predicate:
-                  expr: (key = 2.0)
+                  expr: (key = 2)
                   type: boolean
               Select Operator
                 expressions:
@@ -4136,9 +4154,10 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
             Filter Operator
               predicate:
-                  expr: (key = 4.0)
+                  expr: (key = 4)
                   type: boolean
               Select Operator
                 expressions:
@@ -4153,6 +4172,7 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Move Operator

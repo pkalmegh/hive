@@ -24,17 +24,24 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import junit.framework.TestCase;
 
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.metastore.api.Index;
+import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
+import org.apache.hadoop.hive.ql.index.HiveIndex;
 import org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.ql.session.SessionState;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe;
 import org.apache.hadoop.hive.serde2.thrift.ThriftDeserializer;
 import org.apache.hadoop.hive.serde2.thrift.test.Complex;
@@ -49,19 +56,20 @@ import org.apache.thrift.protocol.TBinaryProtocol;
  *
  */
 public class TestHive extends TestCase {
-  private Hive hm;
-  private HiveConf hiveConf;
+  protected Hive hm;
+  protected HiveConf hiveConf;
 
   @Override
   protected void setUp() throws Exception {
     super.setUp();
     hiveConf = new HiveConf(this.getClass());
+    SessionState.start(hiveConf);
     try {
       hm = Hive.get(hiveConf);
     } catch (Exception e) {
       System.err.println(StringUtils.stringifyException(e));
       System.err
-          .println("Unable to initialize Hive Metastore using configruation: \n "
+          .println("Unable to initialize Hive Metastore using configuration: \n "
           + hiveConf);
       throw e;
     }
@@ -91,12 +99,13 @@ public class TestHive extends TestCase {
         e1.printStackTrace();
         assertTrue("Unable to drop table", false);
       }
+
       Table tbl = new Table(MetaStoreUtils.DEFAULT_DATABASE_NAME, tableName);
       List<FieldSchema> fields = tbl.getCols();
 
-      fields.add(new FieldSchema("col1", Constants.INT_TYPE_NAME, "int -- first column"));
-      fields.add(new FieldSchema("col2", Constants.STRING_TYPE_NAME, "string -- second column"));
-      fields.add(new FieldSchema("col3", Constants.DOUBLE_TYPE_NAME, "double -- thrift column"));
+      fields.add(new FieldSchema("col1", serdeConstants.INT_TYPE_NAME, "int -- first column"));
+      fields.add(new FieldSchema("col2", serdeConstants.STRING_TYPE_NAME, "string -- second column"));
+      fields.add(new FieldSchema("col3", serdeConstants.DOUBLE_TYPE_NAME, "double -- thrift column"));
       tbl.setFields(fields);
 
       tbl.setOutputFormatClass(HiveIgnoreKeyTextOutputFormat.class);
@@ -117,7 +126,7 @@ public class TestHive extends TestCase {
       partCols
           .add(new FieldSchema(
           "ds",
-          Constants.STRING_TYPE_NAME,
+          serdeConstants.STRING_TYPE_NAME,
           "partition column, date but in string format as date type is not yet supported in QL"));
       tbl.setPartCols(partCols);
 
@@ -127,15 +136,17 @@ public class TestHive extends TestCase {
 
       // set output format parameters (these are not supported by QL but only
       // for demo purposes)
-      tbl.setSerdeParam(Constants.FIELD_DELIM, "1");
-      tbl.setSerdeParam(Constants.LINE_DELIM, "\n");
-      tbl.setSerdeParam(Constants.MAPKEY_DELIM, "3");
-      tbl.setSerdeParam(Constants.COLLECTION_DELIM, "2");
+      tbl.setSerdeParam(serdeConstants.FIELD_DELIM, "1");
+      tbl.setSerdeParam(serdeConstants.LINE_DELIM, "\n");
+      tbl.setSerdeParam(serdeConstants.MAPKEY_DELIM, "3");
+      tbl.setSerdeParam(serdeConstants.COLLECTION_DELIM, "2");
 
-      tbl.setSerdeParam(Constants.FIELD_DELIM, "1");
+      tbl.setSerdeParam(serdeConstants.FIELD_DELIM, "1");
       tbl.setSerializationLib(LazySimpleSerDe.class.getName());
+      tbl.setStoredAsSubDirectories(false);
 
       // create table
+      setNullCreateTableGrants();
       try {
         hm.createTable(tbl);
       } catch (HiveException e) {
@@ -144,33 +155,7 @@ public class TestHive extends TestCase {
       }
 
       // get table
-      Table ft = null;
-      Warehouse wh = new Warehouse(hiveConf);
-      try {
-        ft = hm.getTable(MetaStoreUtils.DEFAULT_DATABASE_NAME, tableName);
-        ft.checkValidity();
-        assertEquals("Table names didn't match for table: " + tableName, tbl
-            .getTableName(), ft.getTableName());
-        assertEquals("Table owners didn't match for table: " + tableName, tbl
-            .getOwner(), ft.getOwner());
-        assertEquals("Table retention didn't match for table: " + tableName,
-            tbl.getRetention(), ft.getRetention());
-        assertEquals("Data location is not set correctly",
-            wh.getTablePath(hm.getDatabase(DEFAULT_DATABASE_NAME), tableName).toString(),
-            ft.getDataLocation().toString());
-        // now that URI is set correctly, set the original table's uri and then
-        // compare the two tables
-        tbl.setDataLocation(ft.getDataLocation());
-        assertTrue("Tables doesn't match: " + tableName, ft.getTTable().equals(
-            tbl.getTTable()));
-        assertEquals("Serde is not set correctly", tbl.getDeserializer()
-            .getClass().getName(), ft.getDeserializer().getClass().getName());
-        assertEquals("SerializationLib is not set correctly", tbl
-            .getSerializationLib(), LazySimpleSerDe.class.getName());
-      } catch (HiveException e) {
-        e.printStackTrace();
-        assertTrue("Unable to fetch table correctly: " + tableName, false);
-      }
+      validateTable(tbl, tableName);
 
       try {
         hm.dropTable(MetaStoreUtils.DEFAULT_DATABASE_NAME, tableName, true,
@@ -186,6 +171,14 @@ public class TestHive extends TestCase {
       System.err.println("testTable failed");
       throw e;
     }
+  }
+
+  private void setNullCreateTableGrants() {
+    //having a non null create table grants privileges causes problems in
+    // the tests that compares underlying thrift Table object of created
+    // table with a table object that was fetched from metastore.
+    // This is because the fetch does not populate the privileges field in Table
+    SessionState.get().setCreateTableGrants(null);
   }
 
   /**
@@ -206,9 +199,12 @@ public class TestHive extends TestCase {
       tbl.setInputFormatClass(SequenceFileInputFormat.class.getName());
       tbl.setOutputFormatClass(SequenceFileOutputFormat.class.getName());
       tbl.setSerializationLib(ThriftDeserializer.class.getName());
-      tbl.setSerdeParam(Constants.SERIALIZATION_CLASS, Complex.class.getName());
-      tbl.setSerdeParam(Constants.SERIALIZATION_FORMAT, TBinaryProtocol.class
+      tbl.setSerdeParam(serdeConstants.SERIALIZATION_CLASS, Complex.class.getName());
+      tbl.setSerdeParam(serdeConstants.SERIALIZATION_FORMAT, TBinaryProtocol.class
           .getName());
+      tbl.setStoredAsSubDirectories(false);
+
+      setNullCreateTableGrants();
       try {
         hm.createTable(tbl);
       } catch (HiveException e) {
@@ -216,34 +212,7 @@ public class TestHive extends TestCase {
         assertTrue("Unable to create table: " + tableName, false);
       }
       // get table
-      Warehouse wh = new Warehouse(hiveConf);
-      Table ft = null;
-      try {
-        ft = hm.getTable(MetaStoreUtils.DEFAULT_DATABASE_NAME, tableName);
-        assertNotNull("Unable to fetch table", ft);
-        ft.checkValidity();
-        assertEquals("Table names didn't match for table: " + tableName, tbl
-            .getTableName(), ft.getTableName());
-        assertEquals("Table owners didn't match for table: " + tableName, tbl
-            .getOwner(), ft.getOwner());
-        assertEquals("Table retention didn't match for table: " + tableName,
-            tbl.getRetention(), ft.getRetention());
-        assertEquals("Data location is not set correctly",
-            wh.getTablePath(hm.getDatabase(DEFAULT_DATABASE_NAME), tableName).toString(),
-            ft.getDataLocation().toString());
-        // now that URI is set correctly, set the original table's uri and then
-        // compare the two tables
-        tbl.setDataLocation(ft.getDataLocation());
-        assertTrue("Tables  doesn't match: " + tableName, ft.getTTable()
-            .equals(tbl.getTTable()));
-        assertEquals("SerializationLib is not set correctly", tbl
-            .getSerializationLib(), ThriftDeserializer.class.getName());
-        assertEquals("Serde is not set correctly", tbl.getDeserializer()
-            .getClass().getName(), ft.getDeserializer().getClass().getName());
-      } catch (HiveException e) {
-        System.err.println(StringUtils.stringifyException(e));
-        assertTrue("Unable to fetch table correctly: " + tableName, false);
-      }
+      validateTable(tbl, tableName);
       hm.dropTable(DEFAULT_DATABASE_NAME, tableName);
     } catch (Throwable e) {
       System.err.println(StringUtils.stringifyException(e));
@@ -252,13 +221,54 @@ public class TestHive extends TestCase {
     }
   }
 
+  /**
+   * Gets a table from the metastore and compares it to the original Table
+   *
+   * @param tbl
+   * @param tableName
+   * @throws MetaException
+   */
+  private void validateTable(Table tbl, String tableName) throws MetaException {
+    Warehouse wh = new Warehouse(hiveConf);
+    Table ft = null;
+    try {
+      ft = hm.getTable(MetaStoreUtils.DEFAULT_DATABASE_NAME, tableName);
+      assertNotNull("Unable to fetch table", ft);
+      ft.checkValidity();
+      assertEquals("Table names didn't match for table: " + tableName, tbl
+          .getTableName(), ft.getTableName());
+      assertEquals("Table owners didn't match for table: " + tableName, tbl
+          .getOwner(), ft.getOwner());
+      assertEquals("Table retention didn't match for table: " + tableName,
+          tbl.getRetention(), ft.getRetention());
+      assertEquals("Data location is not set correctly",
+          wh.getTablePath(hm.getDatabase(DEFAULT_DATABASE_NAME), tableName).toString(),
+          ft.getDataLocation().toString());
+      // now that URI and times are set correctly, set the original table's uri and times
+      // and then compare the two tables
+      tbl.setDataLocation(ft.getDataLocation());
+      tbl.setCreateTime(ft.getTTable().getCreateTime());
+      tbl.getParameters().put(hive_metastoreConstants.DDL_TIME,
+          ft.getParameters().get(hive_metastoreConstants.DDL_TIME));
+      assertTrue("Tables  doesn't match: " + tableName, ft.getTTable()
+          .equals(tbl.getTTable()));
+      assertEquals("SerializationLib is not set correctly", tbl
+          .getSerializationLib(), ft.getSerializationLib());
+      assertEquals("Serde is not set correctly", tbl.getDeserializer()
+          .getClass().getName(), ft.getDeserializer().getClass().getName());
+    } catch (HiveException e) {
+      System.err.println(StringUtils.stringifyException(e));
+      assertTrue("Unable to fetch table correctly: " + tableName, false);
+    }
+  }
+
   private static Table createTestTable(String dbName, String tableName) throws HiveException {
     Table tbl = new Table(dbName, tableName);
     tbl.setInputFormatClass(SequenceFileInputFormat.class.getName());
     tbl.setOutputFormatClass(SequenceFileOutputFormat.class.getName());
     tbl.setSerializationLib(ThriftDeserializer.class.getName());
-    tbl.setSerdeParam(Constants.SERIALIZATION_CLASS, Complex.class.getName());
-    tbl.setSerdeParam(Constants.SERIALIZATION_FORMAT, TBinaryProtocol.class
+    tbl.setSerdeParam(serdeConstants.SERIALIZATION_CLASS, Complex.class.getName());
+    tbl.setSerdeParam(serdeConstants.SERIALIZATION_FORMAT, TBinaryProtocol.class
         .getName());
     return tbl;
   }
@@ -373,13 +383,145 @@ public class TestHive extends TestCase {
     }
   }
 
-  public void testHiveRefreshDatabase() throws Throwable{
-    String testDatabaseName = "test_database";
-    Database testDatabase = new Database();
-    testDatabase.setName(testDatabaseName);
-    hm.createDatabase(testDatabase, true);
-    hm.setCurrentDatabase(testDatabaseName);
-    hm = Hive.get(hiveConf, true); //refresh Hive instance
-    assertEquals(testDatabaseName, hm.getCurrentDatabase());
+  /**
+   * Tests creating a simple index on a simple table.
+   *
+   * @throws Throwable
+   */
+  public void testIndex() throws Throwable {
+    try{
+      // create a simple table
+      String tableName = "table_for_testindex";
+      try {
+        hm.dropTable(MetaStoreUtils.DEFAULT_DATABASE_NAME, tableName);
+      } catch (HiveException e) {
+        e.printStackTrace();
+        assertTrue("Unable to drop table", false);
+      }
+
+      Table tbl = new Table(MetaStoreUtils.DEFAULT_DATABASE_NAME, tableName);
+      List<FieldSchema> fields = tbl.getCols();
+
+      fields.add(new FieldSchema("col1", serdeConstants.INT_TYPE_NAME, "int -- first column"));
+      fields.add(new FieldSchema("col2", serdeConstants.STRING_TYPE_NAME,
+          "string -- second column"));
+      fields.add(new FieldSchema("col3", serdeConstants.DOUBLE_TYPE_NAME,
+          "double -- thrift column"));
+      tbl.setFields(fields);
+
+      tbl.setOutputFormatClass(HiveIgnoreKeyTextOutputFormat.class);
+      tbl.setInputFormatClass(SequenceFileInputFormat.class);
+
+      // create table
+      try {
+        hm.createTable(tbl);
+      } catch (HiveException e) {
+        e.printStackTrace();
+        assertTrue("Unable to create table: " + tableName, false);
+      }
+
+      // Create a simple index
+      String indexName = "index_on_table_for_testindex";
+      String indexHandlerClass = HiveIndex.IndexType.COMPACT_SUMMARY_TABLE.getHandlerClsName();
+      List<String> indexedCols = new ArrayList<String>();
+      indexedCols.add("col1");
+      String indexTableName = "index_on_table_for_testindex_table";
+      boolean deferredRebuild = true;
+      String inputFormat = SequenceFileInputFormat.class.getName();
+      String outputFormat = SequenceFileOutputFormat.class.getName();
+      String serde = null;
+      String storageHandler = null;
+      String location = null;
+      String collItemDelim = null;
+      String fieldDelim = null;
+      String fieldEscape = null;
+      String lineDelim = null;
+      String mapKeyDelim = null;
+      String indexComment = null;
+      Map<String, String> indexProps = null;
+      Map<String, String> tableProps = null;
+      Map<String, String> serdeProps = new HashMap<String, String>();
+      hm.createIndex(tableName, indexName, indexHandlerClass, indexedCols, indexTableName,
+          deferredRebuild, inputFormat, outputFormat, serde, storageHandler, location,
+          indexProps, tableProps, serdeProps, collItemDelim, fieldDelim, fieldEscape, lineDelim,
+          mapKeyDelim, indexComment);
+
+      // Retrieve and validate the index
+      Index index = null;
+      try {
+        index = hm.getIndex(tableName, indexName);
+        assertNotNull("Unable to fetch index", index);
+        index.validate();
+        assertEquals("Index names don't match for index: " + indexName, indexName,
+            index.getIndexName());
+        assertEquals("Table names don't match for index: " + indexName, tableName,
+            index.getOrigTableName());
+        assertEquals("Index table names didn't match for index: " + indexName, indexTableName,
+            index.getIndexTableName());
+        assertEquals("Index handler classes didn't match for index: " + indexName,
+            indexHandlerClass, index.getIndexHandlerClass());
+        assertEquals("Deferred rebuild didn't match for index: " + indexName, deferredRebuild,
+            index.isDeferredRebuild());
+
+      } catch (HiveException e) {
+        System.err.println(StringUtils.stringifyException(e));
+        assertTrue("Unable to fetch index correctly: " + indexName, false);
+      }
+
+      // Drop index
+      try {
+        hm.dropIndex(MetaStoreUtils.DEFAULT_DATABASE_NAME, tableName, indexName, true);
+      } catch (HiveException e) {
+        System.err.println(StringUtils.stringifyException(e));
+        assertTrue("Unable to drop index: " + indexName, false);
+      }
+
+      boolean dropIndexException = false;
+      try {
+        hm.getIndex(tableName, indexName);
+      } catch (HiveException e) {
+        // Expected since it was just dropped
+        dropIndexException = true;
+      }
+
+      assertTrue("Unable to drop index: " + indexName, dropIndexException);
+
+      // Drop table
+      try {
+        hm.dropTable(tableName);
+        Table droppedTable = hm.getTable(tableName, false);
+        assertNull("Unable to drop table " + tableName, droppedTable);
+      } catch (HiveException e) {
+        System.err.println(StringUtils.stringifyException(e));
+        assertTrue("Unable to drop table: " + tableName, false);
+      }
+    } catch (Throwable e) {
+      System.err.println(StringUtils.stringifyException(e));
+      System.err.println("testIndex failed");
+      throw e;
+    }
+  }
+
+  public void testHiveRefreshOnConfChange() throws Throwable{
+    Hive prevHiveObj = Hive.get();
+    Hive newHiveObj;
+
+    //if HiveConf has not changed, same object should be returned
+    HiveConf newHconf = new HiveConf(hiveConf);
+    newHiveObj = Hive.get(newHconf);
+    assertTrue(prevHiveObj == newHiveObj);
+
+    //if needs refresh param is passed, it should return new object
+    newHiveObj = Hive.get(newHconf, true);
+    assertTrue(prevHiveObj != newHiveObj);
+
+    //if HiveConf has changed, new object should be returned
+    prevHiveObj = Hive.get();
+    //change value of a metavar config param in new hive conf
+    newHconf = new HiveConf(hiveConf);
+    newHconf.setIntVar(ConfVars.METASTORETHRIFTCONNECTIONRETRIES,
+        newHconf.getIntVar(ConfVars.METASTORETHRIFTCONNECTIONRETRIES) + 1);
+    newHiveObj = Hive.get(newHconf);
+    assertTrue(prevHiveObj != newHiveObj);
   }
 }

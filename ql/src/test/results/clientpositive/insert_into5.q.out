@@ -170,6 +170,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -183,6 +184,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -302,6 +304,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -315,6 +318,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -349,12 +353,14 @@ PREHOOK: query: SELECT SUM(HASH(c)) FROM (
     SELECT TRANSFORM(*) USING 'tr \t _' AS (c) FROM insert_into5b
 ) t
 PREHOOK: type: QUERY
+PREHOOK: Input: default@insert_into5b
 PREHOOK: Input: default@insert_into5b@ds=1
 #### A masked pattern was here ####
 POSTHOOK: query: SELECT SUM(HASH(c)) FROM (
     SELECT TRANSFORM(*) USING 'tr \t _' AS (c) FROM insert_into5b
 ) t
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@insert_into5b
 POSTHOOK: Input: default@insert_into5b@ds=1
 #### A masked pattern was here ####
 POSTHOOK: Lineage: insert_into5a.key SIMPLE []
@@ -440,6 +446,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -453,6 +460,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -472,41 +480,45 @@ STAGE PLANS:
 PREHOOK: query: INSERT INTO TABLE insert_into5b PARTITION (ds='1') 
   SELECT key, value FROM insert_into5b
 PREHOOK: type: QUERY
+PREHOOK: Input: default@insert_into5b
 PREHOOK: Input: default@insert_into5b@ds=1
 PREHOOK: Output: default@insert_into5b@ds=1
 POSTHOOK: query: INSERT INTO TABLE insert_into5b PARTITION (ds='1') 
   SELECT key, value FROM insert_into5b
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@insert_into5b
 POSTHOOK: Input: default@insert_into5b@ds=1
 POSTHOOK: Output: default@insert_into5b@ds=1
 POSTHOOK: Lineage: insert_into5a.key SIMPLE []
 POSTHOOK: Lineage: insert_into5a.key SIMPLE [(insert_into5a)insert_into5a.FieldSchema(name:key, type:int, comment:null), ]
 POSTHOOK: Lineage: insert_into5a.value SIMPLE []
 POSTHOOK: Lineage: insert_into5a.value SIMPLE [(insert_into5a)insert_into5a.FieldSchema(name:value, type:string, comment:null), ]
-POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).key SIMPLE [(insert_into5b)insert_into5b.FieldSchema(name:key, type:int, comment:null), ]
-POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).value SIMPLE [(insert_into5b)insert_into5b.FieldSchema(name:value, type:string, comment:null), ]
 POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).key SIMPLE [(insert_into5a)insert_into5a.FieldSchema(name:key, type:int, comment:null), ]
 POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).value SIMPLE [(insert_into5a)insert_into5a.FieldSchema(name:value, type:string, comment:null), ]
+POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).key SIMPLE [(insert_into5b)insert_into5b.FieldSchema(name:key, type:int, comment:null), ]
+POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).value SIMPLE [(insert_into5b)insert_into5b.FieldSchema(name:value, type:string, comment:null), ]
 PREHOOK: query: SELECT SUM(HASH(c)) FROM (
     SELECT TRANSFORM(*) USING 'tr \t _' AS (c) FROM insert_into5b
 ) t
 PREHOOK: type: QUERY
+PREHOOK: Input: default@insert_into5b
 PREHOOK: Input: default@insert_into5b@ds=1
 #### A masked pattern was here ####
 POSTHOOK: query: SELECT SUM(HASH(c)) FROM (
     SELECT TRANSFORM(*) USING 'tr \t _' AS (c) FROM insert_into5b
 ) t
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@insert_into5b
 POSTHOOK: Input: default@insert_into5b@ds=1
 #### A masked pattern was here ####
 POSTHOOK: Lineage: insert_into5a.key SIMPLE []
 POSTHOOK: Lineage: insert_into5a.key SIMPLE [(insert_into5a)insert_into5a.FieldSchema(name:key, type:int, comment:null), ]
 POSTHOOK: Lineage: insert_into5a.value SIMPLE []
 POSTHOOK: Lineage: insert_into5a.value SIMPLE [(insert_into5a)insert_into5a.FieldSchema(name:value, type:string, comment:null), ]
-POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).key SIMPLE [(insert_into5b)insert_into5b.FieldSchema(name:key, type:int, comment:null), ]
-POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).value SIMPLE [(insert_into5b)insert_into5b.FieldSchema(name:value, type:string, comment:null), ]
 POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).key SIMPLE [(insert_into5a)insert_into5a.FieldSchema(name:key, type:int, comment:null), ]
 POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).value SIMPLE [(insert_into5a)insert_into5a.FieldSchema(name:value, type:string, comment:null), ]
+POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).key SIMPLE [(insert_into5b)insert_into5b.FieldSchema(name:key, type:int, comment:null), ]
+POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).value SIMPLE [(insert_into5b)insert_into5b.FieldSchema(name:value, type:string, comment:null), ]
 -37252105840
 PREHOOK: query: DROP TABLE insert_into5a
 PREHOOK: type: DROPTABLE
@@ -520,7 +532,7 @@ POSTHOOK: Lineage: insert_into5a.key SIMPLE []
 POSTHOOK: Lineage: insert_into5a.key SIMPLE [(insert_into5a)insert_into5a.FieldSchema(name:key, type:int, comment:null), ]
 POSTHOOK: Lineage: insert_into5a.value SIMPLE []
 POSTHOOK: Lineage: insert_into5a.value SIMPLE [(insert_into5a)insert_into5a.FieldSchema(name:value, type:string, comment:null), ]
-POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).key SIMPLE [(insert_into5b)insert_into5b.FieldSchema(name:key, type:int, comment:null), ]
-POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).value SIMPLE [(insert_into5b)insert_into5b.FieldSchema(name:value, type:string, comment:null), ]
 POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).key SIMPLE [(insert_into5a)insert_into5a.FieldSchema(name:key, type:int, comment:null), ]
 POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).value SIMPLE [(insert_into5a)insert_into5a.FieldSchema(name:value, type:string, comment:null), ]
+POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).key SIMPLE [(insert_into5b)insert_into5b.FieldSchema(name:key, type:int, comment:null), ]
+POSTHOOK: Lineage: insert_into5b PARTITION(ds=1).value SIMPLE [(insert_into5b)insert_into5b.FieldSchema(name:value, type:string, comment:null), ]

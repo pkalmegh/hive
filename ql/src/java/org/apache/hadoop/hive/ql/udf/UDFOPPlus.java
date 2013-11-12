@@ -18,9 +18,24 @@
 
 package org.apache.hadoop.hive.ql.udf;
 
+import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.ql.exec.Description;
+import org.apache.hadoop.hive.ql.exec.vector.VectorizedExpressions;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleColAddDoubleColumn;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleColAddDoubleScalar;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleColAddLongColumn;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleColAddLongScalar;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleScalarAddDoubleColumn;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleScalarAddLongColumn;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.LongColAddDoubleColumn;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.LongColAddDoubleScalar;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.LongColAddLongColumn;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.LongColAddLongScalar;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.LongScalarAddDoubleColumn;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.LongScalarAddLongColumn;
 import org.apache.hadoop.hive.serde2.io.ByteWritable;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
+import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.hadoop.hive.serde2.io.ShortWritable;
 import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
@@ -36,6 +51,11 @@ import org.apache.hadoop.io.LongWritable;
  * UDFRegistry.implicitConvertable method.
  */
 @Description(name = "+", value = "a _FUNC_ b - Returns a+b")
+@VectorizedExpressions({LongColAddLongColumn.class, LongColAddDoubleColumn.class,
+  DoubleColAddLongColumn.class, DoubleColAddDoubleColumn.class, LongColAddLongScalar.class,
+  LongColAddDoubleScalar.class, DoubleColAddLongScalar.class, DoubleColAddDoubleScalar.class,
+  LongScalarAddLongColumn.class, LongScalarAddDoubleColumn.class, DoubleScalarAddLongColumn.class,
+  DoubleScalarAddDoubleColumn.class})
 public class UDFOPPlus extends UDFBaseNumericOp {
 
   public UDFOPPlus() {
@@ -111,6 +131,21 @@ public class UDFOPPlus extends UDFBaseNumericOp {
 
     doubleWritable.set(a.get() + b.get());
     return doubleWritable;
+  }
+
+  @Override
+  public HiveDecimalWritable evaluate(HiveDecimalWritable a, HiveDecimalWritable b) {
+    if ((a == null) || (b == null)) {
+      return null;
+    }
+
+    HiveDecimal dec = a.getHiveDecimal().add(b.getHiveDecimal());
+    if (dec == null) {
+      return null;
+    }
+
+    decimalWritable.set(dec);
+    return decimalWritable;
   }
 
 }

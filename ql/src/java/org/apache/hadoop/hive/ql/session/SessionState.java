@@ -17,22 +17,23 @@
  */
 
 package org.apache.hadoop.hive.ql.session;
+import static org.apache.hadoop.hive.metastore.MetaStoreUtils.DEFAULT_DATABASE_NAME;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.net.URI;
-import java.net.URL;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -40,16 +41,22 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.ql.MapRedStats;
-import org.apache.hadoop.hive.ql.exec.FunctionRegistry;
 import org.apache.hadoop.hive.ql.exec.Utilities;
 import org.apache.hadoop.hive.ql.history.HiveHistory;
+import org.apache.hadoop.hive.ql.history.HiveHistoryImpl;
+import org.apache.hadoop.hive.ql.history.HiveHistoryProxyHandler;
+import org.apache.hadoop.hive.ql.log.PerfLogger;
+import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.HiveUtils;
 import org.apache.hadoop.hive.ql.plan.HiveOperation;
 import org.apache.hadoop.hive.ql.security.HiveAuthenticationProvider;
 import org.apache.hadoop.hive.ql.security.authorization.HiveAuthorizationProvider;
 import org.apache.hadoop.hive.ql.util.DosToUnix;
+import org.apache.hadoop.hive.shims.ShimLoader;
+import org.apache.hadoop.util.ReflectionUtils;
 
 /**
  * SessionState encapsulates common data associated with a session.
@@ -59,6 +66,7 @@ import org.apache.hadoop.hive.ql.util.DosToUnix;
  * configuration information
  */
 public class SessionState {
+  private static final Log LOG = LogFactory.getLog(SessionState.class);
 
   /**
    * current configuration.
@@ -128,11 +136,14 @@ public class SessionState {
 
   private Map<String, List<String>> localMapRedErrors;
 
+  private String currentDatabase;
+
   /**
    * Lineage state.
    */
   LineageState ls;
 
+  private PerfLogger perfLogger;
   /**
    * Get the lineage state stored in this session.
    *
@@ -181,30 +192,20 @@ public class SessionState {
     this.isVerbose = isVerbose;
   }
 
-  public SessionState() {
-    this(null);
-  }
-
   public SessionState(HiveConf conf) {
     this.conf = conf;
     isSilent = conf.getBoolVar(HiveConf.ConfVars.HIVESESSIONSILENT);
     ls = new LineageState();
     overriddenConfigurations = new HashMap<String, String>();
     overriddenConfigurations.putAll(HiveConf.getConfSystemProperties());
-
-    // Register the Hive builtins jar and all of its functions
-    try {
-      Class<?> pluginClass = Utilities.getBuiltinUtilsClass();
-      URL jarLocation = pluginClass.getProtectionDomain().getCodeSource()
-        .getLocation();
-      add_builtin_resource(
-        ResourceType.JAR, jarLocation.toString());
-      FunctionRegistry.registerFunctionsFromPluginJar(
-        jarLocation, pluginClass.getClassLoader());
-    } catch (Exception ex) {
-      throw new RuntimeException("Failed to load Hive builtin functions", ex);
+    // if there isn't already a session name, go ahead and create it.
+    if (StringUtils.isEmpty(conf.getVar(HiveConf.ConfVars.HIVESESSIONID))) {
+      conf.setVar(HiveConf.ConfVars.HIVESESSIONID, makeSessionId());
     }
   }
+
+  private static final SimpleDateFormat DATE_FORMAT =
+      new SimpleDateFormat("yyyyMMddHHmm");
 
   public void setCmd(String cmdString) {
     conf.setVar(HiveConf.ConfVars.HIVEQUERYSTRING, cmdString);
@@ -248,6 +249,13 @@ public class SessionState {
   }
 
   /**
+   * Sets the given session state in the thread local var for sessions.
+   */
+  public static void setCurrentSessionState(SessionState session) {
+    tss.set(session);
+  }
+
+  /**
    * set current session to existing session object if a thread is running
    * multiple sessions - it must call this method with the new session object
    * when switching from one session to another.
@@ -255,37 +263,44 @@ public class SessionState {
    */
   public static SessionState start(SessionState startSs) {
 
-    tss.set(startSs);
+    setCurrentSessionState(startSs);
 
-    if (StringUtils.isEmpty(startSs.getConf().getVar(
-        HiveConf.ConfVars.HIVESESSIONID))) {
-      startSs.getConf()
-          .setVar(HiveConf.ConfVars.HIVESESSIONID, makeSessionId());
-    }
-
-    if (startSs.hiveHist == null) {
-      startSs.hiveHist = new HiveHistory(startSs);
+    if(startSs.hiveHist == null){
+      if (startSs.getConf().getBoolVar(HiveConf.ConfVars.HIVE_SESSION_HISTORY_ENABLED)) {
+        startSs.hiveHist = new HiveHistoryImpl(startSs);
+      }else {
+        //Hive history is disabled, create a no-op proxy
+        startSs.hiveHist = HiveHistoryProxyHandler.getNoOpHiveHistoryProxy();
+      }
     }
 
     if (startSs.getTmpOutputFile() == null) {
-      // per-session temp file containing results to be sent from HiveServer to HiveClient
-      File tmpDir = new File(
-          HiveConf.getVar(startSs.getConf(), HiveConf.ConfVars.HIVEHISTORYFILELOC));
-      String sessionID = startSs.getConf().getVar(HiveConf.ConfVars.HIVESESSIONID);
+      // set temp file containing results to be sent to HiveClient
       try {
-        File tmpFile = File.createTempFile(sessionID, ".pipeout", tmpDir);
-        tmpFile.deleteOnExit();
-        startSs.setTmpOutputFile(tmpFile);
+        startSs.setTmpOutputFile(createTempFile(startSs.getConf()));
       } catch (IOException e) {
         throw new RuntimeException(e);
       }
     }
 
+    // Get the following out of the way when you start the session these take a
+    // while and should be done when we start up.
     try {
-      startSs.authenticator = HiveUtils.getAuthenticator(startSs
-          .getConf());
-      startSs.authorizer = HiveUtils.getAuthorizeProviderManager(startSs
-          .getConf(), startSs.authenticator);
+      Hive.get(startSs.conf).getMSC();
+      ShimLoader.getHadoopShims().getUGIForConf(startSs.conf);
+      FileSystem.get(startSs.conf);
+    } catch (Exception e) {
+      // catch-all due to some exec time dependencies on session state
+      // that would cause ClassNoFoundException otherwise
+      throw new RuntimeException(e);
+    }
+
+    try {
+      startSs.authenticator = HiveUtils.getAuthenticator(
+          startSs.getConf(),HiveConf.ConfVars.HIVE_AUTHENTICATOR_MANAGER);
+      startSs.authorizer = HiveUtils.getAuthorizeProviderManager(
+          startSs.getConf(), HiveConf.ConfVars.HIVE_AUTHORIZATION_MANAGER,
+          startSs.authenticator);
       startSs.createTableGrants = CreateTableAutomaticGrant.create(startSs
           .getConf());
     } catch (HiveException e) {
@@ -293,6 +308,33 @@ public class SessionState {
     }
 
     return startSs;
+  }
+
+  /**
+   * @param conf
+   * @return per-session temp file
+   * @throws IOException
+   */
+  private static File createTempFile(HiveConf conf) throws IOException {
+    String lScratchDir =
+        HiveConf.getVar(conf, HiveConf.ConfVars.LOCALSCRATCHDIR);
+
+    File tmpDir = new File(lScratchDir);
+    String sessionID = conf.getVar(HiveConf.ConfVars.HIVESESSIONID);
+    if (!tmpDir.exists()) {
+      if (!tmpDir.mkdirs()) {
+        //Do another exists to check to handle possible race condition
+        // Another thread might have created the dir, if that is why
+        // mkdirs returned false, that is fine
+        if(!tmpDir.exists()){
+          throw new RuntimeException("Unable to create log directory "
+              + lScratchDir);
+        }
+      }
+    }
+    File tmpFile = File.createTempFile(sessionID, ".pipeout", tmpDir);
+    tmpFile.deleteOnExit();
+    return tmpFile;
   }
 
   /**
@@ -311,15 +353,13 @@ public class SessionState {
     return hiveHist;
   }
 
+  /**
+   * Create a session ID. Looks like:
+   *   $user_$pid@$host_$date
+   * @return the unique string
+   */
   private static String makeSessionId() {
-    GregorianCalendar gc = new GregorianCalendar();
-    String userid = System.getProperty("user.name");
-
-    return userid
-        + "_"
-        + String.format("%1$4d%2$02d%3$02d%4$02d%5$02d", gc.get(Calendar.YEAR),
-        gc.get(Calendar.MONTH) + 1, gc.get(Calendar.DAY_OF_MONTH), gc
-        .get(Calendar.HOUR_OF_DAY), gc.get(Calendar.MINUTE));
+    return UUID.randomUUID().toString();
   }
 
   /**
@@ -429,7 +469,7 @@ public class SessionState {
     } catch (IOException e) {
       console.printError("Unable to validate " + newFile + "\nException: "
           + e.getMessage(), "\n"
-          + org.apache.hadoop.util.StringUtils.stringifyException(e));
+              + org.apache.hadoop.util.StringUtils.stringifyException(e));
       return null;
     }
   }
@@ -446,7 +486,7 @@ public class SessionState {
     } catch (Exception e) {
       console.printError("Unable to register " + newJar + "\nException: "
           + e.getMessage(), "\n"
-          + org.apache.hadoop.util.StringUtils.stringifyException(e));
+              + org.apache.hadoop.util.StringUtils.stringifyException(e));
       return false;
     }
   }
@@ -460,7 +500,7 @@ public class SessionState {
     } catch (Exception e) {
       console.printError("Unable to unregister " + jarsToUnregister
           + "\nException: " + e.getMessage(), "\n"
-          + org.apache.hadoop.util.StringUtils.stringifyException(e));
+              + org.apache.hadoop.util.StringUtils.stringifyException(e));
       return false;
     }
   }
@@ -546,7 +586,7 @@ public class SessionState {
   }
 
   private final HashMap<ResourceType, Set<String>> resource_map =
-    new HashMap<ResourceType, Set<String>>();
+      new HashMap<ResourceType, Set<String>>();
 
   public String add_resource(ResourceType t, String value) {
     // By default don't convert to unix
@@ -605,10 +645,10 @@ public class SessionState {
       File resourceDir = new File(getConf().getVar(HiveConf.ConfVars.DOWNLOADED_RESOURCES_DIR));
       String destinationName = new Path(value).getName();
       File destinationFile = new File(resourceDir, destinationName);
-      if ( resourceDir.exists() && ! resourceDir.isDirectory() ) {
+      if (resourceDir.exists() && ! resourceDir.isDirectory()) {
         throw new RuntimeException("The resource directory is not a directory, resourceDir is set to" + resourceDir);
       }
-      if ( ! resourceDir.exists() && ! resourceDir.mkdirs() ) {
+      if (!resourceDir.exists() && !resourceDir.mkdirs()) {
         throw new RuntimeException("Couldn't create directory " + resourceDir);
       }
       try {
@@ -619,7 +659,8 @@ public class SessionState {
           try {
             DosToUnix.convertWindowsScriptToUnix(destinationFile);
           } catch (Exception e) {
-            throw new RuntimeException("Caught exception while converting to unix line endings", e);
+            throw new RuntimeException("Caught exception while converting file " +
+                destinationFile + " to unix line endings", e);
           }
         }
       } catch (Exception e) {
@@ -749,4 +790,49 @@ public class SessionState {
   public void setLocalMapRedErrors(Map<String, List<String>> localMapRedErrors) {
     this.localMapRedErrors = localMapRedErrors;
   }
+
+  public String getCurrentDatabase() {
+    if (currentDatabase == null) {
+      currentDatabase = DEFAULT_DATABASE_NAME;
+    }
+    return currentDatabase;
+  }
+
+  public void setCurrentDatabase(String currentDatabase) {
+    this.currentDatabase = currentDatabase;
+  }
+
+  public void close() throws IOException {
+    File resourceDir =
+        new File(getConf().getVar(HiveConf.ConfVars.DOWNLOADED_RESOURCES_DIR));
+    LOG.debug("Removing resource dir " + resourceDir);
+    try {
+      if (resourceDir.exists()) {
+        FileUtils.deleteDirectory(resourceDir);
+      }
+    } catch (IOException e) {
+      LOG.info("Error removing session resource dir " + resourceDir, e);
+    }
+  }
+
+  /**
+   * @param resetPerfLogger
+   * @return  Tries to return an instance of the class whose name is configured in
+   *          hive.exec.perf.logger, but if it can't it just returns an instance of
+   *          the base PerfLogger class
+
+   */
+  public PerfLogger getPerfLogger(boolean resetPerfLogger) {
+    if ((perfLogger == null) || resetPerfLogger) {
+      try {
+        perfLogger = (PerfLogger) ReflectionUtils.newInstance(conf.getClassByName(
+            conf.getVar(ConfVars.HIVE_PERF_LOGGER)), conf);
+      } catch (ClassNotFoundException e) {
+        LOG.error("Performance Logger Class not found:" + e.getMessage());
+        perfLogger = new PerfLogger();
+      }
+    }
+    return perfLogger;
+  }
+
 }

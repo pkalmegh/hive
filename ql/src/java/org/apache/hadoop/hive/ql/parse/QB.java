@@ -21,6 +21,7 @@ package org.apache.hadoop.hive.ql.parse;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.logging.Log;
@@ -43,13 +44,31 @@ public class QB {
   private int numSelDi = 0;
   private HashMap<String, String> aliasToTabs;
   private HashMap<String, QBExpr> aliasToSubq;
+  private HashMap<String, Map<String, String>> aliasToProps;
   private List<String> aliases;
   private QBParseInfo qbp;
   private QBMetaData qbm;
   private QBJoinTree qbjoin;
   private String id;
   private boolean isQuery;
+  private boolean isAnalyzeRewrite;
   private CreateTableDesc tblDesc = null; // table descriptor of the final
+  private CreateTableDesc localDirectoryDesc = null ;
+
+  // used by PTFs
+  /*
+   * This map maintains the PTFInvocationSpec for each PTF chain invocation in this QB.
+   */
+  private HashMap<ASTNode, PTFInvocationSpec> ptfNodeToSpec;
+  /*
+   * the WindowingSpec used for windowing clauses in this QB.
+   */
+  private HashMap<String, WindowingSpec> destToWindowingSpec;
+
+  /*
+   * If this QB represents a SubQuery predicate then this will point to the SubQuery object.
+   */
+  private QBSubQuery subQueryPredicateDef;
 
   // results
 
@@ -69,13 +88,29 @@ public class QB {
   public QB(String outer_id, String alias, boolean isSubQ) {
     aliasToTabs = new HashMap<String, String>();
     aliasToSubq = new HashMap<String, QBExpr>();
+    aliasToProps = new HashMap<String, Map<String, String>>();
     aliases = new ArrayList<String>();
     if (alias != null) {
       alias = alias.toLowerCase();
     }
     qbp = new QBParseInfo(alias, isSubQ);
     qbm = new QBMetaData();
-    id = (outer_id == null ? alias : outer_id + ":" + alias);
+    ptfNodeToSpec = new HashMap<ASTNode, PTFInvocationSpec>();
+    destToWindowingSpec = new HashMap<String, WindowingSpec>();
+    id = getAppendedAliasFromId(outer_id, alias);
+  }
+
+  // For sub-queries, the id. and alias should be appended since same aliases can be re-used
+  // within different sub-queries.
+  // For a query like:
+  // select ...
+  //   (select * from T1 a where ...) subq1
+  //  join
+  //   (select * from T2 a where ...) subq2
+  // ..
+  // the alias is modified to subq1:a and subq2:a from a, to identify the right sub-query.
+  public static String getAppendedAliasFromId(String outer_id, String alias) {
+    return (outer_id == null ? alias : outer_id + ":" + alias);
   }
 
   public QBParseInfo getParseInfo() {
@@ -113,6 +148,10 @@ public class QB {
 
   public void setSubqAlias(String alias, QBExpr qbexpr) {
     aliasToSubq.put(alias.toLowerCase(), qbexpr);
+  }
+
+  public void setTabProps(String alias, Map<String, String> props) {
+    aliasToProps.put(alias.toLowerCase(), props);
   }
 
   public void addAlias(String alias) {
@@ -161,6 +200,10 @@ public class QB {
     return aliasToTabs.get(alias.toLowerCase());
   }
 
+  public Map<String, String> getTabPropsForAlias(String alias) {
+    return aliasToProps.get(alias.toLowerCase());
+  }
+
   public void rewriteViewToSubq(String alias, String viewName, QBExpr qbexpr) {
     alias = alias.toLowerCase();
     String tableName = aliasToTabs.remove(alias);
@@ -201,6 +244,14 @@ public class QB {
     tblDesc = desc;
   }
 
+  public CreateTableDesc getLLocalDirectoryDesc() {
+    return localDirectoryDesc;
+  }
+
+  public void setLocalDirectoryDesc(CreateTableDesc localDirectoryDesc) {
+    this.localDirectoryDesc = localDirectoryDesc;
+  }
+
   /**
    * Whether this QB is for a CREATE-TABLE-AS-SELECT.
    */
@@ -222,5 +273,52 @@ public class QB {
       skewedColNames = tbl.getSkewedColNames();
     }
     return skewedColNames;
+
   }
+
+  public boolean isAnalyzeRewrite() {
+    return isAnalyzeRewrite;
+  }
+
+  public void setAnalyzeRewrite(boolean isAnalyzeRewrite) {
+    this.isAnalyzeRewrite = isAnalyzeRewrite;
+  }
+
+  public PTFInvocationSpec getPTFInvocationSpec(ASTNode node) {
+    return ptfNodeToSpec == null ? null : ptfNodeToSpec.get(node);
+  }
+
+  public void addPTFNodeToSpec(ASTNode node, PTFInvocationSpec spec) {
+    ptfNodeToSpec = ptfNodeToSpec == null ? new HashMap<ASTNode, PTFInvocationSpec>() : ptfNodeToSpec;
+    ptfNodeToSpec.put(node, spec);
+  }
+
+  public HashMap<ASTNode, PTFInvocationSpec> getPTFNodeToSpec() {
+    return ptfNodeToSpec;
+  }
+
+  public WindowingSpec getWindowingSpec(String dest) {
+    return destToWindowingSpec.get(dest);
+  }
+
+  public void addDestToWindowingSpec(String dest, WindowingSpec windowingSpec) {
+    destToWindowingSpec.put(dest, windowingSpec);
+  }
+
+  public boolean hasWindowingSpec(String dest) {
+    return destToWindowingSpec.get(dest) != null;
+  }
+
+  public HashMap<String, WindowingSpec> getAllWindowingSpecs() {
+    return destToWindowingSpec;
+  }
+
+  protected void setSubQueryDef(QBSubQuery subQueryPredicateDef) {
+    this.subQueryPredicateDef = subQueryPredicateDef;
+  }
+
+  protected QBSubQuery getSubQueryPredicateDef() {
+    return subQueryPredicateDef;
+  }
+
 }

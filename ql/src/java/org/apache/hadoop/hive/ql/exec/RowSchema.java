@@ -32,6 +32,10 @@ public class RowSchema implements Serializable {
   public RowSchema() {
   }
 
+  public RowSchema(RowSchema that) {
+    this.signature = (ArrayList<ColumnInfo>) that.signature.clone();
+  }
+
   public RowSchema(ArrayList<ColumnInfo> signature) {
     this.signature = signature;
   }
@@ -47,8 +51,10 @@ public class RowSchema implements Serializable {
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder('(');
-    for (ColumnInfo col: signature) {
-      sb.append(col.toString());
+    if (signature != null) {
+      for (ColumnInfo col : signature) {
+        sb.append(col.toString());
+      }
     }
     sb.append(')');
     return sb.toString();

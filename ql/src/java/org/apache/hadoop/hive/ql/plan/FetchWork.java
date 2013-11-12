@@ -21,11 +21,13 @@ package org.apache.hadoop.hive.ql.plan;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeMap;
 
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.ListSinkOperator;
+import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.parse.SplitSample;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 
 /**
  * FetchWork.
@@ -49,12 +51,28 @@ public class FetchWork implements Serializable {
 
   private SplitSample splitSample;
 
+  private transient List<List<Object>> rowsComputedFromStats;
+  private transient ObjectInspector statRowOI;
+
   /**
    * Serialization Null Format for the serde used to fetch data.
    */
   private String serializationNullFormat = "NULL";
 
   public FetchWork() {
+  }
+
+  public FetchWork(List<List<Object>> rowsComputedFromStats,ObjectInspector statRowOI) {
+    this.rowsComputedFromStats = rowsComputedFromStats;
+    this.statRowOI = statRowOI;
+  }
+
+  public ObjectInspector getStatRowOI() {
+    return statRowOI;
+  }
+
+  public List<List<Object>> getRowsComputedUsingStats() {
+    return rowsComputedFromStats;
   }
 
   public FetchWork(String tblDir, TableDesc tblDesc) {
@@ -190,6 +208,36 @@ public class FetchWork implements Serializable {
    */
   public ArrayList<PartitionDesc> getPartDesc() {
     return partDesc;
+  }
+
+  /**
+   * Get Partition descriptors in sorted (ascending) order of partition directory
+   *
+   * @return the partDesc array list
+   */
+  @Explain(displayName = "Partition Description", normalExplain = false)
+  public ArrayList<PartitionDesc> getPartDescOrderedByPartDir() {
+    ArrayList<PartitionDesc> partDescOrdered = partDesc;
+
+    if (partDir != null && partDir.size() > 1) {
+      if (partDesc == null || partDir.size() != partDesc.size()) {
+        throw new RuntimeException(
+            "Partiton Directory list size doesn't match Partition Descriptor list size");
+      }
+
+      // Construct a sorted Map of Partition Dir - Partition Descriptor; ordering is based on
+      // patition dir (map key)
+      // Assumption: there is a 1-1 mapping between partition dir and partition descriptor lists
+      TreeMap<String, PartitionDesc> partDirToPartSpecMap = new TreeMap<String, PartitionDesc>();
+      for (int i = 0; i < partDir.size(); i++) {
+        partDirToPartSpecMap.put(partDir.get(i), partDesc.get(i));
+      }
+
+      // Extract partition desc from sorted map (ascending order of part dir)
+      partDescOrdered = new ArrayList<PartitionDesc>(partDirToPartSpecMap.values());
+    }
+
+    return partDescOrdered;
   }
 
   /**

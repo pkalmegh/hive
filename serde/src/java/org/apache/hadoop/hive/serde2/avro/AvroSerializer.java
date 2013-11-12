@@ -18,9 +18,18 @@
 package org.apache.hadoop.hive.serde2.avro;
 
 
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
+import org.apache.avro.Schema.Type;
 import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericData.Fixed;
+import org.apache.avro.generic.GenericEnumSymbol;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
@@ -37,18 +46,15 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.UnionTypeInfo;
 import org.apache.hadoop.io.Writable;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static org.apache.avro.Schema.Type.BYTES;
-import static org.apache.avro.Schema.Type.FIXED;
-
 class AvroSerializer {
   private static final Log LOG = LogFactory.getLog(AvroSerializer.class);
 
+  /**
+   * The Schema to use when serializing Map keys.
+   * Since we're sharing this across Serializer instances, it must be immutable;
+   * any properties need to be added in a static initializer.
+   */
+  private static final Schema STRING_SCHEMA = Schema.create(Schema.Type.STRING);
   AvroGenericRecordWritable cache = new AvroGenericRecordWritable();
 
   // Hive is pretty simple (read: stupid) in writing out values via the serializer.
@@ -60,12 +66,14 @@ class AvroSerializer {
     GenericData.Record record = new GenericData.Record(schema);
 
     List<? extends StructField> outputFieldRefs = soi.getAllStructFieldRefs();
-    if(outputFieldRefs.size() != columnNames.size())
+    if(outputFieldRefs.size() != columnNames.size()) {
       throw new AvroSerdeException("Number of input columns was different than output columns (in = " + columnNames.size() + " vs out = " + outputFieldRefs.size());
+    }
 
     int size = schema.getFields().size();
-    if(outputFieldRefs.size() != size) // Hive does this check for us, so we should be ok.
+    if(outputFieldRefs.size() != size) {
       throw new AvroSerdeException("Hive passed in a different number of fields than the schema expected: (Hive wanted " + outputFieldRefs.size() +", Avro expected " + schema.getFields().size());
+    }
 
     List<? extends StructField> allStructFieldRefs = soi.getAllStructFieldRefs();
     List<Object> structFieldsDataAsList = soi.getStructFieldsDataAsList(o);
@@ -81,8 +89,9 @@ class AvroSerializer {
       record.put(field.name(), val);
     }
 
-    if(!GenericData.get().validate(schema, record))
+    if(!GenericData.get().validate(schema, record)) {
       throw new SerializeToAvroException(schema, record);
+    }
 
     cache.setRecord(record);
 
@@ -90,10 +99,21 @@ class AvroSerializer {
   }
 
   private Object serialize(TypeInfo typeInfo, ObjectInspector fieldOI, Object structFieldData, Schema schema) throws AvroSerdeException {
+    if(null == structFieldData) {
+      return null;
+    }
+    if(AvroSerdeUtils.isNullableType(schema)) {
+      schema = AvroSerdeUtils.getOtherTypeFromNullableType(schema);
+    }
+    /* Because we use Hive's 'string' type when Avro calls for enum, we have to expressly check for enum-ness */
+    if(Schema.Type.ENUM.equals(schema.getType())) {
+      assert fieldOI instanceof PrimitiveObjectInspector;
+      return serializeEnum(typeInfo, (PrimitiveObjectInspector) fieldOI, structFieldData, schema);
+    }
     switch(typeInfo.getCategory()) {
       case PRIMITIVE:
         assert fieldOI instanceof PrimitiveObjectInspector;
-        return serializePrimitive(typeInfo, (PrimitiveObjectInspector) fieldOI, structFieldData);
+        return serializePrimitive(typeInfo, (PrimitiveObjectInspector) fieldOI, structFieldData, schema);
       case MAP:
         assert fieldOI instanceof MapObjectInspector;
         assert typeInfo instanceof MapTypeInfo;
@@ -113,6 +133,29 @@ class AvroSerializer {
       default:
         throw new AvroSerdeException("Ran out of TypeInfo Categories: " + typeInfo.getCategory());
     }
+  }
+
+  /** private cache to avoid lots of EnumSymbol creation while serializing.
+   *  Two levels because the enum symbol is specific to a schema.
+   *  Object because we want to avoid the overhead of repeated toString calls while maintaining compatability.
+   *  Provided there are few enum types per record, and few symbols per enum, memory use should be moderate.
+   *  eg 20 types with 50 symbols each as length-10 Strings should be on the order of 100KB per AvroSerializer.
+   */
+  final InstanceCache<Schema, InstanceCache<Object, GenericEnumSymbol>> enums
+      = new InstanceCache<Schema, InstanceCache<Object, GenericEnumSymbol>>() {
+          @Override
+          protected InstanceCache<Object, GenericEnumSymbol> makeInstance(final Schema schema) {
+            return new InstanceCache<Object, GenericEnumSymbol>() {
+              @Override
+              protected GenericEnumSymbol makeInstance(Object seed) {
+                return new GenericData.EnumSymbol(schema, seed.toString());
+              }
+            };
+          }
+        };
+
+  private Object serializeEnum(TypeInfo typeInfo, PrimitiveObjectInspector fieldOI, Object structFieldData, Schema schema) throws AvroSerdeException {
+    return enums.retrieve(schema).retrieve(serializePrimitive(typeInfo, fieldOI, structFieldData, schema));
   }
 
   private Object serializeStruct(StructTypeInfo typeInfo, StructObjectInspector ssoi, Object o, Schema schema) throws AvroSerdeException {
@@ -135,14 +178,24 @@ class AvroSerializer {
     return record;
   }
 
-  private Object serializePrimitive(TypeInfo typeInfo, PrimitiveObjectInspector fieldOI, Object structFieldData) throws AvroSerdeException {
+  private Object serializePrimitive(TypeInfo typeInfo, PrimitiveObjectInspector fieldOI, Object structFieldData, Schema schema) throws AvroSerdeException {
     switch(fieldOI.getPrimitiveCategory()) {
-      case UNKNOWN:
-        throw new AvroSerdeException("Received UNKNOWN primitive category.");
-      case VOID:
-        return null;
-      default: // All other primitive types are simple
-        return fieldOI.getPrimitiveJavaObject(structFieldData);
+    case BINARY:
+      if (schema.getType() == Type.BYTES){
+        ByteBuffer bb = ByteBuffer.wrap((byte[])fieldOI.getPrimitiveJavaObject(structFieldData));
+        return bb.rewind();
+      } else if (schema.getType() == Type.FIXED){
+        Fixed fixed = new GenericData.Fixed(schema, (byte[])fieldOI.getPrimitiveJavaObject(structFieldData));
+        return fixed;
+      } else {
+        throw new AvroSerdeException("Unexpected Avro schema for Binary TypeInfo: " + schema.getType());
+      }
+    case UNKNOWN:
+      throw new AvroSerdeException("Received UNKNOWN primitive category.");
+    case VOID:
+      return null;
+    default: // All other primitive types are simple
+      return fieldOI.getPrimitiveJavaObject(structFieldData);
     }
   }
 
@@ -156,53 +209,7 @@ class AvroSerializer {
                      schema.getTypes().get(tag));
   }
 
-  // We treat FIXED and BYTES as arrays of tinyints within Hive.  Check
-  // if we're dealing with either of these types and thus need to serialize
-  // them as their Avro types.
-  private boolean isTransformedType(Schema schema) {
-    return schema.getType().equals(FIXED) || schema.getType().equals(BYTES);
-  }
-
-  private Object serializeTransformedType(ListTypeInfo typeInfo, ListObjectInspector fieldOI, Object structFieldData, Schema schema) throws AvroSerdeException {
-    if(LOG.isDebugEnabled()) {
-      LOG.debug("Beginning to transform " + typeInfo + " with Avro schema " + schema.toString(false));
-    }
-    if(schema.getType().equals(FIXED)) return serializedAvroFixed(typeInfo, fieldOI, structFieldData, schema);
-    else return serializeAvroBytes(typeInfo, fieldOI, structFieldData, schema);
-
-  }
-
-  private Object serializeAvroBytes(ListTypeInfo typeInfo, ListObjectInspector fieldOI, Object structFieldData, Schema schema) throws AvroSerdeException {
-    ByteBuffer bb = ByteBuffer.wrap(extraByteArray(fieldOI, structFieldData));
-    return bb.rewind();
-  }
-
-  private Object serializedAvroFixed(ListTypeInfo typeInfo, ListObjectInspector fieldOI, Object structFieldData, Schema schema) throws AvroSerdeException {
-    return new GenericData.Fixed(schema, extraByteArray(fieldOI, structFieldData));
-  }
-
-  // For transforming to BYTES and FIXED, pull out the byte array Avro will want
-  private byte[] extraByteArray(ListObjectInspector fieldOI, Object structFieldData) throws AvroSerdeException {
-    // Grab a book.  This is going to be slow.
-    int listLength = fieldOI.getListLength(structFieldData);
-    byte[] bytes = new byte[listLength];
-    assert fieldOI.getListElementObjectInspector() instanceof PrimitiveObjectInspector;
-    PrimitiveObjectInspector poi = (PrimitiveObjectInspector)fieldOI.getListElementObjectInspector();
-    List<?> list = fieldOI.getList(structFieldData);
-
-    for(int i = 0; i < listLength; i++) {
-      Object b = poi.getPrimitiveJavaObject(list.get(i));
-      if(!(b instanceof Byte))
-        throw new AvroSerdeException("Attempting to transform to bytes, element was not byte but " + b.getClass().getCanonicalName());
-      bytes[i] = (Byte)b;
-    }
-    return bytes;
-  }
-
   private Object serializeList(ListTypeInfo typeInfo, ListObjectInspector fieldOI, Object structFieldData, Schema schema) throws AvroSerdeException {
-    if(isTransformedType(schema))
-      return serializeTransformedType(typeInfo, fieldOI, structFieldData, schema);
-    
     List<?> list = fieldOI.getList(structFieldData);
     List<Object> deserialized = new ArrayList<Object>(list.size());
 
@@ -219,8 +226,9 @@ class AvroSerializer {
 
   private Object serializeMap(MapTypeInfo typeInfo, MapObjectInspector fieldOI, Object structFieldData, Schema schema) throws AvroSerdeException {
     // Avro only allows maps with string keys
-    if(!mapHasStringKey(fieldOI.getMapKeyObjectInspector()))
+    if(!mapHasStringKey(fieldOI.getMapKeyObjectInspector())) {
       throw new AvroSerdeException("Avro only supports maps with keys as Strings.  Current Map is: " + typeInfo.toString());
+    }
 
     ObjectInspector mapKeyObjectInspector = fieldOI.getMapKeyObjectInspector();
     ObjectInspector mapValueObjectInspector = fieldOI.getMapValueObjectInspector();
@@ -232,7 +240,7 @@ class AvroSerializer {
     Map<Object, Object> deserialized = new HashMap<Object, Object>(fieldOI.getMapSize(structFieldData));
 
     for (Map.Entry<?, ?> entry : map.entrySet()) {
-      deserialized.put(serialize(mapKeyTypeInfo, mapKeyObjectInspector, entry.getKey(), null), // This works, but is a bit fragile.  Construct a single String schema?
+      deserialized.put(serialize(mapKeyTypeInfo, mapKeyObjectInspector, entry.getKey(), STRING_SCHEMA),
                        serialize(mapValueTypeInfo, mapValueObjectInspector, entry.getValue(), valueType));
     }
 

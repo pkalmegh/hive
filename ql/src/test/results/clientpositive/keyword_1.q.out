@@ -1,6 +1,10 @@
-PREHOOK: query: create table test_user (user string, `group` string)
+PREHOOK: query: -- SORT_BEFORE_DIFF
+
+create table test_user (user string, `group` string)
 PREHOOK: type: CREATETABLE
-POSTHOOK: query: create table test_user (user string, `group` string)
+POSTHOOK: query: -- SORT_BEFORE_DIFF
+
+create table test_user (user string, `group` string)
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@test_user
 PREHOOK: query: grant select on table test_user to user hive_test
@@ -38,6 +42,7 @@ STAGE PLANS:
                 table:
                     input format: org.apache.hadoop.mapred.TextInputFormat
                     output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator
@@ -104,6 +109,7 @@ STAGE PLANS:
                 table:
                     input format: org.apache.hadoop.mapred.TextInputFormat
                     output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator

@@ -3,10 +3,10 @@ PREHOOK: type: CREATETABLE
 POSTHOOK: query: CREATE TABLE tstparttbl(KEY STRING, VALUE STRING) PARTITIONED BY(ds string) STORED AS TEXTFILE
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@tstparttbl
-PREHOOK: query: LOAD DATA LOCAL INPATH '../data/files/kv1.txt' INTO TABLE tstparttbl PARTITION (ds='2009-04-09')
+PREHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/kv1.txt' INTO TABLE tstparttbl PARTITION (ds='2009-04-09')
 PREHOOK: type: LOAD
 PREHOOK: Output: default@tstparttbl
-POSTHOOK: query: LOAD DATA LOCAL INPATH '../data/files/kv1.txt' INTO TABLE tstparttbl PARTITION (ds='2009-04-09')
+POSTHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/kv1.txt' INTO TABLE tstparttbl PARTITION (ds='2009-04-09')
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@tstparttbl
 POSTHOOK: Output: default@tstparttbl@ds=2009-04-09
@@ -15,10 +15,10 @@ PREHOOK: type: CREATETABLE
 POSTHOOK: query: CREATE TABLE tstparttbl2(KEY STRING, VALUE STRING) PARTITIONED BY(ds string) STORED AS TEXTFILE
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@tstparttbl2
-PREHOOK: query: LOAD DATA LOCAL INPATH '../data/files/kv1.txt' INTO TABLE tstparttbl2 PARTITION (ds='2009-04-09')
+PREHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/kv1.txt' INTO TABLE tstparttbl2 PARTITION (ds='2009-04-09')
 PREHOOK: type: LOAD
 PREHOOK: Output: default@tstparttbl2
-POSTHOOK: query: LOAD DATA LOCAL INPATH '../data/files/kv1.txt' INTO TABLE tstparttbl2 PARTITION (ds='2009-04-09')
+POSTHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/kv1.txt' INTO TABLE tstparttbl2 PARTITION (ds='2009-04-09')
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@tstparttbl2
 POSTHOOK: Output: default@tstparttbl2@ds=2009-04-09
@@ -77,6 +77,7 @@ STAGE PLANS:
                       table:
                           input format: org.apache.hadoop.mapred.TextInputFormat
                           output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                          serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
         null-subquery2:u-subquery2:y 
           TableScan
             alias: y
@@ -101,6 +102,7 @@ STAGE PLANS:
                     table:
                         input format: org.apache.hadoop.mapred.TextInputFormat
                         output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                        serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator
@@ -114,6 +116,8 @@ PREHOOK: query: select u.* from
   select key, value from tstparttbl2 y where y.ds='2009-04-09'
 )u
 PREHOOK: type: QUERY
+PREHOOK: Input: default@tstparttbl
+PREHOOK: Input: default@tstparttbl2
 PREHOOK: Input: default@tstparttbl2@ds=2009-04-09
 #### A masked pattern was here ####
 POSTHOOK: query: select u.* from
@@ -123,6 +127,8 @@ POSTHOOK: query: select u.* from
   select key, value from tstparttbl2 y where y.ds='2009-04-09'
 )u
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@tstparttbl
+POSTHOOK: Input: default@tstparttbl2
 POSTHOOK: Input: default@tstparttbl2@ds=2009-04-09
 #### A masked pattern was here ####
 238	val_238

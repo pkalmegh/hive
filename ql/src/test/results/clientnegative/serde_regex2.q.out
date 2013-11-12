@@ -37,16 +37,16 @@ WITH SERDEPROPERTIES (
 STORED AS TEXTFILE
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@serde_regex
-PREHOOK: query: LOAD DATA LOCAL INPATH "../data/files/apache.access.log" INTO TABLE serde_regex
+PREHOOK: query: LOAD DATA LOCAL INPATH "../../data/files/apache.access.log" INTO TABLE serde_regex
 PREHOOK: type: LOAD
 PREHOOK: Output: default@serde_regex
-POSTHOOK: query: LOAD DATA LOCAL INPATH "../data/files/apache.access.log" INTO TABLE serde_regex
+POSTHOOK: query: LOAD DATA LOCAL INPATH "../../data/files/apache.access.log" INTO TABLE serde_regex
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@serde_regex
-PREHOOK: query: LOAD DATA LOCAL INPATH "../data/files/apache.access.2.log" INTO TABLE serde_regex
+PREHOOK: query: LOAD DATA LOCAL INPATH "../../data/files/apache.access.2.log" INTO TABLE serde_regex
 PREHOOK: type: LOAD
 PREHOOK: Output: default@serde_regex
-POSTHOOK: query: LOAD DATA LOCAL INPATH "../data/files/apache.access.2.log" INTO TABLE serde_regex
+POSTHOOK: query: LOAD DATA LOCAL INPATH "../../data/files/apache.access.2.log" INTO TABLE serde_regex
 POSTHOOK: type: LOAD
 POSTHOOK: Output: default@serde_regex
 PREHOOK: query: -- raise an exception 
@@ -64,4 +64,4 @@ Task ID:
 Logs:
 
 #### A masked pattern was here ####
-FAILED: Execution Error, return code 2 from org.apache.hadoop.hive.ql.exec.MapRedTask
+FAILED: Execution Error, return code 2 from org.apache.hadoop.hive.ql.exec.mr.MapRedTask

@@ -105,6 +105,7 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.SequenceFileInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
       Reduce Operator Tree:
         Group By Operator
           aggregations:
@@ -119,24 +120,17 @@ STAGE PLANS:
             expressions:
                   expr: _col0
                   type: int
-                  expr: _col1
-                  type: bigint
+                  expr: UDFToInteger(_col1)
+                  type: int
             outputColumnNames: _col0, _col1
-            Select Operator
-              expressions:
-                    expr: _col0
-                    type: int
-                    expr: UDFToInteger(_col1)
-                    type: int
-              outputColumnNames: _col0, _col1
-              File Output Operator
-                compressed: false
-                GlobalTableId: 1
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.dest1
+            File Output Operator
+              compressed: false
+              GlobalTableId: 1
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.dest1
 
   Stage: Stage-0
     Move Operator
@@ -155,6 +149,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             Reduce Output Operator
               key expressions:
                     expr: _col0
@@ -189,26 +184,17 @@ STAGE PLANS:
                   type: int
                   expr: _col1
                   type: int
-                  expr: _col2
-                  type: bigint
+                  expr: UDFToInteger(_col2)
+                  type: int
             outputColumnNames: _col0, _col1, _col2
-            Select Operator
-              expressions:
-                    expr: _col0
-                    type: int
-                    expr: _col1
-                    type: int
-                    expr: UDFToInteger(_col2)
-                    type: int
-              outputColumnNames: _col0, _col1, _col2
-              File Output Operator
-                compressed: false
-                GlobalTableId: 2
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.dest2
+            File Output Operator
+              compressed: false
+              GlobalTableId: 2
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.dest2
 
   Stage: Stage-1
     Move Operator
@@ -306,6 +292,7 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.SequenceFileInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
       Reduce Operator Tree:
         Group By Operator
           aggregations:
@@ -320,24 +307,17 @@ STAGE PLANS:
             expressions:
                   expr: _col0
                   type: int
-                  expr: _col1
-                  type: bigint
+                  expr: UDFToInteger(_col1)
+                  type: int
             outputColumnNames: _col0, _col1
-            Select Operator
-              expressions:
-                    expr: _col0
-                    type: int
-                    expr: UDFToInteger(_col1)
-                    type: int
-              outputColumnNames: _col0, _col1
-              File Output Operator
-                compressed: false
-                GlobalTableId: 1
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.dest1
+            File Output Operator
+              compressed: false
+              GlobalTableId: 1
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.dest1
 
   Stage: Stage-0
     Move Operator
@@ -356,6 +336,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             Reduce Output Operator
               key expressions:
                     expr: _col0
@@ -390,26 +371,17 @@ STAGE PLANS:
                   type: int
                   expr: _col0
                   type: int
-                  expr: _col2
-                  type: bigint
+                  expr: UDFToInteger(_col2)
+                  type: int
             outputColumnNames: _col0, _col1, _col2
-            Select Operator
-              expressions:
-                    expr: _col0
-                    type: int
-                    expr: _col1
-                    type: int
-                    expr: UDFToInteger(_col2)
-                    type: int
-              outputColumnNames: _col0, _col1, _col2
-              File Output Operator
-                compressed: false
-                GlobalTableId: 2
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.dest2
+            File Output Operator
+              compressed: false
+              GlobalTableId: 2
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.dest2
 
   Stage: Stage-1
     Move Operator
@@ -523,6 +495,7 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.SequenceFileInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
       Reduce Operator Tree:
         Group By Operator
           aggregations:
@@ -545,28 +518,17 @@ STAGE PLANS:
                   type: int
                   expr: _col2
                   type: int
-                  expr: _col3
-                  type: bigint
+                  expr: UDFToInteger(_col3)
+                  type: int
             outputColumnNames: _col0, _col1, _col2, _col3
-            Select Operator
-              expressions:
-                    expr: _col0
-                    type: int
-                    expr: _col1
-                    type: int
-                    expr: _col2
-                    type: int
-                    expr: UDFToInteger(_col3)
-                    type: int
-              outputColumnNames: _col0, _col1, _col2, _col3
-              File Output Operator
-                compressed: false
-                GlobalTableId: 1
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.dest3
+            File Output Operator
+              compressed: false
+              GlobalTableId: 1
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.dest3
 
   Stage: Stage-0
     Move Operator
@@ -585,6 +547,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             Reduce Output Operator
               key expressions:
                     expr: _col0
@@ -619,26 +582,17 @@ STAGE PLANS:
                   type: int
                   expr: _col1
                   type: int
-                  expr: _col2
-                  type: bigint
+                  expr: UDFToInteger(_col2)
+                  type: int
             outputColumnNames: _col0, _col1, _col2
-            Select Operator
-              expressions:
-                    expr: _col0
-                    type: int
-                    expr: _col1
-                    type: int
-                    expr: UDFToInteger(_col2)
-                    type: int
-              outputColumnNames: _col0, _col1, _col2
-              File Output Operator
-                compressed: false
-                GlobalTableId: 2
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.dest2
+            File Output Operator
+              compressed: false
+              GlobalTableId: 2
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.dest2
 
   Stage: Stage-1
     Move Operator
@@ -652,7 +606,6 @@ STAGE PLANS:
 
   Stage: Stage-5
     Stats-Aggr Operator
-
 
 PREHOOK: query: EXPLAIN
 FROM TBL
@@ -735,28 +688,17 @@ STAGE PLANS:
                     type: int
                     expr: _col2
                     type: int
-                    expr: _col3
-                    type: bigint
+                    expr: UDFToInteger(_col3)
+                    type: int
               outputColumnNames: _col0, _col1, _col2, _col3
-              Select Operator
-                expressions:
-                      expr: _col0
-                      type: int
-                      expr: _col1
-                      type: int
-                      expr: _col2
-                      type: int
-                      expr: UDFToInteger(_col3)
-                      type: int
-                outputColumnNames: _col0, _col1, _col2, _col3
-                File Output Operator
-                  compressed: false
-                  GlobalTableId: 1
-                  table:
-                      input format: org.apache.hadoop.mapred.TextInputFormat
-                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                      name: default.dest3
+              File Output Operator
+                compressed: false
+                GlobalTableId: 1
+                table:
+                    input format: org.apache.hadoop.mapred.TextInputFormat
+                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                    name: default.dest3
           Group By Operator
             aggregations:
                   expr: count(VALUE._col0)
@@ -778,28 +720,17 @@ STAGE PLANS:
                     type: int
                     expr: _col1
                     type: int
-                    expr: _col3
-                    type: bigint
+                    expr: UDFToInteger(_col3)
+                    type: int
               outputColumnNames: _col0, _col1, _col2, _col3
-              Select Operator
-                expressions:
-                      expr: _col0
-                      type: int
-                      expr: _col1
-                      type: int
-                      expr: _col2
-                      type: int
-                      expr: UDFToInteger(_col3)
-                      type: int
-                outputColumnNames: _col0, _col1, _col2, _col3
-                File Output Operator
-                  compressed: false
-                  GlobalTableId: 2
-                  table:
-                      input format: org.apache.hadoop.mapred.TextInputFormat
-                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                      name: default.dest4
+              File Output Operator
+                compressed: false
+                GlobalTableId: 2
+                table:
+                    input format: org.apache.hadoop.mapred.TextInputFormat
+                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                    name: default.dest4
 
   Stage: Stage-0
     Move Operator
@@ -931,6 +862,7 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.SequenceFileInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
             Select Operator
               expressions:
                     expr: c1
@@ -953,6 +885,7 @@ STAGE PLANS:
                   table:
                       input format: org.apache.hadoop.mapred.SequenceFileInputFormat
                       output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
       Reduce Operator Tree:
         Group By Operator
           aggregations:
@@ -975,28 +908,17 @@ STAGE PLANS:
                   type: int
                   expr: _col2
                   type: int
-                  expr: _col3
-                  type: bigint
+                  expr: UDFToInteger(_col3)
+                  type: int
             outputColumnNames: _col0, _col1, _col2, _col3
-            Select Operator
-              expressions:
-                    expr: _col0
-                    type: int
-                    expr: _col1
-                    type: int
-                    expr: _col2
-                    type: int
-                    expr: UDFToInteger(_col3)
-                    type: int
-              outputColumnNames: _col0, _col1, _col2, _col3
-              File Output Operator
-                compressed: false
-                GlobalTableId: 1
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.dest3
+            File Output Operator
+              compressed: false
+              GlobalTableId: 1
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.dest3
 
   Stage: Stage-0
     Move Operator
@@ -1015,6 +937,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             Reduce Output Operator
               key expressions:
                     expr: _col0
@@ -1049,26 +972,17 @@ STAGE PLANS:
                   type: int
                   expr: _col1
                   type: int
-                  expr: _col2
-                  type: bigint
+                  expr: UDFToInteger(_col2)
+                  type: int
             outputColumnNames: _col0, _col1, _col2
-            Select Operator
-              expressions:
-                    expr: _col0
-                    type: int
-                    expr: _col1
-                    type: int
-                    expr: UDFToInteger(_col2)
-                    type: int
-              outputColumnNames: _col0, _col1, _col2
-              File Output Operator
-                compressed: false
-                GlobalTableId: 2
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.dest2
+            File Output Operator
+              compressed: false
+              GlobalTableId: 2
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.dest2
 
   Stage: Stage-1
     Move Operator
@@ -1087,6 +1001,7 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
             Reduce Output Operator
               key expressions:
                     expr: _col0
@@ -1113,24 +1028,17 @@ STAGE PLANS:
             expressions:
                   expr: _col0
                   type: int
-                  expr: _col1
-                  type: bigint
+                  expr: UDFToInteger(_col1)
+                  type: int
             outputColumnNames: _col0, _col1
-            Select Operator
-              expressions:
-                    expr: _col0
-                    type: int
-                    expr: UDFToInteger(_col1)
-                    type: int
-              outputColumnNames: _col0, _col1
-              File Output Operator
-                compressed: false
-                GlobalTableId: 3
-                table:
-                    input format: org.apache.hadoop.mapred.TextInputFormat
-                    output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                    name: default.dest1
+            File Output Operator
+              compressed: false
+              GlobalTableId: 3
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.dest1
 
   Stage: Stage-2
     Move Operator

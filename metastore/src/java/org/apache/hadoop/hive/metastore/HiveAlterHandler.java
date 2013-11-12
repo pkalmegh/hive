@@ -29,8 +29,9 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
-import org.apache.hadoop.hive.metastore.api.Constants;
+import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
@@ -38,6 +39,7 @@ import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 
 /**
  * Hive specific implementation of alter
@@ -63,10 +65,13 @@ public class HiveAlterHandler implements AlterHandler {
       throw new InvalidOperationException("New table is invalid: " + newt);
     }
 
-    if (!MetaStoreUtils.validateName(newt.getTableName())
-        || !MetaStoreUtils.validateColNames(newt.getSd().getCols())) {
+    if (!MetaStoreUtils.validateName(newt.getTableName())) {
       throw new InvalidOperationException(newt.getTableName()
           + " is not a valid object name");
+    }
+    String validate = MetaStoreUtils.validateTblColumns(newt.getSd().getCols());
+    if (validate != null) {
+      throw new InvalidOperationException("Invalid column " + validate);
     }
 
     Path srcPath = null;
@@ -102,6 +107,15 @@ public class HiveAlterHandler implements AlterHandler {
             + newt.getTableName() + " doesn't exist");
       }
 
+      if (HiveConf.getBoolVar(hiveConf,
+            HiveConf.ConfVars.METASTORE_DISALLOW_INCOMPATIBLE_COL_TYPE_CHANGES,
+            false)) {
+        // Throws InvalidOperationException if the new column types are not
+        // compatible with the current column types.
+        MetaStoreUtils.throwExceptionIfIncompatibleColTypeChange(
+            oldt.getSd().getCols(), newt.getSd().getCols());
+      }
+
       //check that partition keys have not changed, except for virtual views
       //however, allow the partition comments to change
       boolean partKeysPartiallyEqual = checkPartialPartKeysEqual(oldt.getPartitionKeys(),
@@ -127,7 +141,11 @@ public class HiveAlterHandler implements AlterHandler {
         // that means user is asking metastore to move data to new location
         // corresponding to the new name
         // get new location
-        newTblLoc = wh.getTablePath(msdb.getDatabase(newt.getDbName()), newt.getTableName()).toString();
+        newTblLoc = wh.getTablePath(msdb.getDatabase(newt.getDbName()),
+            newt.getTableName()).toString();
+        Path newTblPath = constructRenamedPath(new Path(newTblLoc),
+            new Path(newt.getSd().getLocation()));
+        newTblLoc = newTblPath.toString();
         newt.getSd().setLocation(newTblLoc);
         oldTblLoc = oldt.getSd().getLocation();
         moveData = true;
@@ -178,6 +196,12 @@ public class HiveAlterHandler implements AlterHandler {
             msdb.alterPartition(dbname, name, part.getValues(), part);
           }
         }
+      } else if (MetaStoreUtils.requireCalStats(hiveConf, null, null, newt) &&
+        (newt.getPartitionKeysSize() == 0)) {
+          Database db = msdb.getDatabase(newt.getDbName());
+          // Update table stats. For partitioned table, we update stats in
+          // alterPartition()
+          MetaStoreUtils.updateUnpartitionedTableStatsFast(db, newt, wh, false, true);
       }
       // now finally call alter table
       msdb.alterTable(dbname, name, newt);
@@ -237,21 +261,26 @@ public class HiveAlterHandler implements AlterHandler {
     Path destPath = null;
     FileSystem srcFs = null;
     FileSystem destFs = null;
-    Table tbl = null;
     Partition oldPart = null;
     String oldPartLoc = null;
     String newPartLoc = null;
+
     // Set DDL time to now if not specified
     if (new_part.getParameters() == null ||
-        new_part.getParameters().get(Constants.DDL_TIME) == null ||
-        Integer.parseInt(new_part.getParameters().get(Constants.DDL_TIME)) == 0) {
-      new_part.putToParameters(Constants.DDL_TIME, Long.toString(System
+        new_part.getParameters().get(hive_metastoreConstants.DDL_TIME) == null ||
+        Integer.parseInt(new_part.getParameters().get(hive_metastoreConstants.DDL_TIME)) == 0) {
+      new_part.putToParameters(hive_metastoreConstants.DDL_TIME, Long.toString(System
           .currentTimeMillis() / 1000));
     }
+
+    Table tbl = msdb.getTable(dbname, name);
     //alter partition
     if (part_vals == null || part_vals.size() == 0) {
       try {
         oldPart = msdb.getPartition(dbname, name, new_part.getValues());
+        if (MetaStoreUtils.requireCalStats(hiveConf, oldPart, new_part, tbl)) {
+          MetaStoreUtils.updatePartitionStatsFast(new_part, wh, false, true);
+        }
         msdb.alterPartition(dbname, name, new_part.getValues(), new_part);
       } catch (InvalidObjectException e) {
         throw new InvalidOperationException("alter is not possible");
@@ -282,7 +311,6 @@ public class HiveAlterHandler implements AlterHandler {
         throw new AlreadyExistsException("Partition already exists:" + dbname + "." + name + "." +
             new_part.getValues());
       }
-      tbl = msdb.getTable(dbname, name);
       if (tbl == null) {
         throw new InvalidObjectException(
             "Unable to rename partition because table or database do not exist");
@@ -296,7 +324,7 @@ public class HiveAlterHandler implements AlterHandler {
         try {
           destPath = new Path(wh.getTablePath(msdb.getDatabase(dbname), name),
             Warehouse.makePartName(tbl.getPartitionKeys(), new_part.getValues()));
-          destPath = constructRenamedPartitionPath(destPath, new_part);
+          destPath = constructRenamedPath(destPath, new Path(new_part.getSd().getLocation()));
         } catch (NoSuchObjectException e) {
           LOG.debug(e);
           throw new InvalidOperationException(
@@ -334,6 +362,9 @@ public class HiveAlterHandler implements AlterHandler {
               + tbl.getTableName() + " " + new_part.getValues());
           }
           new_part.getSd().setLocation(newPartLoc);
+          if (MetaStoreUtils.requireCalStats(hiveConf, oldPart, new_part, tbl)) {
+            MetaStoreUtils.updatePartitionStatsFast(new_part, wh, false, true);
+          }
           msdb.alterPartition(dbname, name, part_vals, new_part);
         }
       }
@@ -382,18 +413,24 @@ public class HiveAlterHandler implements AlterHandler {
       MetaException {
     List<Partition> oldParts = new ArrayList<Partition>();
     List<List<String>> partValsList = new ArrayList<List<String>>();
+    Table tbl = msdb.getTable(dbname, name);
     try {
       for (Partition tmpPart: new_parts) {
         // Set DDL time to now if not specified
         if (tmpPart.getParameters() == null ||
-            tmpPart.getParameters().get(Constants.DDL_TIME) == null ||
-            Integer.parseInt(tmpPart.getParameters().get(Constants.DDL_TIME)) == 0) {
-          tmpPart.putToParameters(Constants.DDL_TIME, Long.toString(System
+            tmpPart.getParameters().get(hive_metastoreConstants.DDL_TIME) == null ||
+            Integer.parseInt(tmpPart.getParameters().get(hive_metastoreConstants.DDL_TIME)) == 0) {
+          tmpPart.putToParameters(hive_metastoreConstants.DDL_TIME, Long.toString(System
               .currentTimeMillis() / 1000));
         }
+
         Partition oldTmpPart = msdb.getPartition(dbname, name, tmpPart.getValues());
         oldParts.add(oldTmpPart);
         partValsList.add(tmpPart.getValues());
+
+        if (MetaStoreUtils.requireCalStats(hiveConf, oldTmpPart, tmpPart, tbl)) {
+          MetaStoreUtils.updatePartitionStatsFast(tmpPart, wh, false, true);
+        }
       }
       msdb.alterPartitions(dbname, name, partValsList, new_parts);
     } catch (InvalidObjectException e) {
@@ -421,8 +458,9 @@ public class HiveAlterHandler implements AlterHandler {
     while (oldPartKeysIter.hasNext()) {
       oldFs = oldPartKeysIter.next();
       newFs = newPartKeysIter.next();
-      if (!oldFs.getName().equals(newFs.getName()) ||
-          !oldFs.getType().equals(newFs.getType())) {
+      // Alter table can change the type of partition key now.
+      // So check the column name only.
+      if (!oldFs.getName().equals(newFs.getName())) {
         return false;
       }
     }
@@ -431,13 +469,13 @@ public class HiveAlterHandler implements AlterHandler {
   }
 
   /**
-   * Uses the scheme and authority of the partition's current location, and the path constructed
-   * using the partition's new name to construct a path for the partition's new location.
+   * Uses the scheme and authority of the object's current location and the path constructed
+   * using the object's new name to construct a path for the object's new location.
    */
-  private Path constructRenamedPartitionPath(Path defaultPath, Partition part) {
-    Path oldPath = new Path(part.getSd().getLocation());
-    URI oldUri = oldPath.toUri();
+  private Path constructRenamedPath(Path defaultNewPath, Path currentPath) {
+    URI currentUri = currentPath.toUri();
 
-    return new Path(oldUri.getScheme(), oldUri.getAuthority(), defaultPath.toUri().getPath());
+    return new Path(currentUri.getScheme(), currentUri.getAuthority(),
+        defaultNewPath.toUri().getPath());
   }
 }

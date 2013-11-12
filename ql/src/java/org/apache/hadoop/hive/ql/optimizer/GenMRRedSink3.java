@@ -26,9 +26,11 @@ import java.util.Stack;
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.ReduceSinkOperator;
 import org.apache.hadoop.hive.ql.exec.Task;
+import org.apache.hadoop.hive.ql.exec.UnionOperator;
 import org.apache.hadoop.hive.ql.lib.Node;
 import org.apache.hadoop.hive.ql.lib.NodeProcessor;
 import org.apache.hadoop.hive.ql.lib.NodeProcessorCtx;
+import org.apache.hadoop.hive.ql.lib.Utils;
 import org.apache.hadoop.hive.ql.optimizer.GenMRProcContext.GenMapRedCtx;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.plan.MapredWork;
@@ -58,9 +60,12 @@ public class GenMRRedSink3 implements NodeProcessor {
     // union consisted on a bunch of map-reduce jobs, and it has been split at
     // the union
     Operator<? extends OperatorDesc> reducer = op.getChildOperators().get(0);
+    UnionOperator union = Utils.findNode(stack, UnionOperator.class);
+    assert union != null;
+
     Map<Operator<? extends OperatorDesc>, GenMapRedCtx> mapCurrCtx = ctx
         .getMapCurrCtx();
-    GenMapRedCtx mapredCtx = mapCurrCtx.get(ctx.getCurrUnionOp());
+    GenMapRedCtx mapredCtx = mapCurrCtx.get(union);
 
     Task<? extends Serializable> unionTask = null;
     if(mapredCtx != null) {
@@ -80,27 +85,27 @@ public class GenMRRedSink3 implements NodeProcessor {
     // If the plan for this reducer does not exist, initialize the plan
     if (reducerTask == null) {
       // When the reducer is encountered for the first time
-      if (plan.getReducer() == null) {
-        GenMapRedUtils.initUnionPlan(op, ctx, unionTask);
+      if (plan.getReduceWork() == null) {
+        GenMapRedUtils.initUnionPlan(op, union, ctx, unionTask);
         // When union is followed by a multi-table insert
       } else {
         GenMapRedUtils.splitPlan(op, ctx);
       }
-    } else if (plan.getReducer() == reducer) {
+    } else if (plan.getReduceWork() != null && plan.getReduceWork().getReducer() == reducer) {
       // The union is already initialized. However, the union is walked from
       // another input
       // initUnionPlan is idempotent
-      GenMapRedUtils.initUnionPlan(op, ctx, unionTask);
+      GenMapRedUtils.initUnionPlan(op, union, ctx, unionTask);
     } else {
-      GenMapRedUtils.joinUnionPlan(ctx, unionTask, reducerTask, false);
+      GenMapRedUtils.joinUnionPlan(ctx, union, unionTask, reducerTask, false);
       ctx.setCurrTask(reducerTask);
     }
 
-    mapCurrCtx.put(op, new GenMapRedCtx(ctx.getCurrTask(), ctx.getCurrTopOp(),
+    mapCurrCtx.put(op, new GenMapRedCtx(ctx.getCurrTask(),
         ctx.getCurrAliasId()));
 
     // the union operator has been processed
     ctx.setCurrUnionOp(null);
-    return null;
+    return true;
   }
 }

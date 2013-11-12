@@ -28,7 +28,7 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 /**
  * Compute the sample variance by extending GenericUDAFVariance and overriding
  * the terminate() method of the evaluator.
- * 
+ *
  */
 @Description(name = "var_samp",
     value = "_FUNC_(x) - Returns the sample variance of a set of numbers")
@@ -56,8 +56,10 @@ public class GenericUDAFVarianceSample extends GenericUDAFVariance {
     case DOUBLE:
     case STRING:
     case TIMESTAMP:
+    case DECIMAL:
       return new GenericUDAFVarianceSampleEvaluator();
     case BOOLEAN:
+    case DATE:
     default:
       throw new UDFArgumentTypeException(0,
           "Only numeric or string type arguments are accepted but "

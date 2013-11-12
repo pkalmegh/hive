@@ -5,6 +5,7 @@ POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@analyze_srcpart
 PREHOOK: query: insert overwrite table analyze_srcpart partition (ds, hr) select * from srcpart where ds is not null
 PREHOOK: type: QUERY
+PREHOOK: Input: default@srcpart
 PREHOOK: Input: default@srcpart@ds=2008-04-08/hr=11
 PREHOOK: Input: default@srcpart@ds=2008-04-08/hr=12
 PREHOOK: Input: default@srcpart@ds=2008-04-09/hr=11
@@ -12,6 +13,7 @@ PREHOOK: Input: default@srcpart@ds=2008-04-09/hr=12
 PREHOOK: Output: default@analyze_srcpart
 POSTHOOK: query: insert overwrite table analyze_srcpart partition (ds, hr) select * from srcpart where ds is not null
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@srcpart
 POSTHOOK: Input: default@srcpart@ds=2008-04-08/hr=11
 POSTHOOK: Input: default@srcpart@ds=2008-04-08/hr=12
 POSTHOOK: Input: default@srcpart@ds=2008-04-09/hr=11
@@ -61,11 +63,13 @@ STAGE PLANS:
 
 PREHOOK: query: analyze table analyze_srcpart PARTITION(ds='2008-04-08',hr=11) compute statistics
 PREHOOK: type: QUERY
+PREHOOK: Input: default@analyze_srcpart
 PREHOOK: Input: default@analyze_srcpart@ds=2008-04-08/hr=11
 PREHOOK: Output: default@analyze_srcpart
 PREHOOK: Output: default@analyze_srcpart@ds=2008-04-08/hr=11
 POSTHOOK: query: analyze table analyze_srcpart PARTITION(ds='2008-04-08',hr=11) compute statistics
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@analyze_srcpart
 POSTHOOK: Input: default@analyze_srcpart@ds=2008-04-08/hr=11
 POSTHOOK: Output: default@analyze_srcpart
 POSTHOOK: Output: default@analyze_srcpart@ds=2008-04-08/hr=11
@@ -108,6 +112,7 @@ Table:              	analyze_srcpart
 Protect Mode:       	None                	 
 #### A masked pattern was here ####
 Partition Parameters:	 	 
+	COLUMN_STATS_ACCURATE	true                
 	numFiles            	1                   
 	numRows             	500                 
 	rawDataSize         	5312                
@@ -155,11 +160,6 @@ Retention:          	0
 #### A masked pattern was here ####
 Table Type:         	MANAGED_TABLE       	 
 Table Parameters:	 	 
-	numFiles            	1                   
-	numPartitions       	1                   
-	numRows             	500                 
-	rawDataSize         	5312                
-	totalSize           	5812                
 #### A masked pattern was here ####
 	 	 
 # Storage Information	 	 
@@ -205,11 +205,13 @@ STAGE PLANS:
 
 PREHOOK: query: analyze table analyze_srcpart PARTITION(ds='2008-04-08',hr=12) compute statistics
 PREHOOK: type: QUERY
+PREHOOK: Input: default@analyze_srcpart
 PREHOOK: Input: default@analyze_srcpart@ds=2008-04-08/hr=12
 PREHOOK: Output: default@analyze_srcpart
 PREHOOK: Output: default@analyze_srcpart@ds=2008-04-08/hr=12
 POSTHOOK: query: analyze table analyze_srcpart PARTITION(ds='2008-04-08',hr=12) compute statistics
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@analyze_srcpart
 POSTHOOK: Input: default@analyze_srcpart@ds=2008-04-08/hr=12
 POSTHOOK: Output: default@analyze_srcpart
 POSTHOOK: Output: default@analyze_srcpart@ds=2008-04-08/hr=12
@@ -252,6 +254,7 @@ Table:              	analyze_srcpart
 Protect Mode:       	None                	 
 #### A masked pattern was here ####
 Partition Parameters:	 	 
+	COLUMN_STATS_ACCURATE	true                
 	numFiles            	1                   
 	numRows             	500                 
 	rawDataSize         	5312                
@@ -301,11 +304,13 @@ STAGE PLANS:
 
 PREHOOK: query: analyze table analyze_srcpart PARTITION(ds='2008-04-09',hr=11) compute statistics
 PREHOOK: type: QUERY
+PREHOOK: Input: default@analyze_srcpart
 PREHOOK: Input: default@analyze_srcpart@ds=2008-04-09/hr=11
 PREHOOK: Output: default@analyze_srcpart
 PREHOOK: Output: default@analyze_srcpart@ds=2008-04-09/hr=11
 POSTHOOK: query: analyze table analyze_srcpart PARTITION(ds='2008-04-09',hr=11) compute statistics
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@analyze_srcpart
 POSTHOOK: Input: default@analyze_srcpart@ds=2008-04-09/hr=11
 POSTHOOK: Output: default@analyze_srcpart
 POSTHOOK: Output: default@analyze_srcpart@ds=2008-04-09/hr=11
@@ -348,6 +353,7 @@ Table:              	analyze_srcpart
 Protect Mode:       	None                	 
 #### A masked pattern was here ####
 Partition Parameters:	 	 
+	COLUMN_STATS_ACCURATE	true                
 	numFiles            	1                   
 	numRows             	500                 
 	rawDataSize         	5312                
@@ -397,11 +403,13 @@ STAGE PLANS:
 
 PREHOOK: query: analyze table analyze_srcpart PARTITION(ds='2008-04-09',hr=12) compute statistics
 PREHOOK: type: QUERY
+PREHOOK: Input: default@analyze_srcpart
 PREHOOK: Input: default@analyze_srcpart@ds=2008-04-09/hr=12
 PREHOOK: Output: default@analyze_srcpart
 PREHOOK: Output: default@analyze_srcpart@ds=2008-04-09/hr=12
 POSTHOOK: query: analyze table analyze_srcpart PARTITION(ds='2008-04-09',hr=12) compute statistics
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@analyze_srcpart
 POSTHOOK: Input: default@analyze_srcpart@ds=2008-04-09/hr=12
 POSTHOOK: Output: default@analyze_srcpart
 POSTHOOK: Output: default@analyze_srcpart@ds=2008-04-09/hr=12
@@ -444,6 +452,7 @@ Table:              	analyze_srcpart
 Protect Mode:       	None                	 
 #### A masked pattern was here ####
 Partition Parameters:	 	 
+	COLUMN_STATS_ACCURATE	true                
 	numFiles            	1                   
 	numRows             	500                 
 	rawDataSize         	5312                
@@ -493,6 +502,7 @@ STAGE PLANS:
 
 PREHOOK: query: analyze table analyze_srcpart PARTITION(ds, hr) compute statistics
 PREHOOK: type: QUERY
+PREHOOK: Input: default@analyze_srcpart
 PREHOOK: Input: default@analyze_srcpart@ds=2008-04-08/hr=11
 PREHOOK: Input: default@analyze_srcpart@ds=2008-04-08/hr=12
 PREHOOK: Input: default@analyze_srcpart@ds=2008-04-09/hr=11
@@ -504,6 +514,7 @@ PREHOOK: Output: default@analyze_srcpart@ds=2008-04-09/hr=11
 PREHOOK: Output: default@analyze_srcpart@ds=2008-04-09/hr=12
 POSTHOOK: query: analyze table analyze_srcpart PARTITION(ds, hr) compute statistics
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@analyze_srcpart
 POSTHOOK: Input: default@analyze_srcpart@ds=2008-04-08/hr=11
 POSTHOOK: Input: default@analyze_srcpart@ds=2008-04-08/hr=12
 POSTHOOK: Input: default@analyze_srcpart@ds=2008-04-09/hr=11
@@ -552,6 +563,7 @@ Table:              	analyze_srcpart
 Protect Mode:       	None                	 
 #### A masked pattern was here ####
 Partition Parameters:	 	 
+	COLUMN_STATS_ACCURATE	true                
 	numFiles            	1                   
 	numRows             	500                 
 	rawDataSize         	5312                
@@ -599,6 +611,7 @@ Table:              	analyze_srcpart
 Protect Mode:       	None                	 
 #### A masked pattern was here ####
 Partition Parameters:	 	 
+	COLUMN_STATS_ACCURATE	true                
 	numFiles            	1                   
 	numRows             	500                 
 	rawDataSize         	5312                
@@ -646,6 +659,7 @@ Table:              	analyze_srcpart
 Protect Mode:       	None                	 
 #### A masked pattern was here ####
 Partition Parameters:	 	 
+	COLUMN_STATS_ACCURATE	true                
 	numFiles            	1                   
 	numRows             	500                 
 	rawDataSize         	5312                
@@ -693,6 +707,7 @@ Table:              	analyze_srcpart
 Protect Mode:       	None                	 
 #### A masked pattern was here ####
 Partition Parameters:	 	 
+	COLUMN_STATS_ACCURATE	true                
 	numFiles            	1                   
 	numRows             	500                 
 	rawDataSize         	5312                
@@ -740,11 +755,6 @@ Retention:          	0
 #### A masked pattern was here ####
 Table Type:         	MANAGED_TABLE       	 
 Table Parameters:	 	 
-	numFiles            	4                   
-	numPartitions       	4                   
-	numRows             	2000                
-	rawDataSize         	21248               
-	totalSize           	23248               
 #### A masked pattern was here ####
 	 	 
 # Storage Information	 	 

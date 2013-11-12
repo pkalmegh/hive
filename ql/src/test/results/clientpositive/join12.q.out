@@ -36,7 +36,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: ((key < 100.0) and (key < 80.0))
+                  expr: ((key < 80) and (key < 100))
                   type: boolean
               Select Operator
                 expressions:
@@ -60,7 +60,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: ((key < 100.0) and (key < 80.0))
+                  expr: ((key < 100) and (key < 80))
                   type: boolean
               Select Operator
                 expressions:
@@ -86,7 +86,7 @@ STAGE PLANS:
             alias: src
             Filter Operator
               predicate:
-                  expr: ((key < 80.0) and (key < 100.0))
+                  expr: ((key < 100) and (key < 80))
                   type: boolean
               Select Operator
                 expressions:
@@ -126,6 +126,7 @@ STAGE PLANS:
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-0
     Fetch Operator

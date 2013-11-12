@@ -56,13 +56,16 @@ import org.apache.hadoop.hive.ql.plan.CreateTableDesc;
 import org.apache.hadoop.hive.ql.plan.DDLWork;
 import org.apache.hadoop.hive.ql.plan.LoadTableDesc;
 import org.apache.hadoop.hive.ql.plan.MoveWork;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.ql.session.SessionState;
+import org.apache.hadoop.hive.serde.serdeConstants;
 
 /**
  * ImportSemanticAnalyzer.
  *
  */
 public class ImportSemanticAnalyzer extends BaseSemanticAnalyzer {
+
+  public static final String METADATA_NAME="_metadata";
 
   public ImportSemanticAnalyzer(HiveConf conf) throws SemanticException {
     super(conf);
@@ -89,10 +92,10 @@ public class ImportSemanticAnalyzer extends BaseSemanticAnalyzer {
       Path fromPath = new Path(fromURI.getScheme(), fromURI.getAuthority(),
           fromURI.getPath());
       try {
-        Path metadataPath = new Path(fromPath, "_metadata");
+        Path metadataPath = new Path(fromPath, METADATA_NAME);
         Map.Entry<org.apache.hadoop.hive.metastore.api.Table,
         List<Partition>> rv =  EximUtil.readMetaData(fs, metadataPath);
-        dbname = db.getCurrentDatabase();
+        dbname = SessionState.get().getCurrentDatabase();
         org.apache.hadoop.hive.metastore.api.Table table = rv.getKey();
         tblDesc =  new CreateTableDesc(
             table.getTableName(),
@@ -117,7 +120,7 @@ public class ImportSemanticAnalyzer extends BaseSemanticAnalyzer {
                 .getSkewedColNames(),
             (null == table.getSd().getSkewedInfo()) ? null : table.getSd().getSkewedInfo()
                 .getSkewedColValues());
-
+        tblDesc.setStoredAsSubDirectories(table.getSd().isStoredAsSubDirectories());
 
         List<FieldSchema> partCols = tblDesc.getPartCols();
         List<String> partColNames = new ArrayList<String>(partCols.size());
@@ -239,8 +242,9 @@ public class ImportSemanticAnalyzer extends BaseSemanticAnalyzer {
         Task<?> t = TaskFactory.get(new DDLWork(getInputs(), getOutputs(),
             tblDesc), conf);
         Table table = new Table(dbname, tblDesc.getTableName());
+        String currentDb = SessionState.get().getCurrentDatabase();
         conf.set("import.destination.dir",
-            wh.getTablePath(db.getDatabase(db.getCurrentDatabase()),
+            wh.getTablePath(db.getDatabaseCurrent(),
                 tblDesc.getTableName()).toString());
         if ((tblDesc.getPartCols() != null) && (tblDesc.getPartCols().size() != 0)) {
           for (AddPartitionDesc addPartitionDesc : partitionDescs) {
@@ -258,7 +262,7 @@ public class ImportSemanticAnalyzer extends BaseSemanticAnalyzer {
             if (tblDesc.getLocation() != null) {
               tablePath = new Path(tblDesc.getLocation());
             } else {
-              tablePath = wh.getTablePath(db.getDatabase(db.getCurrentDatabase()), tblDesc.getTableName());
+              tablePath = wh.getTablePath(db.getDatabaseCurrent(), tblDesc.getTableName());
             }
             checkTargetLocationEmpty(fs, tablePath);
             t.addDependentTask(loadTable(fromURI, table));
@@ -310,7 +314,7 @@ public class ImportSemanticAnalyzer extends BaseSemanticAnalyzer {
               Warehouse.makePartPath(addPartitionDesc.getPartSpec()));
         } else {
           tgtPath = new Path(wh.getTablePath(
-              db.getDatabase(db.getCurrentDatabase()), tblDesc.getTableName()),
+              db.getDatabaseCurrent(), tblDesc.getTableName()),
               Warehouse.makePartPath(addPartitionDesc.getPartSpec()));
         }
       } else {
@@ -457,9 +461,9 @@ public class ImportSemanticAnalyzer extends BaseSemanticAnalyzer {
                 .getMsg(" Table Serde class does not match"));
       }
       String existingSerdeFormat = table
-          .getSerdeParam(Constants.SERIALIZATION_FORMAT);
+          .getSerdeParam(serdeConstants.SERIALIZATION_FORMAT);
       String importedSerdeFormat = tableDesc.getSerdeProps().get(
-          Constants.SERIALIZATION_FORMAT);
+          serdeConstants.SERIALIZATION_FORMAT);
       if (!ObjectUtils.equals(existingSerdeFormat, importedSerdeFormat)) {
         throw new SemanticException(
             ErrorMsg.INCOMPATIBLE_SCHEMA
@@ -539,5 +543,4 @@ public class ImportSemanticAnalyzer extends BaseSemanticAnalyzer {
     }
     return null;
   }
-
 }

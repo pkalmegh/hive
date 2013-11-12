@@ -40,10 +40,15 @@ import org.apache.hadoop.fs.ContentSummary;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hive.common.FileUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.ql.exec.TaskRunner;
+import org.apache.hadoop.hive.ql.hooks.WriteEntity;
 import org.apache.hadoop.hive.ql.lockmgr.HiveLock;
 import org.apache.hadoop.hive.ql.lockmgr.HiveLockManager;
+import org.apache.hadoop.hive.ql.lockmgr.HiveLockObj;
+import org.apache.hadoop.hive.ql.plan.LoadTableDesc;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.util.StringUtils;
 
@@ -69,12 +74,16 @@ public class Context {
   // scratch directory to use for local file system tmp folders
   private final String localScratchDir;
 
+  // the permission to scratch directory (local and hdfs)
+  private final String scratchDirPermission;
+
   // Keeps track of scratch directories created for different scheme/authority
   private final Map<String, String> fsScratchDirs = new HashMap<String, String>();
 
   private final Configuration conf;
   protected int pathid = 10000;
   protected boolean explain = false;
+  protected boolean explainLogical = false;
   protected String cmd = "";
   // number of previous attempts
   protected int tryCount = 0;
@@ -87,6 +96,12 @@ public class Context {
   protected HiveLockManager hiveLockMgr;
 
   private boolean needLockMgr;
+
+  // Keep track of the mapping from load table desc to the output and the lock
+  private final Map<LoadTableDesc, WriteEntity> loadTableOutputMap =
+      new HashMap<LoadTableDesc, WriteEntity>();
+  private final Map<WriteEntity, List<HiveLockObj>> outputLockObjects =
+      new HashMap<WriteEntity, List<HiveLockObj>>();
 
   public Context(Configuration conf) throws IOException {
     this(conf, generateExecutionId());
@@ -107,6 +122,16 @@ public class Context {
                executionId);
     localScratchDir = new Path(HiveConf.getVar(conf, HiveConf.ConfVars.LOCALSCRATCHDIR),
             executionId).toUri().getPath();
+    scratchDirPermission= HiveConf.getVar(conf, HiveConf.ConfVars.SCRATCHDIRPERMISSION);
+  }
+
+
+  public Map<LoadTableDesc, WriteEntity> getLoadTableOutputMap() {
+    return loadTableOutputMap;
+  }
+
+  public Map<WriteEntity, List<HiveLockObj>> getOutputLockObjects() {
+    return outputLockObjects;
   }
 
   /**
@@ -121,8 +146,23 @@ public class Context {
    * Find whether the current query is an explain query
    * @return true if the query is an explain query, false if not
    */
-  public boolean getExplain () {
+  public boolean getExplain() {
     return explain;
+  }
+
+  /**
+   * Find whether the current query is a logical explain query
+   */
+  public boolean getExplainLogical() {
+    return explainLogical;
+  }
+
+  /**
+   * Set the context on whether the current query is a logical
+   * explain query.
+   */
+  public void setExplainLogical(boolean explainLogical) {
+    this.explainLogical = explainLogical;
   }
 
   /**
@@ -147,16 +187,17 @@ public class Context {
    * @param scheme Scheme of the target FS
    * @param authority Authority of the target FS
    * @param mkdir create the directory if true
-   * @param scratchdir path of tmp directory
+   * @param scratchDir path of tmp directory
    */
   private String getScratchDir(String scheme, String authority,
                                boolean mkdir, String scratchDir) {
 
     String fileSystem =  scheme + ":" + authority;
-    String dir = fsScratchDirs.get(fileSystem);
+    String dir = fsScratchDirs.get(fileSystem + "-" + TaskRunner.getTaskRunnerID());
 
     if (dir == null) {
-      Path dirPath = new Path(scheme, authority, scratchDir);
+      Path dirPath = new Path(scheme, authority,
+          scratchDir + "-" + TaskRunner.getTaskRunnerID());
       if (mkdir) {
         try {
           FileSystem fs = dirPath.getFileSystem(conf);
@@ -164,6 +205,9 @@ public class Context {
           if (!fs.mkdirs(dirPath)) {
             throw new RuntimeException("Cannot make directory: "
                                        + dirPath.toString());
+          } else {
+            FsPermission fsPermission = new FsPermission(Short.parseShort(scratchDirPermission.trim(), 8));
+            fs.setPermission(dirPath, fsPermission);
           }
           if (isHDFSCleanup) {
             fs.deleteOnExit(dirPath);
@@ -173,7 +217,7 @@ public class Context {
         }
       }
       dir = dirPath.toString();
-      fsScratchDirs.put(fileSystem, dir);
+      fsScratchDirs.put(fileSystem + "-" + TaskRunner.getTaskRunnerID(), dir);
 
     }
     return dir;
@@ -210,9 +254,10 @@ public class Context {
     try {
       Path dir = FileUtils.makeQualified(nonLocalScratchPath, conf);
       URI uri = dir.toUri();
-      return getScratchDir(uri.getScheme(), uri.getAuthority(),
+      String newScratchDir = getScratchDir(uri.getScheme(), uri.getAuthority(),
                            !explain, uri.getPath());
-
+      LOG.info("New scratch dir is " + newScratchDir);
+      return newScratchDir;
     } catch (IOException e) {
       throw new RuntimeException(e);
     } catch (IllegalArgumentException e) {
@@ -526,6 +571,10 @@ public class Context {
     pathToCS.put(path, cs);
   }
 
+  public ContentSummary getCS(Path path) {
+    return getCS(path.toString());
+  }
+
   public ContentSummary getCS(String path) {
     return pathToCS.get(path);
   }
@@ -537,7 +586,6 @@ public class Context {
   public Configuration getConf() {
     return conf;
   }
-
 
   /**
    * Given a mapping from paths to objects, localize any MR tmp paths

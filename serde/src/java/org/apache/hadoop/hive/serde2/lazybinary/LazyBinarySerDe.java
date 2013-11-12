@@ -27,12 +27,14 @@ import java.util.Properties;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.serde.serdeConstants;
+import org.apache.hadoop.hive.serde2.AbstractSerDe;
 import org.apache.hadoop.hive.serde2.ByteStream;
 import org.apache.hadoop.hive.serde2.ByteStream.Output;
-import org.apache.hadoop.hive.serde2.SerDe;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeStats;
+import org.apache.hadoop.hive.serde2.io.DateWritable;
+import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.lazy.ByteArrayRef;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
@@ -45,8 +47,12 @@ import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.ByteObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.DateObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.FloatObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveCharObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveDecimalObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveVarcharObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.ShortObjectInspector;
@@ -65,7 +71,7 @@ import org.apache.hadoop.io.Writable;
  * deserialized until required. Binary means a field is serialized in binary
  * compact format.
  */
-public class LazyBinarySerDe implements SerDe {
+public class LazyBinarySerDe extends AbstractSerDe {
 
   public static final Log LOG = LogFactory.getLog(LazyBinarySerDe.class
       .getName());
@@ -94,8 +100,8 @@ public class LazyBinarySerDe implements SerDe {
   public void initialize(Configuration conf, Properties tbl)
       throws SerDeException {
     // Get column names and types
-    String columnNameProperty = tbl.getProperty(Constants.LIST_COLUMNS);
-    String columnTypeProperty = tbl.getProperty(Constants.LIST_COLUMN_TYPES);
+    String columnNameProperty = tbl.getProperty(serdeConstants.LIST_COLUMNS);
+    String columnTypeProperty = tbl.getProperty(serdeConstants.LIST_COLUMN_TYPES);
     if (columnNameProperty.length() == 0) {
       columnNames = new ArrayList<String>();
     } else {
@@ -227,7 +233,7 @@ public class LazyBinarySerDe implements SerDe {
    *          once already
    */
   private static boolean serializeStruct(Output byteStream, Object obj,
-      StructObjectInspector soi, boolean warnedOnceNullMapKey) {
+      StructObjectInspector soi, boolean warnedOnceNullMapKey) throws SerDeException {
     // do nothing for null struct
     if (null == obj) {
       return warnedOnceNullMapKey;
@@ -262,6 +268,17 @@ public class LazyBinarySerDe implements SerDe {
     return warnedOnceNullMapKey;
   }
 
+  private static void serializeText(Output byteStream, Text t, boolean skipLengthPrefix) {
+    /* write byte size of the string which is a vint */
+    int length = t.getLength();
+    if (!skipLengthPrefix) {
+      LazyBinaryUtils.writeVInt(byteStream, length);
+    }
+    /* write string itself */
+    byte[] data = t.getBytes();
+    byteStream.write(data, 0, length);
+  }
+
   /**
    * A recursive function that serialize an object to a byte buffer based on its
    * object inspector.
@@ -280,7 +297,8 @@ public class LazyBinarySerDe implements SerDe {
    *          once already
    */
   public static boolean serialize(Output byteStream, Object obj,
-      ObjectInspector objInspector, boolean skipLengthPrefix, boolean warnedOnceNullMapKey) {
+      ObjectInspector objInspector, boolean skipLengthPrefix, boolean warnedOnceNullMapKey)
+      throws SerDeException {
 
     // do nothing for null object
     if (null == obj) {
@@ -349,17 +367,21 @@ public class LazyBinarySerDe implements SerDe {
       case STRING: {
         StringObjectInspector soi = (StringObjectInspector) poi;
         Text t = soi.getPrimitiveWritableObject(obj);
-        /* write byte size of the string which is a vint */
-        int length = t.getLength();
-        if (!skipLengthPrefix) {
-          LazyBinaryUtils.writeVInt(byteStream, length);
-        }
-        /* write string itself */
-        byte[] data = t.getBytes();
-        byteStream.write(data, 0, length);
+        serializeText(byteStream, t, skipLengthPrefix);
         return warnedOnceNullMapKey;
       }
-
+      case CHAR: {
+        HiveCharObjectInspector hcoi = (HiveCharObjectInspector) poi;
+        Text t = hcoi.getPrimitiveWritableObject(obj).getTextValue();
+        serializeText(byteStream, t, skipLengthPrefix);
+        return warnedOnceNullMapKey;
+      }
+      case VARCHAR: {
+        HiveVarcharObjectInspector hcoi = (HiveVarcharObjectInspector) poi;
+        Text t = hcoi.getPrimitiveWritableObject(obj).getTextValue();
+        serializeText(byteStream, t, skipLengthPrefix);
+        return warnedOnceNullMapKey;
+      }
       case BINARY: {
         BinaryObjectInspector baoi = (BinaryObjectInspector) poi;
         BytesWritable bw = baoi.getPrimitiveWritableObject(obj);
@@ -376,12 +398,25 @@ public class LazyBinarySerDe implements SerDe {
         return warnedOnceNullMapKey;
       }
 
+      case DATE: {
+        DateWritable d = ((DateObjectInspector) poi).getPrimitiveWritableObject(obj);
+        d.writeToByteStream(byteStream);
+        return warnedOnceNullMapKey;
+      }
       case TIMESTAMP: {
         TimestampObjectInspector toi = (TimestampObjectInspector) poi;
         TimestampWritable t = toi.getPrimitiveWritableObject(obj);
         t.writeToByteStream(byteStream);
         return warnedOnceNullMapKey;
       }
+
+      case DECIMAL: {
+        HiveDecimalObjectInspector bdoi = (HiveDecimalObjectInspector) poi;
+        HiveDecimalWritable t = bdoi.getPrimitiveWritableObject(obj);
+        t.writeToByteStream(byteStream);
+        return warnedOnceNullMapKey;
+      }
+
       default: {
         throw new RuntimeException("Unrecognized type: "
             + poi.getPrimitiveCategory());
@@ -547,6 +582,7 @@ public class LazyBinarySerDe implements SerDe {
    * Returns the statistics after (de)serialization)
    */
 
+  @Override
   public SerDeStats getSerDeStats() {
     // must be different
     assert (lastOperationSerialize != lastOperationDeserialize);

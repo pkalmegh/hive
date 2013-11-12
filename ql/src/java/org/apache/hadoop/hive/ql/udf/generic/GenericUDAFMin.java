@@ -53,8 +53,8 @@ public class GenericUDAFMin extends AbstractGenericUDAFResolver {
   @UDFType(distinctLike=true)
   public static class GenericUDAFMinEvaluator extends GenericUDAFEvaluator {
 
-    ObjectInspector inputOI;
-    ObjectInspector outputOI;
+    private transient ObjectInspector inputOI;
+    private transient ObjectInspector outputOI;
 
     @Override
     public ObjectInspector init(Mode m, ObjectInspector[] parameters)
@@ -71,7 +71,7 @@ public class GenericUDAFMin extends AbstractGenericUDAFResolver {
     }
 
     /** class for storing the current max value */
-    static class MinAgg implements AggregationBuffer {
+    static class MinAgg extends AbstractAggregationBuffer {
       Object o;
     }
 

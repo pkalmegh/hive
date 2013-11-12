@@ -46,6 +46,7 @@ import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.util.Shell;
 import org.apache.hadoop.util.StringUtils;
 
@@ -81,6 +82,7 @@ public class ScriptOperator extends Operator<ScriptDesc> implements
   transient RecordWriter scriptOutWriter = null;
 
   static final String IO_EXCEPTION_BROKEN_PIPE_STRING = "Broken pipe";
+  static final String IO_EXCEPTION_STREAM_CLOSED = "Stream closed";
   static final String IO_EXCEPTION_PIPE_ENDED_WIN = "The pipe has been ended";
   static final String IO_EXCEPTION_PIPE_CLOSED_WIN = "The pipe is being closed";
 
@@ -210,6 +212,16 @@ public class ScriptOperator extends Operator<ScriptDesc> implements
           if (f.isFile() && f.canRead()) {
             return f;
           }
+          if (Shell.WINDOWS) {
+            // Try filename with executable extentions
+            String[] exts = new String[] {".exe", ".bat"};
+            for (String ext : exts) {
+              File fileWithExt = new File(f.toString() + ext);
+              if (fileWithExt.isFile() && fileWithExt.canRead()) {
+                return fileWithExt;
+              }
+            }
+          }
         } catch (Exception exp) {
         }
         classvalue = classvalue.substring(val + 1).trim();
@@ -253,7 +265,8 @@ public class ScriptOperator extends Operator<ScriptDesc> implements
       return errMsg.equalsIgnoreCase(IO_EXCEPTION_PIPE_CLOSED_WIN) ||
           errMsg.equalsIgnoreCase(IO_EXCEPTION_PIPE_ENDED_WIN);
     }
-    return (e.getMessage().equalsIgnoreCase(IO_EXCEPTION_BROKEN_PIPE_STRING));
+    return (e.getMessage().equalsIgnoreCase(IO_EXCEPTION_BROKEN_PIPE_STRING) ||
+            e.getMessage().equalsIgnoreCase(IO_EXCEPTION_STREAM_CLOSED));
   }
 
   boolean allowPartialConsumption() {
@@ -370,6 +383,21 @@ public class ScriptOperator extends Operator<ScriptDesc> implements
       throw new HiveException(e);
     } catch (IOException e) {
       if (isBrokenPipeException(e) && allowPartialConsumption()) {
+        // Give the outThread a chance to finish before marking the operator as done
+        try {
+          scriptPid.waitFor();
+        } catch (InterruptedException interruptedException) {
+        }
+        // best effort attempt to write all output from the script before marking the operator
+        // as done
+        try {
+          if (outThread != null) {
+            outThread.join(0);
+          }
+        } catch (Exception e2) {
+          LOG.warn("Exception in closing outThread: "
+              + StringUtils.stringifyException(e2));
+        }
         setDone(true);
         LOG
             .warn("Got broken pipe during write: ignoring exception and setting operator to done");
@@ -515,22 +543,68 @@ public class ScriptOperator extends Operator<ScriptDesc> implements
     }
   }
 
+  class CounterStatusProcessor {
+
+    private final String reporterPrefix;
+    private final String counterPrefix;
+    private final String statusPrefix;
+    private final Reporter reporter;
+
+    CounterStatusProcessor(Configuration hconf, Reporter reporter){
+      this.reporterPrefix = HiveConf.getVar(hconf, HiveConf.ConfVars.STREAMREPORTERPERFIX);
+      this.counterPrefix = reporterPrefix + "counter:";
+      this.statusPrefix = reporterPrefix + "status:";
+      this.reporter = reporter;
+    }
+
+    private boolean process(String line) {
+      if (line.startsWith(reporterPrefix)){
+        if (line.startsWith(counterPrefix)){
+          incrCounter(line);
+        }
+        if (line.startsWith(statusPrefix)){
+          setStatus(line);
+        }
+        return true;
+      } else {
+        return false;
+      }
+    }
+
+    private void incrCounter(String line) {
+      String  trimmedLine = line.substring(counterPrefix.length()).trim();
+      String[] columns = trimmedLine.split(",");
+      if (columns.length == 3) {
+        try {
+          reporter.incrCounter(columns[0], columns[1], Long.parseLong(columns[2]));
+        } catch (NumberFormatException e) {
+            LOG.warn("Cannot parse counter increment '" + columns[2] +
+                "' from line " + line);
+        }
+      } else {
+        LOG.warn("Cannot parse counter line: " + line);
+      }
+    }
+
+    private void setStatus(String line) {
+      reporter.setStatus(line.substring(statusPrefix.length()).trim());
+    }
+  }
   /**
    * The processor for stderr stream.
-   *
-   * TODO: In the future when we move to hadoop 0.18 and above, we should borrow
-   * the logic from HadoopStreaming: PipeMapRed.java MRErrorThread to support
-   * counters and status updates.
    */
   class ErrorStreamProcessor implements StreamProcessor {
     private long bytesCopied = 0;
     private final long maxBytes;
-
     private long lastReportTime;
+    private CounterStatusProcessor counterStatus;
 
     public ErrorStreamProcessor(int maxBytes) {
       this.maxBytes = maxBytes;
       lastReportTime = 0;
+      if (HiveConf.getBoolVar(hconf, HiveConf.ConfVars.STREAMREPORTERENABLED)){
+        counterStatus = new CounterStatusProcessor(hconf, reporter);
+      }
     }
 
     public void processLine(Writable line) throws HiveException {
@@ -552,6 +626,14 @@ public class ScriptOperator extends Operator<ScriptDesc> implements
         LOG.info("ErrorStreamProcessor calling reporter.progress()");
         lastReportTime = now;
         reporter.progress();
+      }
+
+      if (reporter != null) {
+        if (counterStatus != null) {
+          if (counterStatus.process(stringLine)) {
+            return;
+          }
+        }
       }
 
       if ((maxBytes < 0) || (bytesCopied < maxBytes)) {
@@ -642,7 +724,7 @@ public class ScriptOperator extends Operator<ScriptDesc> implements
     for (int i = 0; i < inArgs.length; i++) {
       finalArgv[wrapComponents.length + i] = inArgs[i];
     }
-    return (finalArgv);
+    return finalArgv;
   }
 
   // Code below shameless borrowed from Hadoop Streaming

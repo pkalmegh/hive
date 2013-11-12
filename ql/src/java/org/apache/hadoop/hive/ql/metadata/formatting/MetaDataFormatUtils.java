@@ -21,10 +21,14 @@ package org.apache.hadoop.hive.ql.metadata.formatting;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 
 import org.apache.commons.lang.StringEscapeUtils;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Index;
@@ -34,6 +38,7 @@ import org.apache.hadoop.hive.ql.index.HiveIndex.IndexType;
 import org.apache.hadoop.hive.ql.metadata.Partition;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.plan.DescTableDesc;
+import org.apache.hadoop.hive.ql.plan.PlanUtils;
 import org.apache.hadoop.hive.ql.plan.ShowIndexesDesc;
 
 
@@ -46,7 +51,7 @@ public final class MetaDataFormatUtils {
   public static final String FIELD_DELIM = "\t";
   public static final String LINE_DELIM = "\n";
 
-  private static final int DEFAULT_STRINGBUILDER_SIZE = 2048;
+  static final int DEFAULT_STRINGBUILDER_SIZE = 2048;
   private static final int ALIGNMENT = 20;
 
   private MetaDataFormatUtils() {
@@ -58,16 +63,22 @@ public final class MetaDataFormatUtils {
     columnInformation.append(LINE_DELIM);
   }
 
-  public static String getAllColumnsInformation(List<FieldSchema> cols) {
+  public static String getAllColumnsInformation(List<FieldSchema> cols,
+      boolean printHeader) {
     StringBuilder columnInformation = new StringBuilder(DEFAULT_STRINGBUILDER_SIZE);
-    formatColumnsHeader(columnInformation);
+    if(printHeader){
+      formatColumnsHeader(columnInformation);
+    }
     formatAllFields(columnInformation, cols);
     return columnInformation.toString();
   }
 
-  public static String getAllColumnsInformation(List<FieldSchema> cols, List<FieldSchema> partCols) {
+  public static String getAllColumnsInformation(List<FieldSchema> cols, List<FieldSchema> partCols,
+      boolean printHeader) {
     StringBuilder columnInformation = new StringBuilder(DEFAULT_STRINGBUILDER_SIZE);
-    formatColumnsHeader(columnInformation);
+    if(printHeader){
+      formatColumnsHeader(columnInformation);
+    }
     formatAllFields(columnInformation, cols);
 
     if ((partCols != null) && (!partCols.isEmpty())) {
@@ -82,10 +93,9 @@ public final class MetaDataFormatUtils {
 
   private static void formatAllFields(StringBuilder tableInfo, List<FieldSchema> cols) {
     for (FieldSchema col : cols) {
-      formatFieldSchemas(tableInfo, col);
+      formatOutput(col.getName(), col.getType(), getComment(col), tableInfo);
     }
   }
-
 
   public static String getAllColumnsInformation(Index index) {
     StringBuilder indexInfo = new StringBuilder(DEFAULT_STRINGBUILDER_SIZE);
@@ -124,22 +134,6 @@ public final class MetaDataFormatUtils {
 
     return indexInfo.toString();
 }
-
-  /*
-    Displaying columns unformatted for backward compatibility.
-   */
-  public static String displayColsUnformatted(List<FieldSchema> cols) {
-    StringBuilder colBuffer = new StringBuilder(DEFAULT_STRINGBUILDER_SIZE);
-    for (FieldSchema col : cols) {
-      colBuffer.append(col.getName());
-      colBuffer.append(FIELD_DELIM);
-      colBuffer.append(col.getType());
-      colBuffer.append(FIELD_DELIM);
-      colBuffer.append(col.getComment() == null ? "" : col.getComment());
-      colBuffer.append(LINE_DELIM);
-    }
-    return colBuffer.toString();
-  }
 
   public static String getPartitionInformation(Partition part) {
     StringBuilder tableInfo = new StringBuilder(DEFAULT_STRINGBUILDER_SIZE);
@@ -191,6 +185,9 @@ public final class MetaDataFormatUtils {
     formatOutput("Num Buckets:", String.valueOf(storageDesc.getNumBuckets()), tableInfo);
     formatOutput("Bucket Columns:", storageDesc.getBucketCols().toString(), tableInfo);
     formatOutput("Sort Columns:", storageDesc.getSortCols().toString(), tableInfo);
+    if (storageDesc.isStoredAsSubDirectories()) {// optional parameter
+      formatOutput("Stored As SubDirectories:", "Yes", tableInfo);
+    }
 
     if (null != storageDesc.getSkewedInfo()) {
       List<String> skewedColNames = storageDesc.getSkewedInfo().getSkewedColNames();
@@ -206,8 +203,18 @@ public final class MetaDataFormatUtils {
       Map<List<String>, String> skewedColMap = storageDesc.getSkewedInfo()
           .getSkewedColValueLocationMaps();
       if ((skewedColMap!=null) && (skewedColMap.size() > 0)) {
-        formatOutput("Skewed Value to Location Mapping:", skewedColMap.toString(),
+        formatOutput("Skewed Value to Path:", skewedColMap.toString(),
             tableInfo);
+        Map<List<String>, String> truncatedSkewedColMap = new HashMap<List<String>, String>();
+        // walk through existing map to truncate path so that test won't mask it
+        // then we can verify location is right
+        Set<Entry<List<String>, String>> entries = skewedColMap.entrySet();
+        for (Entry<List<String>, String> entry : entries) {
+          truncatedSkewedColMap.put(entry.getKey(),
+              PlanUtils.removePrefixFromWarehouseConfig(entry.getValue()));
+        }
+        formatOutput("Skewed Value to Truncated Path:",
+            truncatedSkewedColMap.toString(), tableInfo);
       }
     }
 
@@ -262,9 +269,8 @@ public final class MetaDataFormatUtils {
     }
   }
 
-  private static void formatFieldSchemas(StringBuilder tableInfo, FieldSchema col) {
-    String comment = col.getComment() != null ? col.getComment() : "None";
-    formatOutput(col.getName(), col.getType(), comment, tableInfo);
+  static String getComment(FieldSchema col) {
+    return col.getComment() != null ? col.getComment() : "None";
   }
 
   private static String formatDate(long timeInSeconds) {
@@ -292,11 +298,23 @@ public final class MetaDataFormatUtils {
     tableInfo.append(String.format("%-" + ALIGNMENT + "s", value)).append(LINE_DELIM);
   }
 
-  private static void formatOutput(String col1, String col2, String col3,
+  private static void formatOutput(String colName, String colType, String colComment,
                                    StringBuilder tableInfo) {
-    tableInfo.append(String.format("%-" + ALIGNMENT + "s", col1)).append(FIELD_DELIM);
-    tableInfo.append(String.format("%-" + ALIGNMENT + "s", col2)).append(FIELD_DELIM);
-    tableInfo.append(String.format("%-" + ALIGNMENT + "s", col3)).append(LINE_DELIM);
+    tableInfo.append(String.format("%-" + ALIGNMENT + "s", colName)).append(FIELD_DELIM);
+    tableInfo.append(String.format("%-" + ALIGNMENT + "s", colType)).append(FIELD_DELIM);
+
+    // comment indent processing for multi-line comments
+    // comments should be indented the same amount on each line
+    // if the first line comment starts indented by k,
+    // the following line comments should also be indented by k
+    String[] commentSegments = colComment.split("\n|\r|\r\n");
+    tableInfo.append(String.format("%-" + ALIGNMENT + "s", commentSegments[0])).append(LINE_DELIM);
+    int colNameLength = ALIGNMENT > colName.length() ? ALIGNMENT : colName.length();
+    int colTypeLength = ALIGNMENT > colType.length() ? ALIGNMENT : colType.length();
+    for (int i = 1; i < commentSegments.length; i++) {
+      tableInfo.append(String.format("%" + colNameLength + "s" + FIELD_DELIM + "%"
+        + colTypeLength + "s" + FIELD_DELIM + "%s", "", "", commentSegments[i])).append(LINE_DELIM);
+    }
   }
 
   public static String[] getColumnsHeader() {
@@ -307,5 +325,12 @@ public final class MetaDataFormatUtils {
     StringBuilder indexCols = new StringBuilder(DEFAULT_STRINGBUILDER_SIZE);
     formatOutput(ShowIndexesDesc.getSchema().split("#")[0].split(","), indexCols);
     return indexCols.toString();
+  }
+  public static MetaDataFormatter getFormatter(HiveConf conf) {
+    if ("json".equals(conf.get(HiveConf.ConfVars.HIVE_DDL_OUTPUT_FORMAT.varname, "text"))) {
+      return new JsonMetaDataFormatter();
+    } else {
+      return new TextMetaDataFormatter(conf.getIntVar(HiveConf.ConfVars.CLIPRETTYOUTPUTNUMCOLS));
+    }
   }
 }

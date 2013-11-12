@@ -12,24 +12,24 @@ POSTHOOK: query: create table t1_new (key string, value string) partitioned by (
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@t1_new
 PREHOOK: query: insert overwrite table t1_new partition (ds = '2011-10-15')
-select 'key1', 'value1' from src limit 1
+select 'key1', 'value1' from src tablesample (1 rows)
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
 PREHOOK: Output: default@t1_new@ds=2011-10-15
 POSTHOOK: query: insert overwrite table t1_new partition (ds = '2011-10-15')
-select 'key1', 'value1' from src limit 1
+select 'key1', 'value1' from src tablesample (1 rows)
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
 POSTHOOK: Output: default@t1_new@ds=2011-10-15
 POSTHOOK: Lineage: t1_new PARTITION(ds=2011-10-15).key SIMPLE []
 POSTHOOK: Lineage: t1_new PARTITION(ds=2011-10-15).value SIMPLE []
 PREHOOK: query: insert overwrite table t1_new partition (ds = '2011-10-16')
-select 'key2', 'value2' from src limit 1
+select 'key2', 'value2' from src tablesample (1 rows)
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
 PREHOOK: Output: default@t1_new@ds=2011-10-16
 POSTHOOK: query: insert overwrite table t1_new partition (ds = '2011-10-16')
-select 'key2', 'value2' from src limit 1
+select 'key2', 'value2' from src tablesample (1 rows)
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
 POSTHOOK: Output: default@t1_new@ds=2011-10-16
@@ -47,12 +47,12 @@ POSTHOOK: Lineage: t1_new PARTITION(ds=2011-10-15).value SIMPLE []
 POSTHOOK: Lineage: t1_new PARTITION(ds=2011-10-16).key SIMPLE []
 POSTHOOK: Lineage: t1_new PARTITION(ds=2011-10-16).value SIMPLE []
 PREHOOK: query: insert overwrite table t1_old partition (ds = '2011-10-13')
-select 'keymap3', 'value3' from src limit 1
+select 'keymap3', 'value3' from src tablesample (1 rows)
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
 PREHOOK: Output: default@t1_old@ds=2011-10-13
 POSTHOOK: query: insert overwrite table t1_old partition (ds = '2011-10-13')
-select 'keymap3', 'value3' from src limit 1
+select 'keymap3', 'value3' from src tablesample (1 rows)
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
 POSTHOOK: Output: default@t1_old@ds=2011-10-13
@@ -63,12 +63,12 @@ POSTHOOK: Lineage: t1_new PARTITION(ds=2011-10-16).value SIMPLE []
 POSTHOOK: Lineage: t1_old PARTITION(ds=2011-10-13).keymap SIMPLE []
 POSTHOOK: Lineage: t1_old PARTITION(ds=2011-10-13).value SIMPLE []
 PREHOOK: query: insert overwrite table t1_old partition (ds = '2011-10-14')
-select 'keymap4', 'value4' from src limit 1
+select 'keymap4', 'value4' from src tablesample (1 rows)
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
 PREHOOK: Output: default@t1_old@ds=2011-10-14
 POSTHOOK: query: insert overwrite table t1_old partition (ds = '2011-10-14')
-select 'keymap4', 'value4' from src limit 1
+select 'keymap4', 'value4' from src tablesample (1 rows)
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
 POSTHOOK: Output: default@t1_old@ds=2011-10-14
@@ -94,12 +94,12 @@ POSTHOOK: Lineage: t1_old PARTITION(ds=2011-10-13).value SIMPLE []
 POSTHOOK: Lineage: t1_old PARTITION(ds=2011-10-14).keymap SIMPLE []
 POSTHOOK: Lineage: t1_old PARTITION(ds=2011-10-14).value SIMPLE []
 PREHOOK: query: insert overwrite table t1_mapping partition (ds = '2011-10-13')
-select 'key3', 'keymap3' from src limit 1
+select 'key3', 'keymap3' from src tablesample (1 rows)
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
 PREHOOK: Output: default@t1_mapping@ds=2011-10-13
 POSTHOOK: query: insert overwrite table t1_mapping partition (ds = '2011-10-13')
-select 'key3', 'keymap3' from src limit 1
+select 'key3', 'keymap3' from src tablesample (1 rows)
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
 POSTHOOK: Output: default@t1_mapping@ds=2011-10-13
@@ -114,12 +114,12 @@ POSTHOOK: Lineage: t1_old PARTITION(ds=2011-10-13).value SIMPLE []
 POSTHOOK: Lineage: t1_old PARTITION(ds=2011-10-14).keymap SIMPLE []
 POSTHOOK: Lineage: t1_old PARTITION(ds=2011-10-14).value SIMPLE []
 PREHOOK: query: insert overwrite table t1_mapping partition (ds = '2011-10-14')
-select 'key4', 'keymap4' from src limit 1
+select 'key4', 'keymap4' from src tablesample (1 rows)
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
 PREHOOK: Output: default@t1_mapping@ds=2011-10-14
 POSTHOOK: query: insert overwrite table t1_mapping partition (ds = '2011-10-14')
-select 'key4', 'keymap4' from src limit 1
+select 'key4', 'keymap4' from src tablesample (1 rows)
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
 POSTHOOK: Output: default@t1_mapping@ds=2011-10-14
@@ -145,7 +145,6 @@ on t1_old.keymap = t1_mapping.keymap and
    t1_old.ds = t1_mapping.ds
 ) subq
 PREHOOK: type: CREATEVIEW
-#### A masked pattern was here ####
 POSTHOOK: query: create view t1 partitioned on (ds) as
 select * from
 (
@@ -157,7 +156,6 @@ on t1_old.keymap = t1_mapping.keymap and
 ) subq
 POSTHOOK: type: CREATEVIEW
 POSTHOOK: Output: default@t1
-#### A masked pattern was here ####
 POSTHOOK: Lineage: t1_mapping PARTITION(ds=2011-10-13).key SIMPLE []
 POSTHOOK: Lineage: t1_mapping PARTITION(ds=2011-10-13).keymap SIMPLE []
 POSTHOOK: Lineage: t1_mapping PARTITION(ds=2011-10-14).key SIMPLE []
@@ -242,7 +240,6 @@ STAGE PLANS:
                     type: string
                     expr: ds
                     type: string
-      Needs Tagging: true
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -254,13 +251,13 @@ STAGE PLANS:
             partition values:
               ds 2011-10-13
             properties:
+              COLUMN_STATS_ACCURATE true
               bucket_count -1
               columns key,keymap
               columns.types string:string
 #### A masked pattern was here ####
               name default.t1_mapping
               numFiles 1
-              numPartitions 2
               numRows 1
               partition_columns ds
               rawDataSize 12
@@ -279,15 +276,10 @@ STAGE PLANS:
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.t1_mapping
-                numFiles 2
-                numPartitions 2
-                numRows 2
                 partition_columns ds
-                rawDataSize 24
                 serialization.ddl struct t1_mapping { string key, string keymap}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                totalSize 26
 #### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.t1_mapping
@@ -300,13 +292,13 @@ STAGE PLANS:
             partition values:
               ds 2011-10-13
             properties:
+              COLUMN_STATS_ACCURATE true
               bucket_count -1
               columns keymap,value
               columns.types string:string
 #### A masked pattern was here ####
               name default.t1_old
               numFiles 1
-              numPartitions 2
               numRows 1
               partition_columns ds
               rawDataSize 14
@@ -325,19 +317,18 @@ STAGE PLANS:
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.t1_old
-                numFiles 2
-                numPartitions 2
-                numRows 2
                 partition_columns ds
-                rawDataSize 28
                 serialization.ddl struct t1_old { string keymap, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                totalSize 30
 #### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.t1_old
             name: default.t1_old
+      Truncated Path -> Alias:
+        /t1_mapping/ds=2011-10-13 [t1-subquery2:subq-subquery2:t1_mapping]
+        /t1_old/ds=2011-10-13 [t1-subquery2:subq-subquery2:t1_old]
+      Needs Tagging: true
       Reduce Operator Tree:
         Join Operator
           condition map:
@@ -368,12 +359,11 @@ STAGE PLANS:
                     columns _col0,_col1,_col2
                     columns.types string,string,string
                     escape.delim \
+                    serialization.lib org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
+                  serde: org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
               TotalFiles: 1
               GatherStats: false
               MultiFileSpray: false
-      Truncated Path -> Alias:
-        /t1_mapping/ds=2011-10-13 [t1-subquery2:subq-subquery2:t1_mapping]
-        /t1_old/ds=2011-10-13 [t1-subquery2:subq-subquery2:t1_old]
 
   Stage: Stage-2
     Map Reduce
@@ -391,32 +381,26 @@ STAGE PLANS:
                       expr: _col2
                       type: string
                 outputColumnNames: _col0, _col1, _col2
-                Select Operator
-                  expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: string
-                        expr: _col2
-                        type: string
-                  outputColumnNames: _col0, _col1, _col2
-                  File Output Operator
-                    compressed: false
-                    GlobalTableId: 0
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 0
 #### A masked pattern was here ####
-                    NumFilesPerFileSink: 1
+                  NumFilesPerFileSink: 1
 #### A masked pattern was here ####
-                    table:
-                        input format: org.apache.hadoop.mapred.TextInputFormat
-                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                        properties:
-                          columns _col0,_col1,_col2
-                          columns.types string:string:string
-                          escape.delim \
-                          serialization.format 1
-                    TotalFiles: 1
-                    GatherStats: false
-                    MultiFileSpray: false
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      properties:
+                        columns _col0,_col1,_col2
+                        columns.types string:string:string
+                        escape.delim \
+                        hive.serialization.extend.nesting.levels true
+                        serialization.format 1
+                        serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  TotalFiles: 1
+                  GatherStats: false
+                  MultiFileSpray: false
         t1-subquery1:subq-subquery1:t1_new 
           TableScan
             alias: t1_new
@@ -445,33 +429,26 @@ STAGE PLANS:
                           expr: _col2
                           type: string
                     outputColumnNames: _col0, _col1, _col2
-                    Select Operator
-                      expressions:
-                            expr: _col0
-                            type: string
-                            expr: _col1
-                            type: string
-                            expr: _col2
-                            type: string
-                      outputColumnNames: _col0, _col1, _col2
-                      File Output Operator
-                        compressed: false
-                        GlobalTableId: 0
+                    File Output Operator
+                      compressed: false
+                      GlobalTableId: 0
 #### A masked pattern was here ####
-                        NumFilesPerFileSink: 1
+                      NumFilesPerFileSink: 1
 #### A masked pattern was here ####
-                        table:
-                            input format: org.apache.hadoop.mapred.TextInputFormat
-                            output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                            properties:
-                              columns _col0,_col1,_col2
-                              columns.types string:string:string
-                              escape.delim \
-                              serialization.format 1
-                        TotalFiles: 1
-                        GatherStats: false
-                        MultiFileSpray: false
-      Needs Tagging: false
+                      table:
+                          input format: org.apache.hadoop.mapred.TextInputFormat
+                          output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                          properties:
+                            columns _col0,_col1,_col2
+                            columns.types string:string:string
+                            escape.delim \
+                            hive.serialization.extend.nesting.levels true
+                            serialization.format 1
+                            serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                          serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      TotalFiles: 1
+                      GatherStats: false
+                      MultiFileSpray: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -484,6 +461,8 @@ STAGE PLANS:
               columns _col0,_col1,_col2
               columns.types string,string,string
               escape.delim \
+              serialization.lib org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
+            serde: org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
           
               input format: org.apache.hadoop.mapred.SequenceFileInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
@@ -491,6 +470,8 @@ STAGE PLANS:
                 columns _col0,_col1,_col2
                 columns.types string,string,string
                 escape.delim \
+                serialization.lib org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
+              serde: org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
       Truncated Path -> Alias:
 #### A masked pattern was here ####
 
@@ -502,13 +483,19 @@ STAGE PLANS:
 PREHOOK: query: select * from t1 where ds = '2011-10-13'
 PREHOOK: type: QUERY
 PREHOOK: Input: default@t1
+PREHOOK: Input: default@t1_mapping
 PREHOOK: Input: default@t1_mapping@ds=2011-10-13
+PREHOOK: Input: default@t1_new
+PREHOOK: Input: default@t1_old
 PREHOOK: Input: default@t1_old@ds=2011-10-13
 #### A masked pattern was here ####
 POSTHOOK: query: select * from t1 where ds = '2011-10-13'
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@t1
+POSTHOOK: Input: default@t1_mapping
 POSTHOOK: Input: default@t1_mapping@ds=2011-10-13
+POSTHOOK: Input: default@t1_new
+POSTHOOK: Input: default@t1_old
 POSTHOOK: Input: default@t1_old@ds=2011-10-13
 #### A masked pattern was here ####
 POSTHOOK: Lineage: t1_mapping PARTITION(ds=2011-10-13).key SIMPLE []
@@ -527,13 +514,19 @@ key3	value3	2011-10-13
 PREHOOK: query: select * from t1 where ds = '2011-10-14'
 PREHOOK: type: QUERY
 PREHOOK: Input: default@t1
+PREHOOK: Input: default@t1_mapping
 PREHOOK: Input: default@t1_mapping@ds=2011-10-14
+PREHOOK: Input: default@t1_new
+PREHOOK: Input: default@t1_old
 PREHOOK: Input: default@t1_old@ds=2011-10-14
 #### A masked pattern was here ####
 POSTHOOK: query: select * from t1 where ds = '2011-10-14'
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@t1
+POSTHOOK: Input: default@t1_mapping
 POSTHOOK: Input: default@t1_mapping@ds=2011-10-14
+POSTHOOK: Input: default@t1_new
+POSTHOOK: Input: default@t1_old
 POSTHOOK: Input: default@t1_old@ds=2011-10-14
 #### A masked pattern was here ####
 POSTHOOK: Lineage: t1_mapping PARTITION(ds=2011-10-13).key SIMPLE []
@@ -662,6 +655,8 @@ STAGE PLANS:
                     columns _col0,_col1,_col2
                     columns.types string,string,string
                     escape.delim \
+                    serialization.lib org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
+                  serde: org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
               TotalFiles: 1
               GatherStats: false
               MultiFileSpray: false
@@ -682,32 +677,26 @@ STAGE PLANS:
                       expr: _col2
                       type: string
                 outputColumnNames: _col0, _col1, _col2
-                Select Operator
-                  expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: string
-                        expr: _col2
-                        type: string
-                  outputColumnNames: _col0, _col1, _col2
-                  File Output Operator
-                    compressed: false
-                    GlobalTableId: 0
+                File Output Operator
+                  compressed: false
+                  GlobalTableId: 0
 #### A masked pattern was here ####
-                    NumFilesPerFileSink: 1
+                  NumFilesPerFileSink: 1
 #### A masked pattern was here ####
-                    table:
-                        input format: org.apache.hadoop.mapred.TextInputFormat
-                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                        properties:
-                          columns _col0,_col1,_col2
-                          columns.types string:string:string
-                          escape.delim \
-                          serialization.format 1
-                    TotalFiles: 1
-                    GatherStats: false
-                    MultiFileSpray: false
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      properties:
+                        columns _col0,_col1,_col2
+                        columns.types string:string:string
+                        escape.delim \
+                        hive.serialization.extend.nesting.levels true
+                        serialization.format 1
+                        serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  TotalFiles: 1
+                  GatherStats: false
+                  MultiFileSpray: false
         t1-subquery1:subq-subquery1:t1_new 
           TableScan
             alias: t1_new
@@ -731,33 +720,26 @@ STAGE PLANS:
                         expr: _col2
                         type: string
                   outputColumnNames: _col0, _col1, _col2
-                  Select Operator
-                    expressions:
-                          expr: _col0
-                          type: string
-                          expr: _col1
-                          type: string
-                          expr: _col2
-                          type: string
-                    outputColumnNames: _col0, _col1, _col2
-                    File Output Operator
-                      compressed: false
-                      GlobalTableId: 0
+                  File Output Operator
+                    compressed: false
+                    GlobalTableId: 0
 #### A masked pattern was here ####
-                      NumFilesPerFileSink: 1
+                    NumFilesPerFileSink: 1
 #### A masked pattern was here ####
-                      table:
-                          input format: org.apache.hadoop.mapred.TextInputFormat
-                          output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                          properties:
-                            columns _col0,_col1,_col2
-                            columns.types string:string:string
-                            escape.delim \
-                            serialization.format 1
-                      TotalFiles: 1
-                      GatherStats: false
-                      MultiFileSpray: false
-      Needs Tagging: false
+                    table:
+                        input format: org.apache.hadoop.mapred.TextInputFormat
+                        output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                        properties:
+                          columns _col0,_col1,_col2
+                          columns.types string:string:string
+                          escape.delim \
+                          hive.serialization.extend.nesting.levels true
+                          serialization.format 1
+                          serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                        serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                    TotalFiles: 1
+                    GatherStats: false
+                    MultiFileSpray: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -770,6 +752,8 @@ STAGE PLANS:
               columns _col0,_col1,_col2
               columns.types string,string,string
               escape.delim \
+              serialization.lib org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
+            serde: org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
           
               input format: org.apache.hadoop.mapred.SequenceFileInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
@@ -777,6 +761,8 @@ STAGE PLANS:
                 columns _col0,_col1,_col2
                 columns.types string,string,string
                 escape.delim \
+                serialization.lib org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
+              serde: org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
 #### A masked pattern was here ####
           Partition
             base file name: ds=2011-10-15
@@ -785,13 +771,13 @@ STAGE PLANS:
             partition values:
               ds 2011-10-15
             properties:
+              COLUMN_STATS_ACCURATE true
               bucket_count -1
               columns key,value
               columns.types string:string
 #### A masked pattern was here ####
               name default.t1_new
               numFiles 1
-              numPartitions 2
               numRows 1
               partition_columns ds
               rawDataSize 11
@@ -810,15 +796,10 @@ STAGE PLANS:
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.t1_new
-                numFiles 2
-                numPartitions 2
-                numRows 2
                 partition_columns ds
-                rawDataSize 22
                 serialization.ddl struct t1_new { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                totalSize 24
 #### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.t1_new
@@ -835,12 +816,18 @@ STAGE PLANS:
 PREHOOK: query: select * from t1 where ds = '2011-10-15'
 PREHOOK: type: QUERY
 PREHOOK: Input: default@t1
+PREHOOK: Input: default@t1_mapping
+PREHOOK: Input: default@t1_new
 PREHOOK: Input: default@t1_new@ds=2011-10-15
+PREHOOK: Input: default@t1_old
 #### A masked pattern was here ####
 POSTHOOK: query: select * from t1 where ds = '2011-10-15'
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@t1
+POSTHOOK: Input: default@t1_mapping
+POSTHOOK: Input: default@t1_new
 POSTHOOK: Input: default@t1_new@ds=2011-10-15
+POSTHOOK: Input: default@t1_old
 #### A masked pattern was here ####
 POSTHOOK: Lineage: t1_mapping PARTITION(ds=2011-10-13).key SIMPLE []
 POSTHOOK: Lineage: t1_mapping PARTITION(ds=2011-10-13).keymap SIMPLE []
@@ -858,12 +845,18 @@ key1	value1	2011-10-15
 PREHOOK: query: select * from t1 where ds = '2011-10-16'
 PREHOOK: type: QUERY
 PREHOOK: Input: default@t1
+PREHOOK: Input: default@t1_mapping
+PREHOOK: Input: default@t1_new
 PREHOOK: Input: default@t1_new@ds=2011-10-16
+PREHOOK: Input: default@t1_old
 #### A masked pattern was here ####
 POSTHOOK: query: select * from t1 where ds = '2011-10-16'
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@t1
+POSTHOOK: Input: default@t1_mapping
+POSTHOOK: Input: default@t1_new
 POSTHOOK: Input: default@t1_new@ds=2011-10-16
+POSTHOOK: Input: default@t1_old
 #### A masked pattern was here ####
 POSTHOOK: Lineage: t1_mapping PARTITION(ds=2011-10-13).key SIMPLE []
 POSTHOOK: Lineage: t1_mapping PARTITION(ds=2011-10-13).keymap SIMPLE []

@@ -11,17 +11,17 @@ PREHOOK: type: CREATETABLE
 POSTHOOK: query: CREATE TABLE db1.sourceTable (one string,two string) PARTITIONED BY (ds string)
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: db1@sourceTable
-PREHOOK: query: load data local inpath '../data/files/kv1.txt' INTO TABLE db1.sourceTable partition(ds='2011-11-11')
+PREHOOK: query: load data local inpath '../../data/files/kv1.txt' INTO TABLE db1.sourceTable partition(ds='2011-11-11')
 PREHOOK: type: LOAD
 PREHOOK: Output: db1@sourcetable
-POSTHOOK: query: load data local inpath '../data/files/kv1.txt' INTO TABLE db1.sourceTable partition(ds='2011-11-11')
+POSTHOOK: query: load data local inpath '../../data/files/kv1.txt' INTO TABLE db1.sourceTable partition(ds='2011-11-11')
 POSTHOOK: type: LOAD
 POSTHOOK: Output: db1@sourcetable
 POSTHOOK: Output: db1@sourcetable@ds=2011-11-11
-PREHOOK: query: load data local inpath '../data/files/kv3.txt' INTO TABLE db1.sourceTable partition(ds='2011-11-11')
+PREHOOK: query: load data local inpath '../../data/files/kv3.txt' INTO TABLE db1.sourceTable partition(ds='2011-11-11')
 PREHOOK: type: LOAD
 PREHOOK: Output: db1@sourcetable@ds=2011-11-11
-POSTHOOK: query: load data local inpath '../data/files/kv3.txt' INTO TABLE db1.sourceTable partition(ds='2011-11-11')
+POSTHOOK: query: load data local inpath '../../data/files/kv3.txt' INTO TABLE db1.sourceTable partition(ds='2011-11-11')
 POSTHOOK: type: LOAD
 POSTHOOK: Output: db1@sourcetable@ds=2011-11-11
 PREHOOK: query: CREATE TABLE db2.destinTable (one string,two string) PARTITIONED BY (ds string)
@@ -40,9 +40,8 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-2 depends on stages: Stage-1
-  Stage-0 depends on stages: Stage-2
-  Stage-3 depends on stages: Stage-0
+  Stage-0 depends on stages: Stage-1
+  Stage-2 depends on stages: Stage-0
 
 STAGE PLANS:
   Stage: Stage-1
@@ -76,33 +75,6 @@ STAGE PLANS:
           Limit
             File Output Operator
               compressed: false
-              GlobalTableId: 0
-              table:
-                  input format: org.apache.hadoop.mapred.SequenceFileInputFormat
-                  output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
-
-  Stage: Stage-2
-    Map Reduce
-      Alias -> Map Operator Tree:
-#### A masked pattern was here ####
-            Reduce Output Operator
-              key expressions:
-                    expr: _col0
-                    type: string
-                    expr: _col1
-                    type: string
-              sort order: --
-              tag: -1
-              value expressions:
-                    expr: _col0
-                    type: string
-                    expr: _col1
-                    type: string
-      Reduce Operator Tree:
-        Extract
-          Limit
-            File Output Operator
-              compressed: false
               GlobalTableId: 1
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
@@ -122,28 +94,32 @@ STAGE PLANS:
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: db2.destintable
 
-  Stage: Stage-3
+  Stage: Stage-2
     Stats-Aggr Operator
 
 
 PREHOOK: query: INSERT OVERWRITE TABLE db2.destinTable PARTITION (ds='2011-11-11')
 SELECT one,two FROM db1.sourceTable WHERE ds='2011-11-11' order by one desc, two desc limit 5
 PREHOOK: type: QUERY
+PREHOOK: Input: db1@sourcetable
 PREHOOK: Input: db1@sourcetable@ds=2011-11-11
 PREHOOK: Output: db2@destintable@ds=2011-11-11
 POSTHOOK: query: INSERT OVERWRITE TABLE db2.destinTable PARTITION (ds='2011-11-11')
 SELECT one,two FROM db1.sourceTable WHERE ds='2011-11-11' order by one desc, two desc limit 5
 POSTHOOK: type: QUERY
+POSTHOOK: Input: db1@sourcetable
 POSTHOOK: Input: db1@sourcetable@ds=2011-11-11
 POSTHOOK: Output: db2@destintable@ds=2011-11-11
 POSTHOOK: Lineage: destintable PARTITION(ds=2011-11-11).one SIMPLE [(sourcetable)sourcetable.FieldSchema(name:one, type:string, comment:null), ]
 POSTHOOK: Lineage: destintable PARTITION(ds=2011-11-11).two SIMPLE [(sourcetable)sourcetable.FieldSchema(name:two, type:string, comment:null), ]
 PREHOOK: query: select one,two from db2.destinTable order by one desc, two desc
 PREHOOK: type: QUERY
+PREHOOK: Input: db2@destintable
 PREHOOK: Input: db2@destintable@ds=2011-11-11
 #### A masked pattern was here ####
 POSTHOOK: query: select one,two from db2.destinTable order by one desc, two desc
 POSTHOOK: type: QUERY
+POSTHOOK: Input: db2@destintable
 POSTHOOK: Input: db2@destintable@ds=2011-11-11
 #### A masked pattern was here ####
 POSTHOOK: Lineage: destintable PARTITION(ds=2011-11-11).one SIMPLE [(sourcetable)sourcetable.FieldSchema(name:one, type:string, comment:null), ]
@@ -166,9 +142,8 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-2 depends on stages: Stage-1
-  Stage-0 depends on stages: Stage-2
-  Stage-3 depends on stages: Stage-0
+  Stage-0 depends on stages: Stage-1
+  Stage-2 depends on stages: Stage-0
 
 STAGE PLANS:
   Stage: Stage-1
@@ -202,33 +177,6 @@ STAGE PLANS:
           Limit
             File Output Operator
               compressed: false
-              GlobalTableId: 0
-              table:
-                  input format: org.apache.hadoop.mapred.SequenceFileInputFormat
-                  output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
-
-  Stage: Stage-2
-    Map Reduce
-      Alias -> Map Operator Tree:
-#### A masked pattern was here ####
-            Reduce Output Operator
-              key expressions:
-                    expr: _col0
-                    type: string
-                    expr: _col1
-                    type: string
-              sort order: --
-              tag: -1
-              value expressions:
-                    expr: _col0
-                    type: string
-                    expr: _col1
-                    type: string
-      Reduce Operator Tree:
-        Extract
-          Limit
-            File Output Operator
-              compressed: false
               GlobalTableId: 1
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
@@ -248,18 +196,20 @@ STAGE PLANS:
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: db2.destintable
 
-  Stage: Stage-3
+  Stage: Stage-2
     Stats-Aggr Operator
 
 
 PREHOOK: query: INSERT OVERWRITE TABLE db2.destinTable PARTITION (ds='2011-11-11')
 SELECT one,two FROM db1.sourceTable WHERE ds='2011-11-11' order by one desc, two desc limit 5
 PREHOOK: type: QUERY
+PREHOOK: Input: db1@sourcetable
 PREHOOK: Input: db1@sourcetable@ds=2011-11-11
 PREHOOK: Output: db2@destintable@ds=2011-11-11
 POSTHOOK: query: INSERT OVERWRITE TABLE db2.destinTable PARTITION (ds='2011-11-11')
 SELECT one,two FROM db1.sourceTable WHERE ds='2011-11-11' order by one desc, two desc limit 5
 POSTHOOK: type: QUERY
+POSTHOOK: Input: db1@sourcetable
 POSTHOOK: Input: db1@sourcetable@ds=2011-11-11
 POSTHOOK: Output: db2@destintable@ds=2011-11-11
 POSTHOOK: Lineage: destintable PARTITION(ds=2011-11-11).one SIMPLE [(sourcetable)sourcetable.FieldSchema(name:one, type:string, comment:null), ]
@@ -268,10 +218,12 @@ POSTHOOK: Lineage: destintable PARTITION(ds=2011-11-11).one SIMPLE [(sourcetable
 POSTHOOK: Lineage: destintable PARTITION(ds=2011-11-11).two SIMPLE [(sourcetable)sourcetable.FieldSchema(name:two, type:string, comment:null), ]
 PREHOOK: query: select one,two from db2.destinTable order by one desc, two desc
 PREHOOK: type: QUERY
+PREHOOK: Input: db2@destintable
 PREHOOK: Input: db2@destintable@ds=2011-11-11
 #### A masked pattern was here ####
 POSTHOOK: query: select one,two from db2.destinTable order by one desc, two desc
 POSTHOOK: type: QUERY
+POSTHOOK: Input: db2@destintable
 POSTHOOK: Input: db2@destintable@ds=2011-11-11
 #### A masked pattern was here ####
 POSTHOOK: Lineage: destintable PARTITION(ds=2011-11-11).one SIMPLE [(sourcetable)sourcetable.FieldSchema(name:one, type:string, comment:null), ]

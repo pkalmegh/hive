@@ -28,7 +28,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
@@ -63,10 +63,11 @@ public class GenericUDTFJSONTuple extends GenericUDTF {
 
   int numCols;    // number of output columns
   String[] paths; // array of path expressions, each of which corresponds to a column
-  Text[] retCols; // array of returned column values
-  Text[] cols;    // object pool of non-null Text, avoid creating objects all the time
-  Object[] nullCols; // array of null column values
-  ObjectInspector[] inputOIs; // input ObjectInspectors
+  private transient Text[] retCols; // array of returned column values
+  //object pool of non-null Text, avoid creating objects all the time
+  private transient Text[] cols;
+  private transient Object[] nullCols; // array of null column values
+  private transient ObjectInspector[] inputOIs; // input ObjectInspectors
   boolean pathParsed = false;
   boolean seenErrors = false;
 
@@ -110,7 +111,7 @@ public class GenericUDTFJSONTuple extends GenericUDTF {
 
     for (int i = 0; i < args.length; ++i) {
       if (args[i].getCategory() != ObjectInspector.Category.PRIMITIVE ||
-          !args[i].getTypeName().equals(Constants.STRING_TYPE_NAME)) {
+          !args[i].getTypeName().equals(serdeConstants.STRING_TYPE_NAME)) {
         throw new UDFArgumentException("json_tuple()'s arguments have to be string type");
       }
     }

@@ -7,8 +7,8 @@ PREHOOK: query: DESCRIBE EXTENDED set_bucketing_test
 PREHOOK: type: DESCTABLE
 POSTHOOK: query: DESCRIBE EXTENDED set_bucketing_test
 POSTHOOK: type: DESCTABLE
-key	int	
-value	string	
+key                 	int                 	None                
+value               	string              	None                
 	 	 
 #### A masked pattern was here ####
 PREHOOK: query: ALTER TABLE set_bucketing_test NOT CLUSTERED
@@ -23,8 +23,8 @@ PREHOOK: query: DESCRIBE EXTENDED set_bucketing_test
 PREHOOK: type: DESCTABLE
 POSTHOOK: query: DESCRIBE EXTENDED set_bucketing_test
 POSTHOOK: type: DESCTABLE
-key	int	
-value	string	
+key                 	int                 	None                
+value               	string              	None                
 	 	 
 #### A masked pattern was here ####
 PREHOOK: query: -- Cleanup
@@ -41,6 +41,7 @@ PREHOOK: query: SHOW TABLES
 PREHOOK: type: SHOWTABLES
 POSTHOOK: query: SHOW TABLES
 POSTHOOK: type: SHOWTABLES
+alltypesorc
 src
 src1
 src_json
@@ -74,8 +75,8 @@ PREHOOK: query: DESCRIBE EXTENDED set_bucketing_test
 PREHOOK: type: DESCTABLE
 POSTHOOK: query: DESCRIBE EXTENDED set_bucketing_test
 POSTHOOK: type: DESCTABLE
-key	int	
-value	string	
+key                 	int                 	None                
+value               	string              	None                
 	 	 
 #### A masked pattern was here ####
 PREHOOK: query: ALTER TABLE set_bucketing_test NOT CLUSTERED
@@ -90,8 +91,8 @@ PREHOOK: query: DESCRIBE EXTENDED set_bucketing_test
 PREHOOK: type: DESCTABLE
 POSTHOOK: query: DESCRIBE EXTENDED set_bucketing_test
 POSTHOOK: type: DESCTABLE
-key	int	
-value	string	
+key                 	int                 	None                
+value               	string              	None                
 	 	 
 #### A masked pattern was here ####
 PREHOOK: query: DROP TABLE set_bucketing_test

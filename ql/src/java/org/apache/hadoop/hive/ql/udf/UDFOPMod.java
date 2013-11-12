@@ -18,9 +18,24 @@
 
 package org.apache.hadoop.hive.ql.udf;
 
+import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.ql.exec.Description;
+import org.apache.hadoop.hive.ql.exec.vector.VectorizedExpressions;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleColModuloDoubleColumn;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleColModuloDoubleScalar;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleColModuloLongColumn;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleColModuloLongScalar;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleScalarModuloDoubleColumn;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleScalarModuloLongColumn;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.LongColModuloDoubleColumn;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.LongColModuloDoubleScalar;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.LongColModuloLongColumn;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.LongColModuloLongScalar;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.LongScalarModuloDoubleColumn;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.LongScalarModuloLongColumn;
 import org.apache.hadoop.hive.serde2.io.ByteWritable;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
+import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.hadoop.hive.serde2.io.ShortWritable;
 import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
@@ -31,6 +46,12 @@ import org.apache.hadoop.io.LongWritable;
  *
  */
 @Description(name = "%", value = "a _FUNC_ b - Returns the remainder when dividing a by b")
+@VectorizedExpressions({LongColModuloLongColumn.class, LongColModuloDoubleColumn.class,
+  DoubleColModuloLongColumn.class, DoubleColModuloDoubleColumn.class,
+  LongColModuloLongScalar.class, LongColModuloDoubleScalar.class,
+  DoubleColModuloLongScalar.class, DoubleColModuloDoubleScalar.class,
+  LongScalarModuloLongColumn.class, LongScalarModuloDoubleColumn.class,
+  DoubleScalarModuloLongColumn.class, DoubleScalarModuloDoubleColumn.class})
 public class UDFOPMod extends UDFBaseNumericOp {
 
   public UDFOPMod() {
@@ -40,7 +61,7 @@ public class UDFOPMod extends UDFBaseNumericOp {
   public ByteWritable evaluate(ByteWritable a, ByteWritable b) {
     // LOG.info("Get input " + a.getClass() + ":" + a + " " + b.getClass() + ":"
     // + b);
-    if ((a == null) || (b == null)) {
+    if (a == null || b == null || b.get() == 0) {
       return null;
     }
 
@@ -52,7 +73,7 @@ public class UDFOPMod extends UDFBaseNumericOp {
   public ShortWritable evaluate(ShortWritable a, ShortWritable b) {
     // LOG.info("Get input " + a.getClass() + ":" + a + " " + b.getClass() + ":"
     // + b);
-    if ((a == null) || (b == null)) {
+    if (a == null || b == null || b.get() == 0) {
       return null;
     }
 
@@ -64,7 +85,7 @@ public class UDFOPMod extends UDFBaseNumericOp {
   public IntWritable evaluate(IntWritable a, IntWritable b) {
     // LOG.info("Get input " + a.getClass() + ":" + a + " " + b.getClass() + ":"
     // + b);
-    if ((a == null) || (b == null)) {
+    if (a == null || b == null || b.get() == 0) {
       return null;
     }
 
@@ -76,7 +97,7 @@ public class UDFOPMod extends UDFBaseNumericOp {
   public LongWritable evaluate(LongWritable a, LongWritable b) {
     // LOG.info("Get input " + a.getClass() + ":" + a + " " + b.getClass() + ":"
     // + b);
-    if ((a == null) || (b == null)) {
+    if (a == null || b == null || b.get() == 0L) {
       return null;
     }
 
@@ -88,7 +109,7 @@ public class UDFOPMod extends UDFBaseNumericOp {
   public FloatWritable evaluate(FloatWritable a, FloatWritable b) {
     // LOG.info("Get input " + a.getClass() + ":" + a + " " + b.getClass() + ":"
     // + b);
-    if ((a == null) || (b == null)) {
+    if (a == null || b == null || b.get() == 0.0f) {
       return null;
     }
 
@@ -100,11 +121,33 @@ public class UDFOPMod extends UDFBaseNumericOp {
   public DoubleWritable evaluate(DoubleWritable a, DoubleWritable b) {
     // LOG.info("Get input " + a.getClass() + ":" + a + " " + b.getClass() + ":"
     // + b);
-    if ((a == null) || (b == null)) {
+    if (a == null || b == null || b.get() == 0.0) {
       return null;
     }
 
     doubleWritable.set(a.get() % b.get());
     return doubleWritable;
+  }
+
+  @Override
+  public HiveDecimalWritable evaluate(HiveDecimalWritable a, HiveDecimalWritable b) {
+    if ((a == null) || (b == null)) {
+      return null;
+    }
+
+    HiveDecimal av = a.getHiveDecimal();
+    HiveDecimal bv = b.getHiveDecimal();
+
+    if (bv.compareTo(HiveDecimal.ZERO) == 0) {
+      return null;
+    }
+
+    HiveDecimal dec = av.remainder(bv);
+    if (dec == null) {
+      return null;
+    }
+
+    decimalWritable.set(dec);
+    return decimalWritable;
   }
 }

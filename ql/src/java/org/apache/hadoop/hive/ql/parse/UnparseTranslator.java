@@ -29,7 +29,13 @@ import org.apache.hadoop.hive.ql.metadata.HiveUtils;
 
 /**
  * UnparseTranslator is used to "unparse" objects such as views when their
- * definition is stored.
+ * definition is stored. It has a translations map where its possible to replace all the
+ * text with the appropriate escaped version [say invites.ds will be replaced with
+ * `invites`.`ds` and the entire query is processed like this and stored as
+ * Extended text in table's metadata]. This holds all individual translations and
+ * where they apply in the stream. The unparse is lazy and happens when
+ * SemanticAnalyzer.saveViewDefinition() calls TokenRewriteStream.toString().
+ *
  */
 class UnparseTranslator {
   // key is token start index
@@ -57,12 +63,15 @@ class UnparseTranslator {
   }
 
   /**
-   * Register a translation to be performed as part of unparse.
+   * Register a translation to be performed as part of unparse. ANTLR imposes
+   * strict conditions on the translations and errors out during
+   * TokenRewriteStream.toString() if there is an overlap. It expects all
+   * the translations to be disjoint (See HIVE-2439).
    * If the translation overlaps with any previously
    * registered translation, then it must be either
    * identical or a prefix (in which cases it is ignored),
    * or else it must extend the existing translation (i.e.
-   * the existing translation must be a prefix of the new translation).
+   * the existing translation must be a prefix/suffix of the new translation).
    * All other overlap cases result in assertion failures.
    *
    * @param node
@@ -85,47 +94,34 @@ class UnparseTranslator {
 
     int tokenStartIndex = node.getTokenStartIndex();
     int tokenStopIndex = node.getTokenStopIndex();
-
     Translation translation = new Translation();
     translation.tokenStopIndex = tokenStopIndex;
     translation.replacementText = replacementText;
 
     // Sanity check for overlap with regions already being expanded
     assert (tokenStopIndex >= tokenStartIndex);
-    Map.Entry<Integer, Translation> existingEntry;
-    existingEntry = translations.floorEntry(tokenStartIndex);
-    boolean prefix = false;
-    if (existingEntry != null) {
-      if (existingEntry.getKey().equals(tokenStartIndex)) {
-        if (existingEntry.getValue().tokenStopIndex == tokenStopIndex) {
-          if (existingEntry.getValue().replacementText.equals(replacementText)) {
-            // exact match for existing mapping: somebody is doing something
-            // redundant, but we'll let it pass
-            return;
-          }
-        } else if (tokenStopIndex > existingEntry.getValue().tokenStopIndex) {
-          // is existing mapping a prefix for new mapping? if so, that's also
-          // redundant, but in this case we need to expand it
-          prefix = replacementText.startsWith(
-            existingEntry.getValue().replacementText);
-          assert(prefix);
-        } else {
-          // new mapping is a prefix for existing mapping:  ignore it
-          prefix = existingEntry.getValue().replacementText.startsWith(
-            replacementText);
-          assert(prefix);
-          return;
-        }
-      }
-      if (!prefix) {
-        assert (existingEntry.getValue().tokenStopIndex < tokenStartIndex);
+
+    List<Integer> subsetEntries = new ArrayList<Integer>();
+    // Is the existing entry and newer entry are subset of one another ?
+    for (Map.Entry<Integer, Translation> existingEntry :
+          translations.headMap(tokenStopIndex, true).entrySet()) {
+      // check if the new entry contains the existing
+      if (existingEntry.getValue().tokenStopIndex <= tokenStopIndex &&
+            existingEntry.getKey() >= tokenStartIndex) {
+        // Collect newer entry is if a super-set of existing entry,
+        assert (replacementText.contains(existingEntry.getValue().replacementText));
+        subsetEntries.add(existingEntry.getKey());
+        // check if the existing entry contains the new
+      } else if (existingEntry.getValue().tokenStopIndex >= tokenStopIndex &&
+            existingEntry.getKey() <= tokenStartIndex) {
+        assert (existingEntry.getValue().replacementText.contains(replacementText));
+        // we don't need to add this new entry since there's already an overlapping one
+        return;
       }
     }
-    if (!prefix) {
-      existingEntry = translations.ceilingEntry(tokenStartIndex);
-      if (existingEntry != null) {
-        assert (existingEntry.getKey() > tokenStopIndex);
-      }
+    // remove any existing entries that are contained by the new one
+    for (Integer index : subsetEntries) {
+      translations.remove(index);
     }
 
     // It's all good: create a new entry in the map (or update existing one)

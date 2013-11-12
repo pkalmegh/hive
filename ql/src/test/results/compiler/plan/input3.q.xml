@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?> 
 #### A masked pattern was here #### 
- <object id="MapRedTask0" class="org.apache.hadoop.hive.ql.exec.MapRedTask"> 
+ <object id="MapRedTask0" class="org.apache.hadoop.hive.ql.exec.mr.MapRedTask"> 
   <void property="childTasks"> 
    <object class="java.util.ArrayList"> 
     <void method="add"> 
      <object class="org.apache.hadoop.hive.ql.exec.ConditionalTask"> 
       <void property="id"> 
-       <string>Stage-13</string> 
+       <string>Stage-10</string> 
       </void> 
       <void property="listTasks"> 
        <object id="ArrayList0" class="java.util.ArrayList"> 
@@ -21,7 +21,7 @@
                 <void method="add"> 
                  <object id="StatsTask0" class="org.apache.hadoop.hive.ql.exec.StatsTask"> 
                   <void property="id"> 
-                   <string>Stage-8</string> 
+                   <string>Stage-5</string> 
                   </void> 
                   <void property="parentTasks"> 
                    <object class="java.util.ArrayList"> 
@@ -49,7 +49,7 @@
                </object> 
               </void> 
               <void property="id"> 
-               <string>Stage-3</string> 
+               <string>Stage-0</string> 
               </void> 
               <void property="parentTasks"> 
                <object class="java.util.ArrayList"> 
@@ -57,7 +57,7 @@
                  <object idref="MoveTask0"/> 
                 </void> 
                 <void method="add"> 
-                 <object id="MapRedTask1" class="org.apache.hadoop.hive.ql.exec.MapRedTask"> 
+                 <object id="MapRedTask1" class="org.apache.hadoop.hive.ql.exec.mr.MapRedTask"> 
                   <void property="childTasks"> 
                    <object class="java.util.ArrayList"> 
                     <void method="add"> 
@@ -66,12 +66,12 @@
                    </object> 
                   </void> 
                   <void property="id"> 
-                   <string>Stage-9</string> 
+                   <string>Stage-6</string> 
                   </void> 
                   <void property="work"> 
                    <object id="MapredWork0" class="org.apache.hadoop.hive.ql.plan.MapredWork"> 
-                    <void property="aliasToWork"> 
-                     <object class="java.util.LinkedHashMap"> 
+                    <void property="mapWork"> 
+                     <void property="aliasToWork"> 
                       <void method="put"> 
                        #### A masked pattern was here #### 
                        <object id="TableScanOperator0" class="org.apache.hadoop.hive.ql.exec.TableScanOperator"> 
@@ -89,9 +89,6 @@
                               </void> 
                               <void property="tableInfo"> 
                                <object class="org.apache.hadoop.hive.ql.plan.TableDesc"> 
-                                <void property="deserializerClass"> 
-                                 <class>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</class> 
-                                </void> 
                                 <void property="inputFileFormatClass"> 
                                  <class>org.apache.hadoop.mapred.TextInputFormat</class> 
                                 </void> 
@@ -146,9 +143,6 @@
                                   </void> 
                                  </object> 
                                 </void> 
-                                <void property="serdeClassName"> 
-                                 <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
-                                </void> 
                                </object> 
                               </void> 
                               <void property="totalFiles"> 
@@ -201,6 +195,9 @@
                                     </void> 
                                    </object> 
                                   </void> 
+                                  <void property="typeName"> 
+                                   <string>string</string> 
+                                  </void> 
                                  </object> 
                                 </void> 
                                 <void method="add"> 
@@ -214,6 +211,9 @@
                                   <void property="type"> 
                                    <object idref="PrimitiveTypeInfo0"/> 
                                   </void> 
+                                  <void property="typeName"> 
+                                   <string>string</string> 
+                                  </void> 
                                  </object> 
                                 </void> 
                                </object> 
@@ -223,6 +223,9 @@
                            </object> 
                           </void> 
                          </object> 
+                        </void> 
+                        <void property="conf"> 
+                         <object class="org.apache.hadoop.hive.ql.plan.TableScanDesc"/> 
                         </void> 
                         <void property="counterNames"> 
                          <object class="java.util.ArrayList"> 
@@ -240,6 +243,26 @@
                           </void> 
                          </object> 
                         </void> 
+                        <void property="neededColumnIDs"> 
+                         <object class="java.util.ArrayList"> 
+                          <void method="add"> 
+                           <int>0</int> 
+                          </void> 
+                          <void method="add"> 
+                           <int>1</int> 
+                          </void> 
+                         </object> 
+                        </void> 
+                        <void property="neededColumns"> 
+                         <object class="java.util.ArrayList"> 
+                          <void method="add"> 
+                           <string>key</string> 
+                          </void> 
+                          <void method="add"> 
+                           <string>value</string> 
+                          </void> 
+                         </object> 
+                        </void> 
                         <void property="operatorId"> 
                          <string>TS_13</string> 
                         </void> 
@@ -248,19 +271,14 @@
                         </void> 
                        </object> 
                       </void> 
-                     </object> 
-                    </void> 
-                    <void property="inputformat"> 
-                     <string>org.apache.hadoop.hive.ql.io.CombineHiveInputFormat</string> 
-                    </void> 
-                    <void property="mapperCannotSpanPartns"> 
-                     <boolean>true</boolean> 
-                    </void> 
-                    <void property="numReduceTasks"> 
-                     <int>0</int> 
-                    </void> 
-                    <void property="pathToAliases"> 
-                     <object class="java.util.LinkedHashMap"> 
+                     </void> 
+                     <void property="inputformat"> 
+                      <string>org.apache.hadoop.hive.ql.io.CombineHiveInputFormat</string> 
+                     </void> 
+                     <void property="mapperCannotSpanPartns"> 
+                      <boolean>true</boolean> 
+                     </void> 
+                     <void property="pathToAliases"> 
                       <void method="put"> 
                        #### A masked pattern was here #### 
                        <object class="java.util.ArrayList"> 
@@ -269,18 +287,13 @@
                         </void> 
                        </object> 
                       </void> 
-                     </object> 
-                    </void> 
-                    <void property="pathToPartitionInfo"> 
-                     <object class="java.util.LinkedHashMap"> 
+                     </void> 
+                     <void property="pathToPartitionInfo"> 
                       <void method="put"> 
                        #### A masked pattern was here #### 
                        <object class="org.apache.hadoop.hive.ql.plan.PartitionDesc"> 
                         <void property="baseFileName"> 
                          <string>-ext-10007</string> 
-                        </void> 
-                        <void property="deserializerClass"> 
-                         <class>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</class> 
                         </void> 
                         <void property="inputFileFormatClass"> 
                          <class>org.apache.hadoop.mapred.TextInputFormat</class> 
@@ -336,14 +349,8 @@
                           </void> 
                          </object> 
                         </void> 
-                        <void property="serdeClassName"> 
-                         <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
-                        </void> 
                         <void property="tableDesc"> 
                          <object id="TableDesc0" class="org.apache.hadoop.hive.ql.plan.TableDesc"> 
-                          <void property="deserializerClass"> 
-                           <class>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</class> 
-                          </void> 
                           <void property="inputFileFormatClass"> 
                            <class>org.apache.hadoop.mapred.TextInputFormat</class> 
                           </void> 
@@ -353,17 +360,11 @@
                           <void property="properties"> 
                            <object idref="Properties0"/> 
                           </void> 
-                          <void property="serdeClassName"> 
-                           <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
-                          </void> 
                          </object> 
                         </void> 
                        </object> 
                       </void> 
-                     </object> 
-                    </void> 
-                    <void property="tagToValueDesc"> 
-                     <object class="java.util.ArrayList"/> 
+                     </void> 
                     </void> 
                    </object> 
                   </void> 
@@ -379,12 +380,12 @@
                    </object> 
                   </void> 
                   <void property="id"> 
-                   <string>Stage-12</string> 
+                   <string>Stage-9</string> 
                   </void> 
                   <void property="parentTasks"> 
                    <object class="java.util.ArrayList"> 
                     <void method="add"> 
-                     <object id="MapRedTask2" class="org.apache.hadoop.hive.ql.exec.MapRedTask"> 
+                     <object id="MapRedTask2" class="org.apache.hadoop.hive.ql.exec.mr.MapRedTask"> 
                       <void property="childTasks"> 
                        <object class="java.util.ArrayList"> 
                         <void method="add"> 
@@ -393,7 +394,7 @@
                        </object> 
                       </void> 
                       <void property="id"> 
-                       <string>Stage-11</string> 
+                       <string>Stage-8</string> 
                       </void> 
                       <void property="work"> 
                        <object idref="MapredWork0"/> 
@@ -427,6 +428,25 @@
                <object class="org.apache.hadoop.hive.ql.plan.MoveWork"> 
                 <void property="loadTableWork"> 
                  <object class="org.apache.hadoop.hive.ql.plan.LoadTableDesc"> 
+                  <void property="lbCtx"> 
+                   <object id="ListBucketingCtx0" class="org.apache.hadoop.hive.ql.plan.ListBucketingCtx"> 
+                    <void property="defaultDirName"> 
+                     <string>HIVE_DEFAULT_LIST_BUCKETING_DIR_NAME</string> 
+                    </void> 
+                    <void property="defaultKey"> 
+                     <string>HIVE_DEFAULT_LIST_BUCKETING_KEY</string> 
+                    </void> 
+                    <void property="lbLocationMap"> 
+                     <object class="java.util.HashMap"/> 
+                    </void> 
+                    <void property="skewedColNames"> 
+                     <object class="java.util.ArrayList"/> 
+                    </void> 
+                    <void property="skewedColValues"> 
+                     <object class="java.util.ArrayList"/> 
+                    </void> 
+                   </object> 
+                  </void> 
                   <void property="partitionSpec"> 
                    <object class="java.util.LinkedHashMap"/> 
                   </void> 
@@ -451,7 +471,7 @@
            </object> 
           </void> 
           <void property="id"> 
-           <string>Stage-10</string> 
+           <string>Stage-7</string> 
           </void> 
           <void property="work"> 
            <object idref="MoveWork0"/> 
@@ -481,6 +501,9 @@
         <void property="dir"> 
          #### A masked pattern was here #### 
         </void> 
+        <void property="lbCtx"> 
+         <object idref="ListBucketingCtx0"/> 
+        </void> 
         <void property="listTasks"> 
          <object idref="ArrayList0"/> 
         </void> 
@@ -505,7 +528,7 @@
     <void method="add"> 
      <object class="org.apache.hadoop.hive.ql.exec.ConditionalTask"> 
       <void property="id"> 
-       <string>Stage-19</string> 
+       <string>Stage-16</string> 
       </void> 
       <void property="listTasks"> 
        <object id="ArrayList1" class="java.util.ArrayList"> 
@@ -520,7 +543,7 @@
                 <void method="add"> 
                  <object id="StatsTask1" class="org.apache.hadoop.hive.ql.exec.StatsTask"> 
                   <void property="id"> 
-                   <string>Stage-14</string> 
+                   <string>Stage-11</string> 
                   </void> 
                   <void property="parentTasks"> 
                    <object class="java.util.ArrayList"> 
@@ -548,7 +571,7 @@
                </object> 
               </void> 
               <void property="id"> 
-               <string>Stage-4</string> 
+               <string>Stage-1</string> 
               </void> 
               <void property="parentTasks"> 
                <object class="java.util.ArrayList"> 
@@ -556,7 +579,7 @@
                  <object idref="MoveTask3"/> 
                 </void> 
                 <void method="add"> 
-                 <object id="MapRedTask3" class="org.apache.hadoop.hive.ql.exec.MapRedTask"> 
+                 <object id="MapRedTask3" class="org.apache.hadoop.hive.ql.exec.mr.MapRedTask"> 
                   <void property="childTasks"> 
                    <object class="java.util.ArrayList"> 
                     <void method="add"> 
@@ -565,12 +588,12 @@
                    </object> 
                   </void> 
                   <void property="id"> 
-                   <string>Stage-15</string> 
+                   <string>Stage-12</string> 
                   </void> 
                   <void property="work"> 
                    <object id="MapredWork1" class="org.apache.hadoop.hive.ql.plan.MapredWork"> 
-                    <void property="aliasToWork"> 
-                     <object class="java.util.LinkedHashMap"> 
+                    <void property="mapWork"> 
+                     <void property="aliasToWork"> 
                       <void method="put"> 
                        #### A masked pattern was here #### 
                        <object id="TableScanOperator1" class="org.apache.hadoop.hive.ql.exec.TableScanOperator"> 
@@ -588,9 +611,6 @@
                               </void> 
                               <void property="tableInfo"> 
                                <object class="org.apache.hadoop.hive.ql.plan.TableDesc"> 
-                                <void property="deserializerClass"> 
-                                 <class>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</class> 
-                                </void> 
                                 <void property="inputFileFormatClass"> 
                                  <class>org.apache.hadoop.mapred.TextInputFormat</class> 
                                 </void> 
@@ -645,9 +665,6 @@
                                   </void> 
                                  </object> 
                                 </void> 
-                                <void property="serdeClassName"> 
-                                 <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
-                                </void> 
                                </object> 
                               </void> 
                               <void property="totalFiles"> 
@@ -696,6 +713,9 @@
                                   <void property="type"> 
                                    <object idref="PrimitiveTypeInfo0"/> 
                                   </void> 
+                                  <void property="typeName"> 
+                                   <string>string</string> 
+                                  </void> 
                                  </object> 
                                 </void> 
                                 <void method="add"> 
@@ -709,6 +729,9 @@
                                   <void property="type"> 
                                    <object idref="PrimitiveTypeInfo0"/> 
                                   </void> 
+                                  <void property="typeName"> 
+                                   <string>string</string> 
+                                  </void> 
                                  </object> 
                                 </void> 
                                </object> 
@@ -718,6 +741,9 @@
                            </object> 
                           </void> 
                          </object> 
+                        </void> 
+                        <void property="conf"> 
+                         <object class="org.apache.hadoop.hive.ql.plan.TableScanDesc"/> 
                         </void> 
                         <void property="counterNames"> 
                          <object class="java.util.ArrayList"> 
@@ -735,6 +761,26 @@
                           </void> 
                          </object> 
                         </void> 
+                        <void property="neededColumnIDs"> 
+                         <object class="java.util.ArrayList"> 
+                          <void method="add"> 
+                           <int>0</int> 
+                          </void> 
+                          <void method="add"> 
+                           <int>1</int> 
+                          </void> 
+                         </object> 
+                        </void> 
+                        <void property="neededColumns"> 
+                         <object class="java.util.ArrayList"> 
+                          <void method="add"> 
+                           <string>key</string> 
+                          </void> 
+                          <void method="add"> 
+                           <string>value</string> 
+                          </void> 
+                         </object> 
+                        </void> 
                         <void property="operatorId"> 
                          <string>TS_15</string> 
                         </void> 
@@ -743,19 +789,14 @@
                         </void> 
                        </object> 
                       </void> 
-                     </object> 
-                    </void> 
-                    <void property="inputformat"> 
-                     <string>org.apache.hadoop.hive.ql.io.CombineHiveInputFormat</string> 
-                    </void> 
-                    <void property="mapperCannotSpanPartns"> 
-                     <boolean>true</boolean> 
-                    </void> 
-                    <void property="numReduceTasks"> 
-                     <int>0</int> 
-                    </void> 
-                    <void property="pathToAliases"> 
-                     <object class="java.util.LinkedHashMap"> 
+                     </void> 
+                     <void property="inputformat"> 
+                      <string>org.apache.hadoop.hive.ql.io.CombineHiveInputFormat</string> 
+                     </void> 
+                     <void property="mapperCannotSpanPartns"> 
+                      <boolean>true</boolean> 
+                     </void> 
+                     <void property="pathToAliases"> 
                       <void method="put"> 
                        #### A masked pattern was here #### 
                        <object class="java.util.ArrayList"> 
@@ -764,18 +805,13 @@
                         </void> 
                        </object> 
                       </void> 
-                     </object> 
-                    </void> 
-                    <void property="pathToPartitionInfo"> 
-                     <object class="java.util.LinkedHashMap"> 
+                     </void> 
+                     <void property="pathToPartitionInfo"> 
                       <void method="put"> 
                        #### A masked pattern was here #### 
                        <object class="org.apache.hadoop.hive.ql.plan.PartitionDesc"> 
                         <void property="baseFileName"> 
                          <string>-ext-10008</string> 
-                        </void> 
-                        <void property="deserializerClass"> 
-                         <class>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</class> 
                         </void> 
                         <void property="inputFileFormatClass"> 
                          <class>org.apache.hadoop.mapred.TextInputFormat</class> 
@@ -831,14 +867,8 @@
                           </void> 
                          </object> 
                         </void> 
-                        <void property="serdeClassName"> 
-                         <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
-                        </void> 
                         <void property="tableDesc"> 
                          <object id="TableDesc1" class="org.apache.hadoop.hive.ql.plan.TableDesc"> 
-                          <void property="deserializerClass"> 
-                           <class>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</class> 
-                          </void> 
                           <void property="inputFileFormatClass"> 
                            <class>org.apache.hadoop.mapred.TextInputFormat</class> 
                           </void> 
@@ -848,17 +878,11 @@
                           <void property="properties"> 
                            <object idref="Properties1"/> 
                           </void> 
-                          <void property="serdeClassName"> 
-                           <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
-                          </void> 
                          </object> 
                         </void> 
                        </object> 
                       </void> 
-                     </object> 
-                    </void> 
-                    <void property="tagToValueDesc"> 
-                     <object class="java.util.ArrayList"/> 
+                     </void> 
                     </void> 
                    </object> 
                   </void> 
@@ -874,12 +898,12 @@
                    </object> 
                   </void> 
                   <void property="id"> 
-                   <string>Stage-18</string> 
+                   <string>Stage-15</string> 
                   </void> 
                   <void property="parentTasks"> 
                    <object class="java.util.ArrayList"> 
                     <void method="add"> 
-                     <object id="MapRedTask4" class="org.apache.hadoop.hive.ql.exec.MapRedTask"> 
+                     <object id="MapRedTask4" class="org.apache.hadoop.hive.ql.exec.mr.MapRedTask"> 
                       <void property="childTasks"> 
                        <object class="java.util.ArrayList"> 
                         <void method="add"> 
@@ -888,7 +912,7 @@
                        </object> 
                       </void> 
                       <void property="id"> 
-                       <string>Stage-17</string> 
+                       <string>Stage-14</string> 
                       </void> 
                       <void property="work"> 
                        <object idref="MapredWork1"/> 
@@ -922,6 +946,25 @@
                <object class="org.apache.hadoop.hive.ql.plan.MoveWork"> 
                 <void property="loadTableWork"> 
                  <object class="org.apache.hadoop.hive.ql.plan.LoadTableDesc"> 
+                  <void property="lbCtx"> 
+                   <object id="ListBucketingCtx1" class="org.apache.hadoop.hive.ql.plan.ListBucketingCtx"> 
+                    <void property="defaultDirName"> 
+                     <string>HIVE_DEFAULT_LIST_BUCKETING_DIR_NAME</string> 
+                    </void> 
+                    <void property="defaultKey"> 
+                     <string>HIVE_DEFAULT_LIST_BUCKETING_KEY</string> 
+                    </void> 
+                    <void property="lbLocationMap"> 
+                     <object class="java.util.HashMap"/> 
+                    </void> 
+                    <void property="skewedColNames"> 
+                     <object class="java.util.ArrayList"/> 
+                    </void> 
+                    <void property="skewedColValues"> 
+                     <object class="java.util.ArrayList"/> 
+                    </void> 
+                   </object> 
+                  </void> 
                   <void property="partitionSpec"> 
                    <object class="java.util.LinkedHashMap"/> 
                   </void> 
@@ -946,7 +989,7 @@
            </object> 
           </void> 
           <void property="id"> 
-           <string>Stage-16</string> 
+           <string>Stage-13</string> 
           </void> 
           <void property="work"> 
            <object idref="MoveWork1"/> 
@@ -976,6 +1019,9 @@
         <void property="dir"> 
          #### A masked pattern was here #### 
         </void> 
+        <void property="lbCtx"> 
+         <object idref="ListBucketingCtx1"/> 
+        </void> 
         <void property="listTasks"> 
          <object idref="ArrayList1"/> 
         </void> 
@@ -1000,7 +1046,7 @@
     <void method="add"> 
      <object class="org.apache.hadoop.hive.ql.exec.ConditionalTask"> 
       <void property="id"> 
-       <string>Stage-25</string> 
+       <string>Stage-22</string> 
       </void> 
       <void property="listTasks"> 
        <object id="ArrayList2" class="java.util.ArrayList"> 
@@ -1015,7 +1061,7 @@
                 <void method="add"> 
                  <object id="StatsTask2" class="org.apache.hadoop.hive.ql.exec.StatsTask"> 
                   <void property="id"> 
-                   <string>Stage-20</string> 
+                   <string>Stage-17</string> 
                   </void> 
                   <void property="parentTasks"> 
                    <object class="java.util.ArrayList"> 
@@ -1043,7 +1089,7 @@
                </object> 
               </void> 
               <void property="id"> 
-               <string>Stage-5</string> 
+               <string>Stage-2</string> 
               </void> 
               <void property="parentTasks"> 
                <object class="java.util.ArrayList"> 
@@ -1051,7 +1097,7 @@
                  <object idref="MoveTask6"/> 
                 </void> 
                 <void method="add"> 
-                 <object id="MapRedTask5" class="org.apache.hadoop.hive.ql.exec.MapRedTask"> 
+                 <object id="MapRedTask5" class="org.apache.hadoop.hive.ql.exec.mr.MapRedTask"> 
                   <void property="childTasks"> 
                    <object class="java.util.ArrayList"> 
                     <void method="add"> 
@@ -1060,12 +1106,12 @@
                    </object> 
                   </void> 
                   <void property="id"> 
-                   <string>Stage-21</string> 
+                   <string>Stage-18</string> 
                   </void> 
                   <void property="work"> 
                    <object id="MapredWork2" class="org.apache.hadoop.hive.ql.plan.MapredWork"> 
-                    <void property="aliasToWork"> 
-                     <object class="java.util.LinkedHashMap"> 
+                    <void property="mapWork"> 
+                     <void property="aliasToWork"> 
                       <void method="put"> 
                        #### A masked pattern was here #### 
                        <object id="TableScanOperator2" class="org.apache.hadoop.hive.ql.exec.TableScanOperator"> 
@@ -1083,9 +1129,6 @@
                               </void> 
                               <void property="tableInfo"> 
                                <object class="org.apache.hadoop.hive.ql.plan.TableDesc"> 
-                                <void property="deserializerClass"> 
-                                 <class>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</class> 
-                                </void> 
                                 <void property="inputFileFormatClass"> 
                                  <class>org.apache.hadoop.mapred.TextInputFormat</class> 
                                 </void> 
@@ -1144,9 +1187,6 @@
                                   </void> 
                                  </object> 
                                 </void> 
-                                <void property="serdeClassName"> 
-                                 <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
-                                </void> 
                                </object> 
                               </void> 
                               <void property="totalFiles"> 
@@ -1195,6 +1235,9 @@
                                   <void property="type"> 
                                    <object idref="PrimitiveTypeInfo0"/> 
                                   </void> 
+                                  <void property="typeName"> 
+                                   <string>string</string> 
+                                  </void> 
                                  </object> 
                                 </void> 
                                 <void method="add"> 
@@ -1208,6 +1251,9 @@
                                   <void property="type"> 
                                    <object idref="PrimitiveTypeInfo0"/> 
                                   </void> 
+                                  <void property="typeName"> 
+                                   <string>string</string> 
+                                  </void> 
                                  </object> 
                                 </void> 
                                </object> 
@@ -1217,6 +1263,9 @@
                            </object> 
                           </void> 
                          </object> 
+                        </void> 
+                        <void property="conf"> 
+                         <object class="org.apache.hadoop.hive.ql.plan.TableScanDesc"/> 
                         </void> 
                         <void property="counterNames"> 
                          <object class="java.util.ArrayList"> 
@@ -1234,6 +1283,26 @@
                           </void> 
                          </object> 
                         </void> 
+                        <void property="neededColumnIDs"> 
+                         <object class="java.util.ArrayList"> 
+                          <void method="add"> 
+                           <int>0</int> 
+                          </void> 
+                          <void method="add"> 
+                           <int>1</int> 
+                          </void> 
+                         </object> 
+                        </void> 
+                        <void property="neededColumns"> 
+                         <object class="java.util.ArrayList"> 
+                          <void method="add"> 
+                           <string>key</string> 
+                          </void> 
+                          <void method="add"> 
+                           <string>value</string> 
+                          </void> 
+                         </object> 
+                        </void> 
                         <void property="operatorId"> 
                          <string>TS_17</string> 
                         </void> 
@@ -1242,19 +1311,14 @@
                         </void> 
                        </object> 
                       </void> 
-                     </object> 
-                    </void> 
-                    <void property="inputformat"> 
-                     <string>org.apache.hadoop.hive.ql.io.CombineHiveInputFormat</string> 
-                    </void> 
-                    <void property="mapperCannotSpanPartns"> 
-                     <boolean>true</boolean> 
-                    </void> 
-                    <void property="numReduceTasks"> 
-                     <int>0</int> 
-                    </void> 
-                    <void property="pathToAliases"> 
-                     <object class="java.util.LinkedHashMap"> 
+                     </void> 
+                     <void property="inputformat"> 
+                      <string>org.apache.hadoop.hive.ql.io.CombineHiveInputFormat</string> 
+                     </void> 
+                     <void property="mapperCannotSpanPartns"> 
+                      <boolean>true</boolean> 
+                     </void> 
+                     <void property="pathToAliases"> 
                       <void method="put"> 
                        #### A masked pattern was here #### 
                        <object class="java.util.ArrayList"> 
@@ -1263,18 +1327,13 @@
                         </void> 
                        </object> 
                       </void> 
-                     </object> 
-                    </void> 
-                    <void property="pathToPartitionInfo"> 
-                     <object class="java.util.LinkedHashMap"> 
+                     </void> 
+                     <void property="pathToPartitionInfo"> 
                       <void method="put"> 
                        #### A masked pattern was here #### 
                        <object class="org.apache.hadoop.hive.ql.plan.PartitionDesc"> 
                         <void property="baseFileName"> 
                          <string>-ext-10009</string> 
-                        </void> 
-                        <void property="deserializerClass"> 
-                         <class>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</class> 
                         </void> 
                         <void property="inputFileFormatClass"> 
                          <class>org.apache.hadoop.mapred.TextInputFormat</class> 
@@ -1330,14 +1389,8 @@
                           </void> 
                          </object> 
                         </void> 
-                        <void property="serdeClassName"> 
-                         <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
-                        </void> 
                         <void property="tableDesc"> 
                          <object id="TableDesc2" class="org.apache.hadoop.hive.ql.plan.TableDesc"> 
-                          <void property="deserializerClass"> 
-                           <class>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</class> 
-                          </void> 
                           <void property="inputFileFormatClass"> 
                            <class>org.apache.hadoop.mapred.TextInputFormat</class> 
                           </void> 
@@ -1347,17 +1400,11 @@
                           <void property="properties"> 
                            <object idref="Properties2"/> 
                           </void> 
-                          <void property="serdeClassName"> 
-                           <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
-                          </void> 
                          </object> 
                         </void> 
                        </object> 
                       </void> 
-                     </object> 
-                    </void> 
-                    <void property="tagToValueDesc"> 
-                     <object class="java.util.ArrayList"/> 
+                     </void> 
                     </void> 
                    </object> 
                   </void> 
@@ -1373,12 +1420,12 @@
                    </object> 
                   </void> 
                   <void property="id"> 
-                   <string>Stage-24</string> 
+                   <string>Stage-21</string> 
                   </void> 
                   <void property="parentTasks"> 
                    <object class="java.util.ArrayList"> 
                     <void method="add"> 
-                     <object id="MapRedTask6" class="org.apache.hadoop.hive.ql.exec.MapRedTask"> 
+                     <object id="MapRedTask6" class="org.apache.hadoop.hive.ql.exec.mr.MapRedTask"> 
                       <void property="childTasks"> 
                        <object class="java.util.ArrayList"> 
                         <void method="add"> 
@@ -1387,7 +1434,7 @@
                        </object> 
                       </void> 
                       <void property="id"> 
-                       <string>Stage-23</string> 
+                       <string>Stage-20</string> 
                       </void> 
                       <void property="work"> 
                        <object idref="MapredWork2"/> 
@@ -1421,6 +1468,25 @@
                <object class="org.apache.hadoop.hive.ql.plan.MoveWork"> 
                 <void property="loadTableWork"> 
                  <object class="org.apache.hadoop.hive.ql.plan.LoadTableDesc"> 
+                  <void property="lbCtx"> 
+                   <object id="ListBucketingCtx2" class="org.apache.hadoop.hive.ql.plan.ListBucketingCtx"> 
+                    <void property="defaultDirName"> 
+                     <string>HIVE_DEFAULT_LIST_BUCKETING_DIR_NAME</string> 
+                    </void> 
+                    <void property="defaultKey"> 
+                     <string>HIVE_DEFAULT_LIST_BUCKETING_KEY</string> 
+                    </void> 
+                    <void property="lbLocationMap"> 
+                     <object class="java.util.HashMap"/> 
+                    </void> 
+                    <void property="skewedColNames"> 
+                     <object class="java.util.ArrayList"/> 
+                    </void> 
+                    <void property="skewedColValues"> 
+                     <object class="java.util.ArrayList"/> 
+                    </void> 
+                   </object> 
+                  </void> 
                   <void property="partitionSpec"> 
                    <object class="java.util.LinkedHashMap"> 
                     <void method="put"> 
@@ -1454,7 +1520,7 @@
            </object> 
           </void> 
           <void property="id"> 
-           <string>Stage-22</string> 
+           <string>Stage-19</string> 
           </void> 
           <void property="work"> 
            <object idref="MoveWork2"/> 
@@ -1484,6 +1550,9 @@
         <void property="dir"> 
          #### A masked pattern was here #### 
         </void> 
+        <void property="lbCtx"> 
+         <object idref="ListBucketingCtx2"/> 
+        </void> 
         <void property="listTasks"> 
          <object idref="ArrayList2"/> 
         </void> 
@@ -1508,7 +1577,7 @@
     <void method="add"> 
      <object class="org.apache.hadoop.hive.ql.exec.ConditionalTask"> 
       <void property="id"> 
-       <string>Stage-30</string> 
+       <string>Stage-27</string> 
       </void> 
       <void property="listTasks"> 
        <object id="ArrayList3" class="java.util.ArrayList"> 
@@ -1519,7 +1588,7 @@
             <void method="add"> 
              <object id="MoveTask10" class="org.apache.hadoop.hive.ql.exec.MoveTask"> 
               <void property="id"> 
-               <string>Stage-6</string> 
+               <string>Stage-3</string> 
               </void> 
               <void property="parentTasks"> 
                <object class="java.util.ArrayList"> 
@@ -1527,7 +1596,7 @@
                  <object idref="MoveTask9"/> 
                 </void> 
                 <void method="add"> 
-                 <object id="MapRedTask7" class="org.apache.hadoop.hive.ql.exec.MapRedTask"> 
+                 <object id="MapRedTask7" class="org.apache.hadoop.hive.ql.exec.mr.MapRedTask"> 
                   <void property="childTasks"> 
                    <object class="java.util.ArrayList"> 
                     <void method="add"> 
@@ -1536,12 +1605,12 @@
                    </object> 
                   </void> 
                   <void property="id"> 
-                   <string>Stage-26</string> 
+                   <string>Stage-23</string> 
                   </void> 
                   <void property="work"> 
                    <object id="MapredWork3" class="org.apache.hadoop.hive.ql.plan.MapredWork"> 
-                    <void property="aliasToWork"> 
-                     <object class="java.util.LinkedHashMap"> 
+                    <void property="mapWork"> 
+                     <void property="aliasToWork"> 
                       <void method="put"> 
                        #### A masked pattern was here #### 
                        <object id="TableScanOperator3" class="org.apache.hadoop.hive.ql.exec.TableScanOperator"> 
@@ -1559,9 +1628,6 @@
                               </void> 
                               <void property="tableInfo"> 
                                <object class="org.apache.hadoop.hive.ql.plan.TableDesc"> 
-                                <void property="deserializerClass"> 
-                                 <class>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</class> 
-                                </void> 
                                 <void property="inputFileFormatClass"> 
                                  <class>org.apache.hadoop.mapred.TextInputFormat</class> 
                                 </void> 
@@ -1573,6 +1639,10 @@
                                   <void method="put"> 
                                    <string>columns</string> 
                                    <string>_col0</string> 
+                                  </void> 
+                                  <void method="put"> 
+                                   <string>serialization.lib</string> 
+                                   <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
                                   </void> 
                                   <void method="put"> 
                                    <string>serialization.format</string> 
@@ -1632,6 +1702,9 @@
                                   <void property="type"> 
                                    <object idref="PrimitiveTypeInfo0"/> 
                                   </void> 
+                                  <void property="typeName"> 
+                                   <string>string</string> 
+                                  </void> 
                                  </object> 
                                 </void> 
                                </object> 
@@ -1641,6 +1714,9 @@
                            </object> 
                           </void> 
                          </object> 
+                        </void> 
+                        <void property="conf"> 
+                         <object class="org.apache.hadoop.hive.ql.plan.TableScanDesc"/> 
                         </void> 
                         <void property="counterNames"> 
                          <object class="java.util.ArrayList"> 
@@ -1658,6 +1734,20 @@
                           </void> 
                          </object> 
                         </void> 
+                        <void property="neededColumnIDs"> 
+                         <object class="java.util.ArrayList"> 
+                          <void method="add"> 
+                           <int>0</int> 
+                          </void> 
+                         </object> 
+                        </void> 
+                        <void property="neededColumns"> 
+                         <object class="java.util.ArrayList"> 
+                          <void method="add"> 
+                           <string>_col0</string> 
+                          </void> 
+                         </object> 
+                        </void> 
                         <void property="operatorId"> 
                          <string>TS_19</string> 
                         </void> 
@@ -1666,19 +1756,14 @@
                         </void> 
                        </object> 
                       </void> 
-                     </object> 
-                    </void> 
-                    <void property="inputformat"> 
-                     <string>org.apache.hadoop.hive.ql.io.CombineHiveInputFormat</string> 
-                    </void> 
-                    <void property="mapperCannotSpanPartns"> 
-                     <boolean>true</boolean> 
-                    </void> 
-                    <void property="numReduceTasks"> 
-                     <int>0</int> 
-                    </void> 
-                    <void property="pathToAliases"> 
-                     <object class="java.util.LinkedHashMap"> 
+                     </void> 
+                     <void property="inputformat"> 
+                      <string>org.apache.hadoop.hive.ql.io.CombineHiveInputFormat</string> 
+                     </void> 
+                     <void property="mapperCannotSpanPartns"> 
+                      <boolean>true</boolean> 
+                     </void> 
+                     <void property="pathToAliases"> 
                       <void method="put"> 
                        #### A masked pattern was here #### 
                        <object class="java.util.ArrayList"> 
@@ -1687,18 +1772,13 @@
                         </void> 
                        </object> 
                       </void> 
-                     </object> 
-                    </void> 
-                    <void property="pathToPartitionInfo"> 
-                     <object class="java.util.LinkedHashMap"> 
+                     </void> 
+                     <void property="pathToPartitionInfo"> 
                       <void method="put"> 
                        #### A masked pattern was here #### 
                        <object class="org.apache.hadoop.hive.ql.plan.PartitionDesc"> 
                         <void property="baseFileName"> 
                          <string>-ext-10010</string> 
-                        </void> 
-                        <void property="deserializerClass"> 
-                         <class>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</class> 
                         </void> 
                         <void property="inputFileFormatClass"> 
                          <class>org.apache.hadoop.mapred.TextInputFormat</class> 
@@ -1713,6 +1793,10 @@
                            <string>_col0</string> 
                           </void> 
                           <void method="put"> 
+                           <string>serialization.lib</string> 
+                           <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
+                          </void> 
+                          <void method="put"> 
                            <string>serialization.format</string> 
                            <string>1</string> 
                           </void> 
@@ -1724,9 +1808,6 @@
                         </void> 
                         <void property="tableDesc"> 
                          <object id="TableDesc3" class="org.apache.hadoop.hive.ql.plan.TableDesc"> 
-                          <void property="deserializerClass"> 
-                           <class>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</class> 
-                          </void> 
                           <void property="inputFileFormatClass"> 
                            <class>org.apache.hadoop.mapred.TextInputFormat</class> 
                           </void> 
@@ -1740,10 +1821,7 @@
                         </void> 
                        </object> 
                       </void> 
-                     </object> 
-                    </void> 
-                    <void property="tagToValueDesc"> 
-                     <object class="java.util.ArrayList"/> 
+                     </void> 
                     </void> 
                    </object> 
                   </void> 
@@ -1759,12 +1837,12 @@
                    </object> 
                   </void> 
                   <void property="id"> 
-                   <string>Stage-29</string> 
+                   <string>Stage-26</string> 
                   </void> 
                   <void property="parentTasks"> 
                    <object class="java.util.ArrayList"> 
                     <void method="add"> 
-                     <object id="MapRedTask8" class="org.apache.hadoop.hive.ql.exec.MapRedTask"> 
+                     <object id="MapRedTask8" class="org.apache.hadoop.hive.ql.exec.mr.MapRedTask"> 
                       <void property="childTasks"> 
                        <object class="java.util.ArrayList"> 
                         <void method="add"> 
@@ -1773,7 +1851,7 @@
                        </object> 
                       </void> 
                       <void property="id"> 
-                       <string>Stage-28</string> 
+                       <string>Stage-25</string> 
                       </void> 
                       <void property="work"> 
                        <object idref="MapredWork3"/> 
@@ -1831,7 +1909,7 @@
            </object> 
           </void> 
           <void property="id"> 
-           <string>Stage-27</string> 
+           <string>Stage-24</string> 
           </void> 
           <void property="work"> 
            <object idref="MoveWork3"/> 
@@ -1885,186 +1963,153 @@
    </object> 
   </void> 
   <void property="id"> 
-   <string>Stage-7</string> 
+   <string>Stage-4</string> 
   </void> 
   <void property="work"> 
    <object class="org.apache.hadoop.hive.ql.plan.MapredWork"> 
-    <void property="aliasToPartnInfo"> 
-     <void method="put"> 
-      <string>src</string> 
-      <object class="org.apache.hadoop.hive.ql.plan.PartitionDesc"> 
-       <void property="deserializerClass"> 
-        <class>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</class> 
-       </void> 
-       <void property="inputFileFormatClass"> 
-        <class>org.apache.hadoop.mapred.TextInputFormat</class> 
-       </void> 
-       <void property="outputFileFormatClass"> 
-        <class>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</class> 
-       </void> 
-       <void property="partSpec"> 
-        <object class="java.util.LinkedHashMap"/> 
-       </void> 
-       <void property="properties"> 
-        <object class="java.util.Properties"> 
-         <void method="put"> 
-          <string>name</string> 
-          <string>default.src</string> 
-         </void> 
-         <void method="put"> 
-          <string>numFiles</string> 
-          <string>1</string> 
-         </void> 
-         <void method="put"> 
-          <string>columns.types</string> 
-          <string>string:string</string> 
-         </void> 
-         <void method="put"> 
-          <string>serialization.ddl</string> 
-          <string>struct src { string key, string value}</string> 
-         </void> 
-         <void method="put"> 
-          <string>serialization.format</string> 
-          <string>1</string> 
-         </void> 
-         <void method="put"> 
-          <string>columns</string> 
-          <string>key,value</string> 
-         </void> 
-         <void method="put"> 
-          <string>rawDataSize</string> 
-          <string>0</string> 
-         </void> 
-         <void method="put"> 
-          <string>numRows</string> 
-          <string>0</string> 
-         </void> 
-         <void method="put"> 
-          <string>numPartitions</string> 
-          <string>0</string> 
-         </void> 
-         <void method="put"> 
-          <string>bucket_count</string> 
-          <string>-1</string> 
-         </void> 
-         <void method="put"> 
-          <string>serialization.lib</string> 
-          <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
-         </void> 
-         <void method="put"> 
-          <string>file.inputformat</string> 
-          <string>org.apache.hadoop.mapred.TextInputFormat</string> 
-         </void> 
-         <void method="put"> 
-          <string>totalSize</string> 
-          <string>5812</string> 
-         </void> 
-         <void method="put"> 
-          <string>file.outputformat</string> 
-          <string>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</string> 
-         </void> 
-         <void method="put"> 
-          <string>location</string> 
-          #### A masked pattern was here #### 
-         </void> 
-         <void method="put"> 
-          <string>transient_lastDdlTime</string> 
-          #### A masked pattern was here #### 
-         </void> 
-        </object> 
-       </void> 
-       <void property="serdeClassName"> 
-        <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
-       </void> 
-       <void property="tableDesc"> 
-        <object class="org.apache.hadoop.hive.ql.plan.TableDesc"> 
-         <void property="deserializerClass"> 
-          <class>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</class> 
-         </void> 
-         <void property="inputFileFormatClass"> 
-          <class>org.apache.hadoop.mapred.TextInputFormat</class> 
-         </void> 
-         <void property="outputFileFormatClass"> 
-          <class>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</class> 
-         </void> 
-         <void property="properties"> 
-          <object class="java.util.Properties"> 
-           <void method="put"> 
-            <string>name</string> 
-            <string>default.src</string> 
-           </void> 
-           <void method="put"> 
-            <string>numFiles</string> 
-            <string>1</string> 
-           </void> 
-           <void method="put"> 
-            <string>columns.types</string> 
-            <string>string:string</string> 
-           </void> 
-           <void method="put"> 
-            <string>serialization.ddl</string> 
-            <string>struct src { string key, string value}</string> 
-           </void> 
-           <void method="put"> 
-            <string>serialization.format</string> 
-            <string>1</string> 
-           </void> 
-           <void method="put"> 
-            <string>columns</string> 
-            <string>key,value</string> 
-           </void> 
-           <void method="put"> 
-            <string>rawDataSize</string> 
-            <string>0</string> 
-           </void> 
-           <void method="put"> 
-            <string>numRows</string> 
-            <string>0</string> 
-           </void> 
-           <void method="put"> 
-            <string>numPartitions</string> 
-            <string>0</string> 
-           </void> 
-           <void method="put"> 
-            <string>bucket_count</string> 
-            <string>-1</string> 
-           </void> 
-           <void method="put"> 
-            <string>serialization.lib</string> 
-            <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
-           </void> 
-           <void method="put"> 
-            <string>file.inputformat</string> 
-            <string>org.apache.hadoop.mapred.TextInputFormat</string> 
-           </void> 
-           <void method="put"> 
-            <string>totalSize</string> 
-            <string>5812</string> 
-           </void> 
-           <void method="put"> 
-            <string>file.outputformat</string> 
-            <string>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</string> 
-           </void> 
-           <void method="put"> 
-            <string>location</string> 
-            #### A masked pattern was here #### 
-           </void> 
-           <void method="put"> 
-            <string>transient_lastDdlTime</string> 
-            #### A masked pattern was here #### 
-           </void> 
-          </object> 
-         </void> 
-         <void property="serdeClassName"> 
-          <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
-         </void> 
-        </object> 
-       </void> 
-      </object> 
-     </void> 
+    <void property="finalMapRed"> 
+     <boolean>true</boolean> 
     </void> 
-    <void property="aliasToWork"> 
-     <object class="java.util.LinkedHashMap"> 
+    <void property="mapWork"> 
+     <void property="aliasToPartnInfo"> 
+      <void method="put"> 
+       <string>src</string> 
+       <object class="org.apache.hadoop.hive.ql.plan.PartitionDesc"> 
+        <void property="inputFileFormatClass"> 
+         <class>org.apache.hadoop.mapred.TextInputFormat</class> 
+        </void> 
+        <void property="outputFileFormatClass"> 
+         <class>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</class> 
+        </void> 
+        <void property="partSpec"> 
+         <object class="java.util.LinkedHashMap"/> 
+        </void> 
+        <void property="properties"> 
+         <object class="java.util.Properties"> 
+          <void method="put"> 
+           <string>name</string> 
+           <string>default.src</string> 
+          </void> 
+          <void method="put"> 
+           <string>columns.types</string> 
+           <string>string:string</string> 
+          </void> 
+          <void method="put"> 
+           <string>serialization.ddl</string> 
+           <string>struct src { string key, string value}</string> 
+          </void> 
+          <void method="put"> 
+           <string>serialization.format</string> 
+           <string>1</string> 
+          </void> 
+          <void method="put"> 
+           <string>columns</string> 
+           <string>key,value</string> 
+          </void> 
+          <void method="put"> 
+           <string>bucket_count</string> 
+           <string>-1</string> 
+          </void> 
+          <void method="put"> 
+           <string>serialization.lib</string> 
+           <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
+          </void> 
+          <void method="put"> 
+           <string>file.inputformat</string> 
+           <string>org.apache.hadoop.mapred.TextInputFormat</string> 
+          </void> 
+          <void method="put"> 
+           <string>file.outputformat</string> 
+           <string>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</string> 
+          </void> 
+          <void method="put"> 
+           <string>location</string> 
+           #### A masked pattern was here #### 
+          </void> 
+         </object> 
+        </void> 
+        <void property="tableDesc"> 
+         <object class="org.apache.hadoop.hive.ql.plan.TableDesc"> 
+          <void property="inputFileFormatClass"> 
+           <class>org.apache.hadoop.mapred.TextInputFormat</class> 
+          </void> 
+          <void property="outputFileFormatClass"> 
+           <class>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</class> 
+          </void> 
+          <void property="properties"> 
+           <object class="java.util.Properties"> 
+            <void method="put"> 
+             <string>name</string> 
+             <string>default.src</string> 
+            </void> 
+            <void method="put"> 
+             <string>numFiles</string> 
+             <string>1</string> 
+            </void> 
+            <void method="put"> 
+             <string>columns.types</string> 
+             <string>string:string</string> 
+            </void> 
+            <void method="put"> 
+             <string>serialization.ddl</string> 
+             <string>struct src { string key, string value}</string> 
+            </void> 
+            <void method="put"> 
+             <string>serialization.format</string> 
+             <string>1</string> 
+            </void> 
+            <void method="put"> 
+             <string>columns</string> 
+             <string>key,value</string> 
+            </void> 
+            <void method="put"> 
+             <string>rawDataSize</string> 
+             <string>0</string> 
+            </void> 
+            <void method="put"> 
+             <string>numRows</string> 
+             <string>0</string> 
+            </void> 
+            <void method="put"> 
+             <string>bucket_count</string> 
+             <string>-1</string> 
+            </void> 
+            <void method="put"> 
+             <string>serialization.lib</string> 
+             <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
+            </void> 
+            <void method="put"> 
+             <string>COLUMN_STATS_ACCURATE</string> 
+             <string>true</string> 
+            </void> 
+            <void method="put"> 
+             <string>file.inputformat</string> 
+             <string>org.apache.hadoop.mapred.TextInputFormat</string> 
+            </void> 
+            <void method="put"> 
+             <string>totalSize</string> 
+             <string>5812</string> 
+            </void> 
+            <void method="put"> 
+             <string>file.outputformat</string> 
+             <string>org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat</string> 
+            </void> 
+            <void method="put"> 
+             <string>location</string> 
+             #### A masked pattern was here #### 
+            </void> 
+            <void method="put"> 
+             <string>transient_lastDdlTime</string> 
+             #### A masked pattern was here #### 
+            </void> 
+           </object> 
+          </void> 
+         </object> 
+        </void> 
+       </object> 
+      </void> 
+     </void> 
+     <void property="aliasToWork"> 
       <void method="put"> 
        <string>src</string> 
        <object id="TableScanOperator4" class="org.apache.hadoop.hive.ql.exec.TableScanOperator"> 
@@ -2091,11 +2136,20 @@
                       <void property="gatherStats"> 
                        <boolean>true</boolean> 
                       </void> 
+                      <void property="lbCtx"> 
+                       <object idref="ListBucketingCtx0"/> 
+                      </void> 
+                      <void property="maxStatsKeyPrefixLength"> 
+                       <int>150</int> 
+                      </void> 
                       <void property="numFiles"> 
                        <int>1</int> 
                       </void> 
                       <void property="statsAggPrefix"> 
                        #### A masked pattern was here #### 
+                      </void> 
+                      <void property="statsCollectRawDataSize"> 
+                       <boolean>true</boolean> 
                       </void> 
                       <void property="tableInfo"> 
                        <object idref="TableDesc0"/> 
@@ -2238,6 +2292,9 @@
                       <void property="type"> 
                        <object idref="PrimitiveTypeInfo0"/> 
                       </void> 
+                      <void property="typeName"> 
+                       <string>string</string> 
+                      </void> 
                      </object> 
                     </void> 
                     <void method="add"> 
@@ -2250,6 +2307,9 @@
                       </void> 
                       <void property="type"> 
                        <object idref="PrimitiveTypeInfo0"/> 
+                      </void> 
+                      <void property="typeName"> 
+                       <string>string</string> 
                       </void> 
                      </object> 
                     </void> 
@@ -2265,7 +2325,7 @@
              <object class="org.apache.hadoop.hive.ql.plan.FilterDesc"> 
               <void property="predicate"> 
                <object class="org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc"> 
-                <void property="childExprs"> 
+                <void property="children"> 
                  <object class="java.util.ArrayList"> 
                   <void method="add"> 
                    <object class="org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc"> 
@@ -2285,12 +2345,12 @@
                     <void property="typeInfo"> 
                      <object id="PrimitiveTypeInfo1" class="org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo"> 
                       <void property="typeName"> 
-                       <string>double</string> 
+                       <string>int</string> 
                       </void> 
                      </object> 
                     </void> 
                     <void property="value"> 
-                     <double>100.0</double> 
+                     <int>100</int> 
                     </void> 
                    </object> 
                   </void> 
@@ -2351,6 +2411,9 @@
                   <void property="type"> 
                    <object idref="PrimitiveTypeInfo0"/> 
                   </void> 
+                  <void property="typeName"> 
+                   <string>string</string> 
+                  </void> 
                  </object> 
                 </void> 
                 <void method="add"> 
@@ -2363,6 +2426,9 @@
                   </void> 
                   <void property="type"> 
                    <object idref="PrimitiveTypeInfo0"/> 
+                  </void> 
+                  <void property="typeName"> 
+                   <string>string</string> 
                   </void> 
                  </object> 
                 </void> 
@@ -2393,11 +2459,20 @@
                       <void property="gatherStats"> 
                        <boolean>true</boolean> 
                       </void> 
+                      <void property="lbCtx"> 
+                       <object idref="ListBucketingCtx1"/> 
+                      </void> 
+                      <void property="maxStatsKeyPrefixLength"> 
+                       <int>150</int> 
+                      </void> 
                       <void property="numFiles"> 
                        <int>1</int> 
                       </void> 
                       <void property="statsAggPrefix"> 
                        #### A masked pattern was here #### 
+                      </void> 
+                      <void property="statsCollectRawDataSize"> 
+                       <boolean>true</boolean> 
                       </void> 
                       <void property="tableInfo"> 
                        <object idref="TableDesc1"/> 
@@ -2537,6 +2612,9 @@
                       <void property="type"> 
                        <object idref="PrimitiveTypeInfo0"/> 
                       </void> 
+                      <void property="typeName"> 
+                       <string>string</string> 
+                      </void> 
                      </object> 
                     </void> 
                     <void method="add"> 
@@ -2549,6 +2627,9 @@
                       </void> 
                       <void property="type"> 
                        <object idref="PrimitiveTypeInfo0"/> 
+                      </void> 
+                      <void property="typeName"> 
+                       <string>string</string> 
                       </void> 
                      </object> 
                     </void> 
@@ -2564,11 +2645,11 @@
              <object class="org.apache.hadoop.hive.ql.plan.FilterDesc"> 
               <void property="predicate"> 
                <object class="org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc"> 
-                <void property="childExprs"> 
+                <void property="children"> 
                  <object class="java.util.ArrayList"> 
                   <void method="add"> 
                    <object class="org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc"> 
-                    <void property="childExprs"> 
+                    <void property="children"> 
                      <object class="java.util.ArrayList"> 
                       <void method="add"> 
                        <object class="org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc"> 
@@ -2589,7 +2670,7 @@
                          <object idref="PrimitiveTypeInfo1"/> 
                         </void> 
                         <void property="value"> 
-                         <double>100.0</double> 
+                         <int>100</int> 
                         </void> 
                        </object> 
                       </void> 
@@ -2605,7 +2686,7 @@
                   </void> 
                   <void method="add"> 
                    <object class="org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc"> 
-                    <void property="childExprs"> 
+                    <void property="children"> 
                      <object class="java.util.ArrayList"> 
                       <void method="add"> 
                        <object class="org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc"> 
@@ -2626,7 +2707,7 @@
                          <object idref="PrimitiveTypeInfo1"/> 
                         </void> 
                         <void property="value"> 
-                         <double>200.0</double> 
+                         <int>200</int> 
                         </void> 
                        </object> 
                       </void> 
@@ -2715,6 +2796,12 @@
                       <void property="gatherStats"> 
                        <boolean>true</boolean> 
                       </void> 
+                      <void property="lbCtx"> 
+                       <object idref="ListBucketingCtx2"/> 
+                      </void> 
+                      <void property="maxStatsKeyPrefixLength"> 
+                       <int>150</int> 
+                      </void> 
                       <void property="numFiles"> 
                        <int>1</int> 
                       </void> 
@@ -2723,6 +2810,9 @@
                       </void> 
                       <void property="statsAggPrefix"> 
                        #### A masked pattern was here #### 
+                      </void> 
+                      <void property="statsCollectRawDataSize"> 
+                       <boolean>true</boolean> 
                       </void> 
                       <void property="tableInfo"> 
                        <object idref="TableDesc2"/> 
@@ -2771,11 +2861,7 @@
                    <string>_col1</string> 
                    <object id="ExprNodeConstantDesc0" class="org.apache.hadoop.hive.ql.plan.ExprNodeConstantDesc"> 
                     <void property="typeInfo"> 
-                     <object id="PrimitiveTypeInfo3" class="org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo"> 
-                      <void property="typeName"> 
-                       <string>int</string> 
-                      </void> 
-                     </object> 
+                     <object idref="PrimitiveTypeInfo1"/> 
                     </void> 
                     <void property="value"> 
                      <int>2</int> 
@@ -2863,6 +2949,9 @@
                       <void property="type"> 
                        <object idref="PrimitiveTypeInfo0"/> 
                       </void> 
+                      <void property="typeName"> 
+                       <string>string</string> 
+                      </void> 
                      </object> 
                     </void> 
                     <void method="add"> 
@@ -2871,7 +2960,10 @@
                        <string>_col1</string> 
                       </void> 
                       <void property="type"> 
-                       <object idref="PrimitiveTypeInfo3"/> 
+                       <object idref="PrimitiveTypeInfo1"/> 
+                      </void> 
+                      <void property="typeName"> 
+                       <string>int</string> 
                       </void> 
                      </object> 
                     </void> 
@@ -2887,11 +2979,11 @@
              <object class="org.apache.hadoop.hive.ql.plan.FilterDesc"> 
               <void property="predicate"> 
                <object class="org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc"> 
-                <void property="childExprs"> 
+                <void property="children"> 
                  <object class="java.util.ArrayList"> 
                   <void method="add"> 
                    <object class="org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc"> 
-                    <void property="childExprs"> 
+                    <void property="children"> 
                      <object class="java.util.ArrayList"> 
                       <void method="add"> 
                        <object class="org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc"> 
@@ -2912,7 +3004,7 @@
                          <object idref="PrimitiveTypeInfo1"/> 
                         </void> 
                         <void property="value"> 
-                         <double>200.0</double> 
+                         <int>200</int> 
                         </void> 
                        </object> 
                       </void> 
@@ -2928,7 +3020,7 @@
                   </void> 
                   <void method="add"> 
                    <object class="org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc"> 
-                    <void property="childExprs"> 
+                    <void property="children"> 
                      <object class="java.util.ArrayList"> 
                       <void method="add"> 
                        <object class="org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc"> 
@@ -2949,7 +3041,7 @@
                          <object idref="PrimitiveTypeInfo1"/> 
                         </void> 
                         <void property="value"> 
-                         <double>300.0</double> 
+                         <int>300</int> 
                         </void> 
                        </object> 
                       </void> 
@@ -3037,6 +3129,9 @@
                       </void> 
                       <void property="statsAggPrefix"> 
                        #### A masked pattern was here #### 
+                      </void> 
+                      <void property="statsCollectRawDataSize"> 
+                       <boolean>true</boolean> 
                       </void> 
                       <void property="tableInfo"> 
                        <object idref="TableDesc3"/> 
@@ -3159,6 +3254,9 @@
                       <void property="type"> 
                        <object idref="PrimitiveTypeInfo0"/> 
                       </void> 
+                      <void property="typeName"> 
+                       <string>string</string> 
+                      </void> 
                      </object> 
                     </void> 
                    </object> 
@@ -3173,7 +3271,7 @@
              <object class="org.apache.hadoop.hive.ql.plan.FilterDesc"> 
               <void property="predicate"> 
                <object class="org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc"> 
-                <void property="childExprs"> 
+                <void property="children"> 
                  <object class="java.util.ArrayList"> 
                   <void method="add"> 
                    <object class="org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc"> 
@@ -3194,7 +3292,7 @@
                      <object idref="PrimitiveTypeInfo1"/> 
                     </void> 
                     <void property="value"> 
-                     <double>300.0</double> 
+                     <int>300</int> 
                     </void> 
                    </object> 
                   </void> 
@@ -3290,6 +3388,16 @@
           </void> 
          </object> 
         </void> 
+        <void property="neededColumns"> 
+         <object class="java.util.ArrayList"> 
+          <void method="add"> 
+           <string>key</string> 
+          </void> 
+          <void method="add"> 
+           <string>value</string> 
+          </void> 
+         </object> 
+        </void> 
         <void property="operatorId"> 
          <string>TS_0</string> 
         </void> 
@@ -3321,6 +3429,9 @@
                 </void> 
                </object> 
               </void> 
+              <void property="typeName"> 
+               <string>bigint</string> 
+              </void> 
              </object> 
             </void> 
             <void method="add"> 
@@ -3337,6 +3448,9 @@
               <void property="type"> 
                <object idref="PrimitiveTypeInfo0"/> 
               </void> 
+              <void property="typeName"> 
+               <string>string</string> 
+              </void> 
              </object> 
             </void> 
            </object> 
@@ -3345,16 +3459,11 @@
         </void> 
        </object> 
       </void> 
-     </object> 
-    </void> 
-    <void property="gatheringStats"> 
-     <boolean>true</boolean> 
-    </void> 
-    <void property="nameToSplitSample"> 
-     <object class="java.util.HashMap"/> 
-    </void> 
-    <void property="pathToAliases"> 
-     <object class="java.util.LinkedHashMap"> 
+     </void> 
+     <void property="gatheringStats"> 
+      <boolean>true</boolean> 
+     </void> 
+     <void property="pathToAliases"> 
       <void method="put"> 
        #### A masked pattern was here #### 
        <object class="java.util.ArrayList"> 
@@ -3363,18 +3472,13 @@
         </void> 
        </object> 
       </void> 
-     </object> 
-    </void> 
-    <void property="pathToPartitionInfo"> 
-     <object class="java.util.LinkedHashMap"> 
+     </void> 
+     <void property="pathToPartitionInfo"> 
       <void method="put"> 
        #### A masked pattern was here #### 
        <object class="org.apache.hadoop.hive.ql.plan.PartitionDesc"> 
         <void property="baseFileName"> 
          <string>src</string> 
-        </void> 
-        <void property="deserializerClass"> 
-         <class>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</class> 
         </void> 
         <void property="inputFileFormatClass"> 
          <class>org.apache.hadoop.mapred.TextInputFormat</class> 
@@ -3420,16 +3524,16 @@
            <string>0</string> 
           </void> 
           <void method="put"> 
-           <string>numPartitions</string> 
-           <string>0</string> 
-          </void> 
-          <void method="put"> 
            <string>bucket_count</string> 
            <string>-1</string> 
           </void> 
           <void method="put"> 
            <string>serialization.lib</string> 
            <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
+          </void> 
+          <void method="put"> 
+           <string>COLUMN_STATS_ACCURATE</string> 
+           <string>true</string> 
           </void> 
           <void method="put"> 
            <string>file.inputformat</string> 
@@ -3453,14 +3557,8 @@
           </void> 
          </object> 
         </void> 
-        <void property="serdeClassName"> 
-         <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
-        </void> 
         <void property="tableDesc"> 
          <object class="org.apache.hadoop.hive.ql.plan.TableDesc"> 
-          <void property="deserializerClass"> 
-           <class>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</class> 
-          </void> 
           <void property="inputFileFormatClass"> 
            <class>org.apache.hadoop.mapred.TextInputFormat</class> 
           </void> 
@@ -3502,16 +3600,16 @@
              <string>0</string> 
             </void> 
             <void method="put"> 
-             <string>numPartitions</string> 
-             <string>0</string> 
-            </void> 
-            <void method="put"> 
              <string>bucket_count</string> 
              <string>-1</string> 
             </void> 
             <void method="put"> 
              <string>serialization.lib</string> 
              <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
+            </void> 
+            <void method="put"> 
+             <string>COLUMN_STATS_ACCURATE</string> 
+             <string>true</string> 
             </void> 
             <void method="put"> 
              <string>file.inputformat</string> 
@@ -3535,17 +3633,11 @@
             </void> 
            </object> 
           </void> 
-          <void property="serdeClassName"> 
-           <string>org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe</string> 
-          </void> 
          </object> 
         </void> 
        </object> 
       </void> 
-     </object> 
-    </void> 
-    <void property="tagToValueDesc"> 
-     <object class="java.util.ArrayList"/> 
+     </void> 
     </void> 
    </object> 
   </void> 

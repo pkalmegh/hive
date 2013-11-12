@@ -29,6 +29,7 @@ import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.exec.RowSchema;
 
@@ -163,6 +164,17 @@ public class RowResolver implements Serializable{
     }
 
     return ret;
+  }
+
+  /**
+   * check if column name is already exist in RR
+   */
+  public void checkColumn(String tableAlias, String columnAlias) throws SemanticException {
+    ColumnInfo prev = get(null, columnAlias);
+    if (prev != null &&
+        (tableAlias == null || !tableAlias.equalsIgnoreCase(prev.getTabAlias()))) {
+      throw new SemanticException(ErrorMsg.AMBIGUOUS_COLUMN.getMsg(columnAlias));
+    }
   }
 
   public ArrayList<ColumnInfo> getColumnInfos() {
@@ -306,4 +318,18 @@ public class RowResolver implements Serializable{
     this.expressionMap = expressionMap;
   }
 
+  public String[] toColumnDesc() {
+    StringBuilder cols = new StringBuilder();
+    StringBuilder colTypes = new StringBuilder();
+
+    for (ColumnInfo colInfo : getColumnInfos()) {
+      if (cols.length() > 0) {
+        cols.append(',');
+        colTypes.append(':');
+      }
+      cols.append(colInfo.getInternalName());
+      colTypes.append(colInfo.getType().getTypeName());
+    }
+    return new String[] {cols.toString(), colTypes.toString()};
+  }
 }

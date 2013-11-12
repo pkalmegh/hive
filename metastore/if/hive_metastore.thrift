@@ -149,8 +149,9 @@ struct StorageDescriptor {
   7: SerDeInfo    serdeInfo,  // serialization and deserialization information
   8: list<string> bucketCols, // reducer grouping columns and clustering columns and bucketing columns`
   9: list<Order>  sortCols,   // sort order of the data in each bucket
-  10: map<string, string> parameters // any user supplied key value hash
-  11: optional SkewedInfo skewedInfo // skewed information
+  10: map<string, string> parameters, // any user supplied key value hash
+  11: optional SkewedInfo skewedInfo, // skewed information
+  12: optional bool   storedAsSubDirectories       // stored as subdirectories or not
 }
 
 // table information
@@ -194,6 +195,67 @@ struct Index {
   10: bool         deferredRebuild
 }
 
+// column statistics
+struct BooleanColumnStatsData {
+1: required i64 numTrues,
+2: required i64 numFalses,
+3: required i64 numNulls
+}
+
+struct DoubleColumnStatsData {
+1: required double lowValue,
+2: required double highValue,
+3: required i64 numNulls,
+4: required i64 numDVs
+}
+
+struct LongColumnStatsData {
+1: required i64 lowValue,
+2: required i64 highValue,
+3: required i64 numNulls,
+4: required i64 numDVs
+}
+
+struct StringColumnStatsData {
+1: required i64 maxColLen,
+2: required double avgColLen,
+3: required i64 numNulls,
+4: required i64 numDVs
+}
+
+struct BinaryColumnStatsData {
+1: required i64 maxColLen,
+2: required double avgColLen,
+3: required i64 numNulls
+}
+
+union ColumnStatisticsData {
+1: BooleanColumnStatsData booleanStats,
+2: LongColumnStatsData longStats,
+3: DoubleColumnStatsData doubleStats,
+4: StringColumnStatsData stringStats,
+5: BinaryColumnStatsData binaryStats
+}
+
+struct ColumnStatisticsObj {
+1: required string colName,
+2: required string colType,
+3: required ColumnStatisticsData statsData
+}
+
+struct ColumnStatisticsDesc {
+1: required bool isTblLevel,
+2: required string dbName,
+3: required string tableName,
+4: optional string partName,
+5: optional i64 lastAnalyzed
+}
+
+struct ColumnStatistics {
+1: required ColumnStatisticsDesc statsDesc,
+2: required list<ColumnStatisticsObj> statsObj;
+}
+
 // schema of the table/query results etc.
 struct Schema {
  // column names, types, comments
@@ -207,6 +269,21 @@ struct Schema {
 // accessed in hooks.
 struct EnvironmentContext {
   1: map<string, string> properties
+}
+
+// Return type for get_partitions_by_expr
+struct PartitionsByExprResult {
+  1: required set<Partition> partitions,
+  // Whether the results has any (currently, all) partitions which may or may not match
+  2: required bool hasUnknownPartitions
+}
+
+struct PartitionsByExprRequest {
+  1: required string dbName,
+  2: required string tblName,
+  3: required binary expr,
+  4: optional string defaultPartitionName,
+  5: optional i16 maxParts=-1
 }
 
 exception MetaException {
@@ -253,6 +330,10 @@ exception ConfigValSecurityException {
   1: string message
 }
 
+exception InvalidInputException {
+  1: string message
+}
+
 /**
 * This interface is live.
 */
@@ -296,6 +377,9 @@ service ThriftHiveMetastore extends fb303.FacebookService
   // drops the table and all the partitions associated with it if the table has partitions
   // delete data (including partitions) if deleteData is set to true
   void drop_table(1:string dbname, 2:string name, 3:bool deleteData)
+                       throws(1:NoSuchObjectException o1, 2:MetaException o3)
+  void drop_table_with_environment_context(1:string dbname, 2:string name, 3:bool deleteData,
+      4:EnvironmentContext environment_context)
                        throws(1:NoSuchObjectException o1, 2:MetaException o3)
   list<string> get_tables(1: string db_name, 2: string pattern) throws (1: MetaException o1)
   list<string> get_all_tables(1: string db_name) throws (1: MetaException o1)
@@ -361,14 +445,30 @@ service ThriftHiveMetastore extends fb303.FacebookService
                        throws(1:InvalidObjectException o1, 2:AlreadyExistsException o2, 3:MetaException o3)
   Partition append_partition(1:string db_name, 2:string tbl_name, 3:list<string> part_vals)
                        throws (1:InvalidObjectException o1, 2:AlreadyExistsException o2, 3:MetaException o3)
+  Partition append_partition_with_environment_context(1:string db_name, 2:string tbl_name,
+      3:list<string> part_vals, 4:EnvironmentContext environment_context)
+                       throws (1:InvalidObjectException o1, 2:AlreadyExistsException o2, 3:MetaException o3)
   Partition append_partition_by_name(1:string db_name, 2:string tbl_name, 3:string part_name)
+                       throws (1:InvalidObjectException o1, 2:AlreadyExistsException o2, 3:MetaException o3)
+  Partition append_partition_by_name_with_environment_context(1:string db_name, 2:string tbl_name,
+      3:string part_name, 4:EnvironmentContext environment_context)
                        throws (1:InvalidObjectException o1, 2:AlreadyExistsException o2, 3:MetaException o3)
   bool drop_partition(1:string db_name, 2:string tbl_name, 3:list<string> part_vals, 4:bool deleteData)
                        throws(1:NoSuchObjectException o1, 2:MetaException o2)
+  bool drop_partition_with_environment_context(1:string db_name, 2:string tbl_name,
+      3:list<string> part_vals, 4:bool deleteData, 5:EnvironmentContext environment_context)
+                       throws(1:NoSuchObjectException o1, 2:MetaException o2)
   bool drop_partition_by_name(1:string db_name, 2:string tbl_name, 3:string part_name, 4:bool deleteData)
-                       throws(1:NoSuchObjectException o1, 2:MetaException o2) 
+                       throws(1:NoSuchObjectException o1, 2:MetaException o2)
+  bool drop_partition_by_name_with_environment_context(1:string db_name, 2:string tbl_name,
+      3:string part_name, 4:bool deleteData, 5:EnvironmentContext environment_context)
+                       throws(1:NoSuchObjectException o1, 2:MetaException o2)
   Partition get_partition(1:string db_name, 2:string tbl_name, 3:list<string> part_vals)
                        throws(1:MetaException o1, 2:NoSuchObjectException o2)
+  Partition exchange_partition(1:map<string, string> partitionSpecs, 2:string source_db,
+      3:string source_table_name, 4:string dest_db, 5:string dest_table_name)
+      throws(1:MetaException o1, 2:NoSuchObjectException o2, 3:InvalidObjectException o3,
+      4:InvalidInputException o4)
 
   Partition get_partition_with_auth(1:string db_name, 2:string tbl_name, 3:list<string> part_vals, 
       4: string user_name, 5: list<string> group_names) throws(1:MetaException o1, 2:NoSuchObjectException o2)
@@ -407,6 +507,12 @@ service ThriftHiveMetastore extends fb303.FacebookService
     3:string filter, 4:i16 max_parts=-1)
                        throws(1:MetaException o1, 2:NoSuchObjectException o2)
 
+  // get the partitions matching the given partition filter
+  // unlike get_partitions_by_filter, takes serialized hive expression, and with that can work
+  // with any filter (get_partitions_by_filter only works if the filter can be pushed down to JDOQL.
+  PartitionsByExprResult get_partitions_by_expr(1:PartitionsByExprRequest req)
+                       throws(1:MetaException o1, 2:NoSuchObjectException o2)
+
   // get partitions give a list of partition names
   list<Partition> get_partitions_by_names(1:string db_name 2:string tbl_name 3:list<string> names)
                        throws(1:MetaException o1, 2:NoSuchObjectException o2)
@@ -432,6 +538,11 @@ service ThriftHiveMetastore extends fb303.FacebookService
   // partition keys in new_part should be the same as those in old partition.
   void rename_partition(1:string db_name, 2:string tbl_name, 3:list<string> part_vals, 4:Partition new_part)
                        throws (1:InvalidOperationException o1, 2:MetaException o2)
+
+  // returns whether or not the partition name is valid based on the value of the config
+  // hive.metastore.partition.name.whitelist.pattern
+  bool partition_name_has_valid_characters(1:list<string> part_vals, 2:bool throw_exception)
+ 	throws(1: MetaException o1)
 
   // gets the value of the configuration key in the metastore server. returns
   // defaultValue if the key does not exist. if the configuration key does not
@@ -471,6 +582,37 @@ service ThriftHiveMetastore extends fb303.FacebookService
                        throws(1:NoSuchObjectException o1, 2:MetaException o2)
   list<string> get_index_names(1:string db_name, 2:string tbl_name, 3:i16 max_indexes=-1)
                        throws(1:MetaException o2)
+
+  // column statistics interfaces
+
+  // update APIs persist the column statistics object(s) that are passed in. If statistics already
+  // exists for one or more columns, the existing statistics will be overwritten. The update APIs
+  // validate that the dbName, tableName, partName, colName[] passed in as part of the ColumnStatistics
+  // struct are valid, throws InvalidInputException/NoSuchObjectException if found to be invalid
+  bool update_table_column_statistics(1:ColumnStatistics stats_obj) throws (1:NoSuchObjectException o1,
+              2:InvalidObjectException o2, 3:MetaException o3, 4:InvalidInputException o4)
+  bool update_partition_column_statistics(1:ColumnStatistics stats_obj) throws (1:NoSuchObjectException o1,
+              2:InvalidObjectException o2, 3:MetaException o3, 4:InvalidInputException o4)
+
+  // get APIs return the column statistics corresponding to db_name, tbl_name, [part_name], col_name if
+  // such statistics exists. If the required statistics doesn't exist, get APIs throw NoSuchObjectException
+  // For instance, if get_table_column_statistics is called on a partitioned table for which only
+  // partition level column stats exist, get_table_column_statistics will throw NoSuchObjectException
+  ColumnStatistics get_table_column_statistics(1:string db_name, 2:string tbl_name, 3:string col_name) throws
+              (1:NoSuchObjectException o1, 2:MetaException o2, 3:InvalidInputException o3, 4:InvalidObjectException o4)
+  ColumnStatistics get_partition_column_statistics(1:string db_name, 2:string tbl_name, 3:string part_name,
+               4:string col_name) throws (1:NoSuchObjectException o1, 2:MetaException o2,
+               3:InvalidInputException o3, 4:InvalidObjectException o4)
+
+  // delete APIs attempt to delete column statistics, if found, associated with a given db_name, tbl_name, [part_name]
+  // and col_name. If the delete API doesn't find the statistics record in the metastore, throws NoSuchObjectException
+  // Delete API validates the input and if the input is invalid throws InvalidInputException/InvalidObjectException.
+  bool delete_partition_column_statistics(1:string db_name, 2:string tbl_name, 3:string part_name, 4:string col_name) throws
+              (1:NoSuchObjectException o1, 2:MetaException o2, 3:InvalidObjectException o3,
+               4:InvalidInputException o4)
+  bool delete_table_column_statistics(1:string db_name, 2:string tbl_name, 3:string col_name) throws
+              (1:NoSuchObjectException o1, 2:MetaException o2, 3:InvalidObjectException o3,
+               4:InvalidInputException o4)
 
   //authorization privileges
                        

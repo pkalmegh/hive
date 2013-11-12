@@ -27,7 +27,6 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.CommandNeedRetryException;
-import org.apache.hadoop.hive.ql.Context;
 import org.apache.hadoop.hive.ql.DriverContext;
 import org.apache.hadoop.hive.ql.QueryPlan;
 import org.apache.hadoop.hive.ql.io.HiveInputFormat;
@@ -65,13 +64,16 @@ public class FetchTask extends Task<FetchWork> implements Serializable {
 
     try {
       // Create a file system handle
-      JobConf job = new JobConf(conf, ExecDriver.class);
+      JobConf job = new JobConf(conf);
 
       Operator<?> source = work.getSource();
       if (source instanceof TableScanOperator) {
         TableScanOperator ts = (TableScanOperator) source;
+        // push down projections
+        ColumnProjectionUtils.appendReadColumns(
+            job, ts.getNeededColumnIDs(), ts.getNeededColumns());
+        // push down filters
         HiveInputFormat.pushFilters(job, ts);
-        ColumnProjectionUtils.appendReadColumnIDs(job, ts.getNeededColumnIDs());
       }
       sink = work.getSink();
       fetch = new FetchOperator(work, job, source, getVirtualColumns(source));
@@ -161,19 +163,6 @@ public class FetchTask extends Task<FetchWork> implements Serializable {
   @Override
   public String getName() {
     return "FETCH";
-  }
-
-  @Override
-  protected void localizeMRTmpFilesImpl(Context ctx) {
-    String s = work.getTblDir();
-    if ((s != null) && ctx.isMRTmpFileURI(s)) {
-      work.setTblDir(ctx.localizeMRTmpFileURI(s));
-    }
-
-    ArrayList<String> ls = work.getPartDir();
-    if (ls != null) {
-      ctx.localizePaths(ls);
-    }
   }
 
   /**

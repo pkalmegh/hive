@@ -46,8 +46,12 @@ public class Utils {
       return Types.INTEGER;
     } else if ("bigint".equalsIgnoreCase(type)) {
       return Types.BIGINT;
+    } else if ("date".equalsIgnoreCase(type)) {
+      return Types.DATE;
     } else if ("timestamp".equalsIgnoreCase(type)) {
       return Types.TIMESTAMP;
+    } else if (type.startsWith("decimal")) {
+      return Types.DECIMAL;
     } else if (type.startsWith("map<")) {
       return Types.VARCHAR;
     } else if (type.startsWith("array<")) {

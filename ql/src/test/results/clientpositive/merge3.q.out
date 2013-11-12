@@ -1,6 +1,7 @@
 PREHOOK: query: create table merge_src as 
 select key, value from srcpart where ds is not null
 PREHOOK: type: CREATETABLE_AS_SELECT
+PREHOOK: Input: default@srcpart
 PREHOOK: Input: default@srcpart@ds=2008-04-08/hr=11
 PREHOOK: Input: default@srcpart@ds=2008-04-08/hr=12
 PREHOOK: Input: default@srcpart@ds=2008-04-09/hr=11
@@ -8,6 +9,7 @@ PREHOOK: Input: default@srcpart@ds=2008-04-09/hr=12
 POSTHOOK: query: create table merge_src as 
 select key, value from srcpart where ds is not null
 POSTHOOK: type: CREATETABLE_AS_SELECT
+POSTHOOK: Input: default@srcpart
 POSTHOOK: Input: default@srcpart@ds=2008-04-08/hr=11
 POSTHOOK: Input: default@srcpart@ds=2008-04-08/hr=12
 POSTHOOK: Input: default@srcpart@ds=2008-04-09/hr=11
@@ -20,6 +22,7 @@ POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@merge_src_part
 PREHOOK: query: insert overwrite table merge_src_part partition(ds) select key, value, ds from srcpart where ds is not null
 PREHOOK: type: QUERY
+PREHOOK: Input: default@srcpart
 PREHOOK: Input: default@srcpart@ds=2008-04-08/hr=11
 PREHOOK: Input: default@srcpart@ds=2008-04-08/hr=12
 PREHOOK: Input: default@srcpart@ds=2008-04-09/hr=11
@@ -27,6 +30,7 @@ PREHOOK: Input: default@srcpart@ds=2008-04-09/hr=12
 PREHOOK: Output: default@merge_src_part
 POSTHOOK: query: insert overwrite table merge_src_part partition(ds) select key, value, ds from srcpart where ds is not null
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@srcpart
 POSTHOOK: Input: default@srcpart@ds=2008-04-08/hr=11
 POSTHOOK: Input: default@srcpart@ds=2008-04-08/hr=12
 POSTHOOK: Input: default@srcpart@ds=2008-04-09/hr=11
@@ -92,11 +96,12 @@ STAGE PLANS:
                       columns.types string:string
                       name default.merge_src2
                       serialization.format 1
+                      serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                     name: default.merge_src2
                 TotalFiles: 1
                 GatherStats: true
                 MultiFileSpray: false
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -106,13 +111,13 @@ STAGE PLANS:
             input format: org.apache.hadoop.mapred.TextInputFormat
             output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
             properties:
+              COLUMN_STATS_ACCURATE true
               bucket_count -1
               columns key,value
               columns.types string:string
 #### A masked pattern was here ####
               name default.merge_src
               numFiles 4
-              numPartitions 0
               numRows 2000
               rawDataSize 21248
               serialization.ddl struct merge_src { string key, string value}
@@ -125,13 +130,13 @@ STAGE PLANS:
               input format: org.apache.hadoop.mapred.TextInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
               properties:
+                COLUMN_STATS_ACCURATE true
                 bucket_count -1
                 columns key,value
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.merge_src
                 numFiles 4
-                numPartitions 0
                 numRows 2000
                 rawDataSize 21248
                 serialization.ddl struct merge_src { string key, string value}
@@ -179,6 +184,8 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
+            GatherStats: false
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -192,11 +199,12 @@ STAGE PLANS:
                     columns.types string:string
                     name default.merge_src2
                     serialization.format 1
+                    serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                   name: default.merge_src2
               TotalFiles: 1
               GatherStats: false
               MultiFileSpray: false
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -210,6 +218,8 @@ STAGE PLANS:
               columns.types string:string
               name default.merge_src2
               serialization.format 1
+              serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+            serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
           
               input format: org.apache.hadoop.mapred.TextInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
@@ -218,6 +228,8 @@ STAGE PLANS:
                 columns.types string:string
                 name default.merge_src2
                 serialization.format 1
+                serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+              serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.merge_src2
             name: default.merge_src2
       Truncated Path -> Alias:
@@ -227,6 +239,8 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
+            GatherStats: false
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -240,11 +254,12 @@ STAGE PLANS:
                     columns.types string:string
                     name default.merge_src2
                     serialization.format 1
+                    serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                   name: default.merge_src2
               TotalFiles: 1
               GatherStats: false
               MultiFileSpray: false
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -258,6 +273,8 @@ STAGE PLANS:
               columns.types string:string
               name default.merge_src2
               serialization.format 1
+              serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+            serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
           
               input format: org.apache.hadoop.mapred.TextInputFormat
               output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
@@ -266,6 +283,8 @@ STAGE PLANS:
                 columns.types string:string
                 name default.merge_src2
                 serialization.format 1
+                serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+              serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.merge_src2
             name: default.merge_src2
       Truncated Path -> Alias:
@@ -2324,8 +2343,8 @@ Retention:          	0
 #### A masked pattern was here ####
 Table Type:         	MANAGED_TABLE       	 
 Table Parameters:	 	 
+	COLUMN_STATS_ACCURATE	true                
 	numFiles            	1                   
-	numPartitions       	0                   
 	numRows             	2000                
 	rawDataSize         	21248               
 	totalSize           	23248               
@@ -2419,7 +2438,6 @@ STAGE PLANS:
                 TotalFiles: 1
                 GatherStats: true
                 MultiFileSpray: false
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -2431,13 +2449,13 @@ STAGE PLANS:
             partition values:
               ds 2008-04-08
             properties:
+              COLUMN_STATS_ACCURATE true
               bucket_count -1
               columns key,value
               columns.types string:string
 #### A masked pattern was here ####
               name default.merge_src_part
               numFiles 2
-              numPartitions 2
               numRows 1000
               partition_columns ds
               rawDataSize 10624
@@ -2456,15 +2474,10 @@ STAGE PLANS:
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.merge_src_part
-                numFiles 4
-                numPartitions 2
-                numRows 2000
                 partition_columns ds
-                rawDataSize 21248
                 serialization.ddl struct merge_src_part { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                totalSize 23248
 #### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.merge_src_part
@@ -2477,13 +2490,13 @@ STAGE PLANS:
             partition values:
               ds 2008-04-09
             properties:
+              COLUMN_STATS_ACCURATE true
               bucket_count -1
               columns key,value
               columns.types string:string
 #### A masked pattern was here ####
               name default.merge_src_part
               numFiles 2
-              numPartitions 2
               numRows 1000
               partition_columns ds
               rawDataSize 10624
@@ -2502,15 +2515,10 @@ STAGE PLANS:
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.merge_src_part
-                numFiles 4
-                numPartitions 2
-                numRows 2000
                 partition_columns ds
-                rawDataSize 21248
                 serialization.ddl struct merge_src_part { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                totalSize 23248
 #### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.merge_src_part
@@ -2561,6 +2569,8 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
+            GatherStats: false
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -2585,7 +2595,6 @@ STAGE PLANS:
               TotalFiles: 1
               GatherStats: false
               MultiFileSpray: false
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -2630,6 +2639,8 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
+            GatherStats: false
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -2654,7 +2665,6 @@ STAGE PLANS:
               TotalFiles: 1
               GatherStats: false
               MultiFileSpray: false
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -2706,6 +2716,7 @@ PREHOOK: query: insert overwrite table merge_src_part2 partition(ds)
 select key, value, ds from merge_src_part
 where ds is not null
 PREHOOK: type: QUERY
+PREHOOK: Input: default@merge_src_part
 PREHOOK: Input: default@merge_src_part@ds=2008-04-08
 PREHOOK: Input: default@merge_src_part@ds=2008-04-09
 PREHOOK: Output: default@merge_src_part2
@@ -2713,6 +2724,7 @@ POSTHOOK: query: insert overwrite table merge_src_part2 partition(ds)
 select key, value, ds from merge_src_part
 where ds is not null
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@merge_src_part
 POSTHOOK: Input: default@merge_src_part@ds=2008-04-08
 POSTHOOK: Input: default@merge_src_part@ds=2008-04-09
 POSTHOOK: Output: default@merge_src_part2@ds=2008-04-08
@@ -2741,11 +2753,13 @@ ds=2008-04-08
 ds=2008-04-09
 PREHOOK: query: select * from merge_src_part2 where ds is not null ORDER BY key ASC, value ASC
 PREHOOK: type: QUERY
+PREHOOK: Input: default@merge_src_part2
 PREHOOK: Input: default@merge_src_part2@ds=2008-04-08
 PREHOOK: Input: default@merge_src_part2@ds=2008-04-09
 #### A masked pattern was here ####
 POSTHOOK: query: select * from merge_src_part2 where ds is not null ORDER BY key ASC, value ASC
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@merge_src_part2
 POSTHOOK: Input: default@merge_src_part2@ds=2008-04-08
 POSTHOOK: Input: default@merge_src_part2@ds=2008-04-09
 #### A masked pattern was here ####
@@ -4847,7 +4861,6 @@ STAGE PLANS:
                       type: string
                       expr: _col2
                       type: string
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -4859,13 +4872,13 @@ STAGE PLANS:
             partition values:
               ds 2008-04-08
             properties:
+              COLUMN_STATS_ACCURATE true
               bucket_count -1
               columns key,value
               columns.types string:string
 #### A masked pattern was here ####
               name default.merge_src_part
               numFiles 2
-              numPartitions 2
               numRows 1000
               partition_columns ds
               rawDataSize 10624
@@ -4884,15 +4897,10 @@ STAGE PLANS:
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.merge_src_part
-                numFiles 4
-                numPartitions 2
-                numRows 2000
                 partition_columns ds
-                rawDataSize 21248
                 serialization.ddl struct merge_src_part { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                totalSize 23248
 #### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.merge_src_part
@@ -4905,13 +4913,13 @@ STAGE PLANS:
             partition values:
               ds 2008-04-09
             properties:
+              COLUMN_STATS_ACCURATE true
               bucket_count -1
               columns key,value
               columns.types string:string
 #### A masked pattern was here ####
               name default.merge_src_part
               numFiles 2
-              numPartitions 2
               numRows 1000
               partition_columns ds
               rawDataSize 10624
@@ -4930,19 +4938,18 @@ STAGE PLANS:
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.merge_src_part
-                numFiles 4
-                numPartitions 2
-                numRows 2000
                 partition_columns ds
-                rawDataSize 21248
                 serialization.ddl struct merge_src_part { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                totalSize 23248
 #### A masked pattern was here ####
               serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
               name: default.merge_src_part
             name: default.merge_src_part
+      Truncated Path -> Alias:
+        /merge_src_part/ds=2008-04-08 [s:merge_src_part]
+        /merge_src_part/ds=2008-04-09 [s:merge_src_part]
+      Needs Tagging: false
       Reduce Operator Tree:
         Extract
           Select Operator
@@ -4979,9 +4986,6 @@ STAGE PLANS:
               TotalFiles: 1
               GatherStats: true
               MultiFileSpray: false
-      Truncated Path -> Alias:
-        /merge_src_part/ds=2008-04-08 [s:merge_src_part]
-        /merge_src_part/ds=2008-04-09 [s:merge_src_part]
 
   Stage: Stage-7
     Conditional Operator
@@ -5025,6 +5029,8 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
+            GatherStats: false
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -5049,7 +5055,6 @@ STAGE PLANS:
               TotalFiles: 1
               GatherStats: false
               MultiFileSpray: false
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -5094,6 +5099,8 @@ STAGE PLANS:
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
+          TableScan
+            GatherStats: false
             File Output Operator
               compressed: false
               GlobalTableId: 0
@@ -5118,7 +5125,6 @@ STAGE PLANS:
               TotalFiles: 1
               GatherStats: false
               MultiFileSpray: false
-      Needs Tagging: false
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -5170,6 +5176,7 @@ PREHOOK: query: from (select * from merge_src_part where ds is not null distribu
 insert overwrite table merge_src_part2 partition(ds)
 select key, value, ds
 PREHOOK: type: QUERY
+PREHOOK: Input: default@merge_src_part
 PREHOOK: Input: default@merge_src_part@ds=2008-04-08
 PREHOOK: Input: default@merge_src_part@ds=2008-04-09
 PREHOOK: Output: default@merge_src_part2
@@ -5177,6 +5184,7 @@ POSTHOOK: query: from (select * from merge_src_part where ds is not null distrib
 insert overwrite table merge_src_part2 partition(ds)
 select key, value, ds
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@merge_src_part
 POSTHOOK: Input: default@merge_src_part@ds=2008-04-08
 POSTHOOK: Input: default@merge_src_part@ds=2008-04-09
 POSTHOOK: Output: default@merge_src_part2@ds=2008-04-08
@@ -5213,11 +5221,13 @@ ds=2008-04-08
 ds=2008-04-09
 PREHOOK: query: select * from merge_src_part2 where ds is not null ORDER BY key ASC, value ASC
 PREHOOK: type: QUERY
+PREHOOK: Input: default@merge_src_part2
 PREHOOK: Input: default@merge_src_part2@ds=2008-04-08
 PREHOOK: Input: default@merge_src_part2@ds=2008-04-09
 #### A masked pattern was here ####
 POSTHOOK: query: select * from merge_src_part2 where ds is not null ORDER BY key ASC, value ASC
 POSTHOOK: type: QUERY
+POSTHOOK: Input: default@merge_src_part2
 POSTHOOK: Input: default@merge_src_part2@ds=2008-04-08
 POSTHOOK: Input: default@merge_src_part2@ds=2008-04-09
 #### A masked pattern was here ####
