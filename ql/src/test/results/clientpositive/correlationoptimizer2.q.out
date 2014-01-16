@@ -97,7 +97,7 @@ STAGE PLANS:
   Stage: Stage-2
     Map Reduce
       Alias -> Map Operator Tree:
-        $INTNAME 
+        tmp:$INTNAME 
           TableScan
             Reduce Output Operator
               key expressions:
@@ -113,7 +113,7 @@ STAGE PLANS:
                     type: string
                     expr: _col1
                     type: bigint
-        $INTNAME1 
+        tmp:$INTNAME1 
           TableScan
             Reduce Output Operator
               key expressions:
@@ -274,7 +274,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: SELECT SUM(HASH(key1)), SUM(HASH(cnt1)), SUM(HASH(key2)), SUM(HASH(cnt2))
 FROM (SELECT a.key AS key1, a.cnt AS cnt1, b.key AS key2, b.cnt AS cnt2
@@ -540,7 +539,6 @@ STAGE PLANS:
     Fetch Operator
       limit: -1
 
-
 PREHOOK: query: SELECT SUM(HASH(key1)), SUM(HASH(cnt1)), SUM(HASH(key2)), SUM(HASH(cnt2))
 FROM (SELECT a.key AS key1, a.cnt AS cnt1, b.key AS key2, b.cnt AS cnt2
       FROM (SELECT x.key as key, count(x.value) AS cnt FROM src x group by x.key) a
@@ -649,7 +647,7 @@ STAGE PLANS:
   Stage: Stage-2
     Map Reduce
       Alias -> Map Operator Tree:
-        $INTNAME 
+        tmp:$INTNAME 
           TableScan
             Reduce Output Operator
               key expressions:
@@ -665,7 +663,7 @@ STAGE PLANS:
                     type: string
                     expr: _col1
                     type: bigint
-        $INTNAME1 
+        tmp:$INTNAME1 
           TableScan
             Reduce Output Operator
               key expressions:
@@ -827,7 +825,6 @@ STAGE PLANS:
     Fetch Operator
       limit: -1
 
-
 PREHOOK: query: SELECT SUM(HASH(key1)), SUM(HASH(cnt1)), SUM(HASH(key2)), SUM(HASH(cnt2))
 FROM (SELECT a.key AS key1, a.cnt AS cnt1, b.key AS key2, b.cnt AS cnt2
       FROM (SELECT x.key as key, count(x.value) AS cnt FROM src x group by x.key) a
@@ -1092,7 +1089,6 @@ STAGE PLANS:
     Fetch Operator
       limit: -1
 
-
 PREHOOK: query: SELECT SUM(HASH(key1)), SUM(HASH(cnt1)), SUM(HASH(key2)), SUM(HASH(cnt2))
 FROM (SELECT a.key AS key1, a.cnt AS cnt1, b.key AS key2, b.cnt AS cnt2
       FROM (SELECT x.key as key, count(x.value) AS cnt FROM src x group by x.key) a
@@ -1201,7 +1197,7 @@ STAGE PLANS:
   Stage: Stage-2
     Map Reduce
       Alias -> Map Operator Tree:
-        $INTNAME 
+        tmp:$INTNAME 
           TableScan
             Reduce Output Operator
               key expressions:
@@ -1217,7 +1213,7 @@ STAGE PLANS:
                     type: string
                     expr: _col1
                     type: bigint
-        $INTNAME1 
+        tmp:$INTNAME1 
           TableScan
             Reduce Output Operator
               key expressions:
@@ -1379,7 +1375,6 @@ STAGE PLANS:
     Fetch Operator
       limit: -1
 
-
 PREHOOK: query: SELECT SUM(HASH(key1)), SUM(HASH(cnt1)), SUM(HASH(key2)), SUM(HASH(cnt2))
 FROM (SELECT a.key AS key1, a.cnt AS cnt1, b.key AS key2, b.cnt AS cnt2
       FROM (SELECT x.key as key, count(x.value) AS cnt FROM src x group by x.key) a
@@ -1644,7 +1639,6 @@ STAGE PLANS:
     Fetch Operator
       limit: -1
 
-
 PREHOOK: query: SELECT SUM(HASH(key1)), SUM(HASH(cnt1)), SUM(HASH(key2)), SUM(HASH(cnt2))
 FROM (SELECT a.key AS key1, a.cnt AS cnt1, b.key AS key2, b.cnt AS cnt2
       FROM (SELECT x.key as key, count(x.value) AS cnt FROM src x group by x.key) a
@@ -1753,7 +1747,7 @@ STAGE PLANS:
   Stage: Stage-2
     Map Reduce
       Alias -> Map Operator Tree:
-        $INTNAME 
+        tmp:$INTNAME 
           TableScan
             Reduce Output Operator
               key expressions:
@@ -1769,7 +1763,7 @@ STAGE PLANS:
                     type: string
                     expr: _col1
                     type: bigint
-        $INTNAME1 
+        tmp:$INTNAME1 
           TableScan
             Reduce Output Operator
               key expressions:
@@ -1930,7 +1924,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: SELECT SUM(HASH(key1)), SUM(HASH(cnt1)), SUM(HASH(key2)), SUM(HASH(cnt2))
 FROM (SELECT a.key AS key1, a.cnt AS cnt1, b.key AS key2, b.cnt AS cnt2
@@ -2196,7 +2189,6 @@ STAGE PLANS:
     Fetch Operator
       limit: -1
 
-
 PREHOOK: query: SELECT SUM(HASH(key1)), SUM(HASH(cnt1)), SUM(HASH(key2)), SUM(HASH(cnt2))
 FROM (SELECT a.key AS key1, a.cnt AS cnt1, b.key AS key2, b.cnt AS cnt2
       FROM (SELECT x.key as key, count(x.value) AS cnt FROM src x group by x.key) a
@@ -2304,7 +2296,7 @@ STAGE PLANS:
   Stage: Stage-2
     Map Reduce
       Alias -> Map Operator Tree:
-        $INTNAME 
+        tmp:$INTNAME 
           TableScan
             Reduce Output Operator
               key expressions:
@@ -2315,7 +2307,7 @@ STAGE PLANS:
                     expr: _col0
                     type: string
               tag: 1
-        $INTNAME1 
+        tmp:$INTNAME1 
           TableScan
             Reduce Output Operator
               key expressions:
@@ -2505,7 +2497,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: SELECT SUM(HASH(tmp.key)), SUM(HASH(tmp.cnt))
 FROM (SELECT a.key AS key, count(1) AS cnt
@@ -2805,7 +2796,6 @@ STAGE PLANS:
     Fetch Operator
       limit: -1
 
-
 PREHOOK: query: SELECT SUM(HASH(tmp.key)), SUM(HASH(tmp.cnt))
 FROM (SELECT a.key AS key, count(1) AS cnt
       FROM (SELECT x.key as key, count(x.value) AS cnt FROM src x group by x.key) a
@@ -2922,7 +2912,7 @@ STAGE PLANS:
   Stage: Stage-2
     Map Reduce
       Alias -> Map Operator Tree:
-        $INTNAME 
+        tmp:$INTNAME 
           TableScan
             Reduce Output Operator
               key expressions:
@@ -2938,7 +2928,7 @@ STAGE PLANS:
                     type: string
                     expr: _col1
                     type: bigint
-        $INTNAME1 
+        tmp:$INTNAME1 
           TableScan
             Reduce Output Operator
               key expressions:
@@ -3096,7 +3086,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: SELECT SUM(HASH(key1)), SUM(HASH(cnt1)), SUM(HASH(key2)), SUM(HASH(cnt2))
 FROM (SELECT a.key AS key1, a.val AS cnt1, b.key AS key2, b.cnt AS cnt2
@@ -3358,7 +3347,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: SELECT SUM(HASH(key1)), SUM(HASH(cnt1)), SUM(HASH(key2)), SUM(HASH(cnt2))
 FROM (SELECT a.key AS key1, a.val AS cnt1, b.key AS key2, b.cnt AS cnt2

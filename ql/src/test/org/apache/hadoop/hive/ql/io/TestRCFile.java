@@ -135,9 +135,11 @@ public class TestRCFile {
       patialS.set(2, new BytesRefWritable("789".getBytes("UTF-8")));
       patialS.set(3, new BytesRefWritable("1000".getBytes("UTF-8")));
       patialS.set(4, new BytesRefWritable("NULL".getBytes("UTF-8")));
-      patialS.set(5, new BytesRefWritable("NULL".getBytes("UTF-8")));
+      // LazyString has no so-called NULL sequence. The value is empty string if not.
+      patialS.set(5, new BytesRefWritable("".getBytes("UTF-8")));
       patialS.set(6, new BytesRefWritable("NULL".getBytes("UTF-8")));
-      patialS.set(7, new BytesRefWritable("NULL".getBytes("UTF-8")));
+      // LazyString has no so-called NULL sequence. The value is empty string if not.
+      patialS.set(7, new BytesRefWritable("".getBytes("UTF-8")));
 
     } catch (UnsupportedEncodingException e) {
       throw new RuntimeException(e);
@@ -717,6 +719,7 @@ public class TestRCFile {
       while (rr.next(key, value)) {
         readCount++;
       }
+      rr.close();
       System.out.println("The " + i + "th split read "
           + (readCount - previousReadCount));
     }

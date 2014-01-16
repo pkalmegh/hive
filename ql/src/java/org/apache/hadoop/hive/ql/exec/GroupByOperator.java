@@ -80,8 +80,6 @@ public class GroupByOperator extends Operator<GroupByDesc> implements
   private static final long serialVersionUID = 1L;
   private static final int NUMROWSESTIMATESIZE = 1000;
 
-  public static final String counterNameHashOut = "COUNT_HASH_OUT";
-
   protected transient ExprNodeEvaluator[] keyFields;
   protected transient ObjectInspector[] keyObjectInspectors;
 
@@ -292,7 +290,7 @@ public class GroupByOperator extends Operator<GroupByDesc> implements
         if (unionExprEval != null) {
           String[] names = parameters.get(j).getExprString().split("\\.");
           // parameters of the form : KEY.colx:t.coly
-          if (Utilities.ReduceField.KEY.name().equals(names[0])) {
+          if (Utilities.ReduceField.KEY.name().equals(names[0]) && names.length > 2) {
             String name = names[names.length - 2];
             int tag = Integer.parseInt(name.split("\\:")[1]);
             if (aggr.getDistinct()) {
@@ -316,7 +314,7 @@ public class GroupByOperator extends Operator<GroupByDesc> implements
               }
             }
           } else {
-            // will be VALUE._COLx
+            // will be KEY._COLx or VALUE._COLx
             if (!nonDistinctAggrs.contains(i)) {
               nonDistinctAggrs.add(i);
             }
@@ -457,8 +455,6 @@ public class GroupByOperator extends Operator<GroupByDesc> implements
    *
    * @param pos
    *          the position of the key
-   * @param c
-   *          the type of the key
    * @return the size of this datatype
    **/
   private int getSize(int pos, PrimitiveCategory category) {
@@ -529,7 +525,7 @@ public class GroupByOperator extends Operator<GroupByDesc> implements
   /**
    * @param pos
    *          position of the key
-   * @param typeinfo
+   * @param typeInfo
    *          type of the input
    * @return the size of this datatype
    **/
@@ -695,7 +691,7 @@ public class GroupByOperator extends Operator<GroupByDesc> implements
         }
       }
 
-      // update non-distinct value aggregations: 'VALUE._colx'
+      // update non-distinct groupby key or value aggregations: 'KEY._COLx or VALUE._colx'
       // these aggregations should be updated only once.
       if (unionTag == 0) {
         for (int pos : nonDistinctAggrs) {
@@ -1112,12 +1108,6 @@ public class GroupByOperator extends Operator<GroupByDesc> implements
   public void closeOp(boolean abort) throws HiveException {
     if (!abort) {
       try {
-        // put the hash related stats in statsMap if applicable, so that they
-        // are sent to jt as counters
-        if (hashAggr && counterNameToEnum != null) {
-          incrCounter(counterNameHashOut, numRowsHashTbl);
-        }
-
         // If there is no grouping key and no row came to this operator
         if (firstRow && (keyFields.length == 0)) {
           firstRow = false;
@@ -1151,13 +1141,6 @@ public class GroupByOperator extends Operator<GroupByDesc> implements
         throw new HiveException(e);
       }
     }
-  }
-
-  @Override
-  protected List<String> getAdditionalCounters() {
-    List<String> ctrList = new ArrayList<String>();
-    ctrList.add(getWrappedCounterName(counterNameHashOut));
-    return ctrList;
   }
 
   // Group by contains the columns needed - no need to aggregate from children

@@ -164,6 +164,8 @@ TOK_SHOW_TBLPROPERTIES;
 TOK_SHOWLOCKS;
 TOK_LOCKTABLE;
 TOK_UNLOCKTABLE;
+TOK_LOCKDB;
+TOK_UNLOCKDB;
 TOK_SWITCHDATABASE;
 TOK_DROPDATABASE;
 TOK_DROPTABLE;
@@ -178,6 +180,7 @@ TOK_TABLEROWFORMATFIELD;
 TOK_TABLEROWFORMATCOLLITEMS;
 TOK_TABLEROWFORMATMAPKEYS;
 TOK_TABLEROWFORMATLINES;
+TOK_TABLEROWFORMATNULL;
 TOK_TBLORCFILE;
 TOK_TBLSEQUENCEFILE;
 TOK_TBLTEXTFILE;
@@ -258,6 +261,7 @@ TOK_USER;
 TOK_GROUP;
 TOK_ROLE;
 TOK_GRANT_WITH_OPTION;
+TOK_GRANT_WITH_ADMIN_OPTION;
 TOK_PRIV_ALL;
 TOK_PRIV_ALTER_METADATA;
 TOK_PRIV_ALTER_DATA;
@@ -272,7 +276,9 @@ TOK_PRIV_OBJECT_COL;
 TOK_GRANT_ROLE;
 TOK_REVOKE_ROLE;
 TOK_SHOW_ROLE_GRANT;
+TOK_SHOW_ROLES;
 TOK_SHOWINDEXES;
+TOK_SHOWDBLOCKS;
 TOK_INDEXCOMMENT;
 TOK_DESCDATABASE;
 TOK_DATABASEPROPERTIES;
@@ -306,6 +312,8 @@ TOK_SUBQUERY_EXPR;
 TOK_SUBQUERY_OP;
 TOK_SUBQUERY_OP_NOTIN;
 TOK_SUBQUERY_OP_NOTEXISTS;
+TOK_DB_TYPE;
+TOK_TABLE_TYPE;
 }
 
 
@@ -378,7 +386,7 @@ import java.util.HashMap;
     xlateMap.put("KW_ALTER", "ALTER");
     xlateMap.put("KW_DESCRIBE", "DESCRIBE");
     xlateMap.put("KW_DROP", "DROP");
-    xlateMap.put("KW_REANME", "REANME");
+    xlateMap.put("KW_RENAME", "RENAME");
     xlateMap.put("KW_TO", "TO");
     xlateMap.put("KW_COMMENT", "COMMENT");
     xlateMap.put("KW_BOOLEAN", "BOOLEAN");
@@ -439,6 +447,7 @@ import java.util.HashMap;
     xlateMap.put("KW_PROPERTIES", "TBLPROPERTIES");
     xlateMap.put("KW_VALUE_TYPE", "\$VALUE\$");
     xlateMap.put("KW_ELEM_TYPE", "\$ELEM\$");
+    xlateMap.put("KW_DEFINED", "DEFINED");
 
     // Operators
     xlateMap.put("DOT", ".");
@@ -547,6 +556,13 @@ import java.util.HashMap;
     }
     return msg;
   }
+  
+  // counter to generate unique union aliases
+  private int aliasCounter;
+  
+  private String generateUnionAlias() {
+    return "_u" + (++aliasCounter);
+  }
 }
 
 @rulecatch {
@@ -572,7 +588,7 @@ explainStatement
 execStatement
 @init { msgs.push("statement"); }
 @after { msgs.pop(); }
-    : queryStatementExpression
+    : queryStatementExpression[true]
     | loadStatement
     | exportStatement
     | importStatement
@@ -624,12 +640,15 @@ ddlStatement
     | analyzeStatement
     | lockStatement
     | unlockStatement
+    | lockDatabase
+    | unlockDatabase
     | createRoleStatement
     | dropRoleStatement
     | grantPrivileges
     | revokePrivileges
     | showGrants
     | showRoleGrants
+    | showRoles
     | grantRole
     | revokeRole
     ;
@@ -749,7 +768,7 @@ createTableStatement
          tableFileFormat?
          tableLocation?
          tablePropertiesPrefixed?
-         (KW_AS selectStatement)?
+         (KW_AS selectStatement[true])?
       )
     -> ^(TOK_CREATETABLE $name $ext? ifNotExists?
          ^(TOK_LIKETABLE $likeName?)
@@ -893,7 +912,7 @@ alterViewStatementSuffix
         -> ^(TOK_ALTERVIEW_ADDPARTS alterStatementSuffixAddPartitions)
     | alterStatementSuffixDropPartitions
         -> ^(TOK_ALTERVIEW_DROPPARTS alterStatementSuffixDropPartitions)
-    | name=tableName KW_AS selectStatement
+    | name=tableName KW_AS selectStatement[true]
         -> ^(TOK_ALTERVIEW_AS $name selectStatement)
     ;
 
@@ -1231,12 +1250,13 @@ showStatement
     | KW_SHOW KW_COLUMNS (KW_FROM|KW_IN) tabname=tableName ((KW_FROM|KW_IN) db_name=identifier)? 
     -> ^(TOK_SHOWCOLUMNS $db_name? $tabname)
     | KW_SHOW KW_FUNCTIONS showStmtIdentifier?  -> ^(TOK_SHOWFUNCTIONS showStmtIdentifier?)
-    | KW_SHOW KW_PARTITIONS identifier partitionSpec? -> ^(TOK_SHOWPARTITIONS identifier partitionSpec?)
+    | KW_SHOW KW_PARTITIONS tabName=tableName partitionSpec? -> ^(TOK_SHOWPARTITIONS $tabName partitionSpec?) 
     | KW_SHOW KW_CREATE KW_TABLE tabName=tableName -> ^(TOK_SHOW_CREATETABLE $tabName)
     | KW_SHOW KW_TABLE KW_EXTENDED ((KW_FROM|KW_IN) db_name=identifier)? KW_LIKE showStmtIdentifier partitionSpec?
     -> ^(TOK_SHOW_TABLESTATUS showStmtIdentifier $db_name? partitionSpec?)
     | KW_SHOW KW_TBLPROPERTIES tblName=identifier (LPAREN prptyName=StringLiteral RPAREN)? -> ^(TOK_SHOW_TBLPROPERTIES $tblName $prptyName?)
     | KW_SHOW KW_LOCKS (parttype=partTypeExpr)? (isExtended=KW_EXTENDED)? -> ^(TOK_SHOWLOCKS $parttype? $isExtended?)
+    | KW_SHOW KW_LOCKS KW_DATABASE (dbName=Identifier) (isExtended=KW_EXTENDED)? -> ^(TOK_SHOWDBLOCKS $dbName $isExtended?)
     | KW_SHOW (showOptions=KW_FORMATTED)? (KW_INDEX|KW_INDEXES) KW_ON showStmtIdentifier ((KW_FROM|KW_IN) db_name=identifier)?
     -> ^(TOK_SHOWINDEXES showStmtIdentifier $showOptions? $db_name?)
     ;
@@ -1245,6 +1265,12 @@ lockStatement
 @init { msgs.push("lock statement"); }
 @after { msgs.pop(); }
     : KW_LOCK KW_TABLE tableName partitionSpec? lockMode -> ^(TOK_LOCKTABLE tableName lockMode partitionSpec?)
+    ;
+
+lockDatabase
+@init { msgs.push("lock database statement"); }
+@after { msgs.pop(); }
+    : KW_LOCK KW_DATABASE (dbName=Identifier) lockMode -> ^(TOK_LOCKDB $dbName lockMode)
     ;
 
 lockMode
@@ -1257,6 +1283,12 @@ unlockStatement
 @init { msgs.push("unlock statement"); }
 @after { msgs.pop(); }
     : KW_UNLOCK KW_TABLE tableName partitionSpec?  -> ^(TOK_UNLOCKTABLE tableName partitionSpec?)
+    ;
+
+unlockDatabase
+@init { msgs.push("unlock database statement"); }
+@after { msgs.pop(); }
+    : KW_UNLOCK KW_DATABASE (dbName=Identifier) -> ^(TOK_UNLOCKDB $dbName)
     ;
 
 createRoleStatement
@@ -1279,8 +1311,8 @@ grantPrivileges
     : KW_GRANT privList=privilegeList
       privilegeObject?
       KW_TO principalSpecification
-      (KW_WITH withOption)?
-    -> ^(TOK_GRANT $privList principalSpecification privilegeObject? withOption?)
+      withGrantOption?
+    -> ^(TOK_GRANT $privList principalSpecification privilegeObject? withGrantOption?)
     ;
 
 revokePrivileges
@@ -1293,15 +1325,15 @@ revokePrivileges
 grantRole
 @init {msgs.push("grant role");}
 @after {msgs.pop();}
-    : KW_GRANT KW_ROLE identifier (COMMA identifier)* KW_TO principalSpecification
-    -> ^(TOK_GRANT_ROLE principalSpecification identifier+)
+    : KW_GRANT KW_ROLE? identifier (COMMA identifier)* KW_TO principalSpecification withAdminOption?
+    -> ^(TOK_GRANT_ROLE principalSpecification withAdminOption? identifier+)
     ;
 
 revokeRole
 @init {msgs.push("revoke role");}
 @after {msgs.pop();}
-    : KW_REVOKE KW_ROLE identifier (COMMA identifier)* KW_FROM principalSpecification
-    -> ^(TOK_REVOKE_ROLE principalSpecification identifier+)
+    : KW_REVOKE KW_ROLE? identifier (COMMA identifier)* KW_FROM principalSpecification withAdminOption?
+    -> ^(TOK_REVOKE_ROLE principalSpecification withAdminOption? identifier+)
     ;
 
 showRoleGrants
@@ -1309,6 +1341,13 @@ showRoleGrants
 @after {msgs.pop();}
     : KW_SHOW KW_ROLE KW_GRANT principalName
     -> ^(TOK_SHOW_ROLE_GRANT principalName)
+    ;
+
+showRoles
+@init {msgs.push("show roles");}
+@after {msgs.pop();}
+    : KW_SHOW KW_ROLES
+    -> ^(TOK_SHOW_ROLES)
     ;
 
 showGrants
@@ -1321,16 +1360,26 @@ showGrants
 privilegeIncludeColObject
 @init {msgs.push("privilege object including columns");}
 @after {msgs.pop();}
-    : KW_ON (table=KW_TABLE|KW_DATABASE) identifier (LPAREN cols=columnNameList RPAREN)? partitionSpec?
-    -> ^(TOK_PRIV_OBJECT_COL identifier $table? $cols? partitionSpec?)
+    : KW_ON privObjectType identifier (LPAREN cols=columnNameList RPAREN)? partitionSpec?
+    -> ^(TOK_PRIV_OBJECT_COL identifier privObjectType $cols? partitionSpec?)
     ;
 
 privilegeObject
 @init {msgs.push("privilege subject");}
 @after {msgs.pop();}
-    : KW_ON (table=KW_TABLE|KW_DATABASE) identifier partitionSpec?
-    -> ^(TOK_PRIV_OBJECT identifier $table? partitionSpec?)
+    : KW_ON privObjectType identifier partitionSpec?
+    -> ^(TOK_PRIV_OBJECT identifier privObjectType partitionSpec?)
     ;
+
+
+// database or table type. Type is optional, default type is table
+privObjectType
+@init {msgs.push("privilege object type type");}
+@after {msgs.pop();}
+    : KW_DATABASE -> ^(TOK_DB_TYPE)
+    | KW_TABLE? -> ^(TOK_TABLE_TYPE)
+    ;
+
 
 privilegeList
 @init {msgs.push("grant privilege list");}
@@ -1374,11 +1423,18 @@ principalName
     | KW_ROLE identifier -> ^(TOK_ROLE identifier)
     ;
 
-withOption
-@init {msgs.push("grant with option");}
+withGrantOption
+@init {msgs.push("with grant option");}
 @after {msgs.pop();}
-    : KW_GRANT KW_OPTION
+    : KW_WITH KW_GRANT KW_OPTION
     -> ^(TOK_GRANT_WITH_OPTION)
+    ;
+
+withAdminOption
+@init {msgs.push("with admin option");}
+@after {msgs.pop();}
+    : KW_WITH KW_ADMIN KW_OPTION
+    -> ^(TOK_GRANT_WITH_ADMIN_OPTION)
     ;
 
 metastoreCheck
@@ -1426,7 +1482,7 @@ createViewStatement
         (LPAREN columnNameCommentList RPAREN)? tableComment? viewPartition?
         tablePropertiesPrefixed?
         KW_AS
-        selectStatement
+        selectStatement[true]
     -> ^(TOK_CREATEVIEW $name orReplace?
          ifNotExists?
          columnNameCommentList?
@@ -1520,8 +1576,8 @@ rowFormatDelimited
 @init { msgs.push("serde properties specification"); }
 @after { msgs.pop(); }
     :
-      KW_ROW KW_FORMAT KW_DELIMITED tableRowFormatFieldIdentifier? tableRowFormatCollItemsIdentifier? tableRowFormatMapKeysIdentifier? tableRowFormatLinesIdentifier?
-    -> ^(TOK_SERDEPROPS tableRowFormatFieldIdentifier? tableRowFormatCollItemsIdentifier? tableRowFormatMapKeysIdentifier? tableRowFormatLinesIdentifier?)
+      KW_ROW KW_FORMAT KW_DELIMITED tableRowFormatFieldIdentifier? tableRowFormatCollItemsIdentifier? tableRowFormatMapKeysIdentifier? tableRowFormatLinesIdentifier? tableRowNullFormat?
+    -> ^(TOK_SERDEPROPS tableRowFormatFieldIdentifier? tableRowFormatCollItemsIdentifier? tableRowFormatMapKeysIdentifier? tableRowFormatLinesIdentifier? tableRowNullFormat?)
     ;
 
 tableRowFormat
@@ -1603,6 +1659,13 @@ tableRowFormatLinesIdentifier
     -> ^(TOK_TABLEROWFORMATLINES $linesIdnt)
     ;
 
+tableRowNullFormat
+@init { msgs.push("table row format's null specifier"); }
+@after { msgs.pop(); }
+    :
+      KW_NULL KW_DEFINED KW_AS nullIdnt=StringLiteral
+    -> ^(TOK_TABLEROWFORMATNULL $nullIdnt)
+    ;
 tableFileFormat
 @init { msgs.push("table file format specification"); }
 @after { msgs.pop(); }
@@ -1810,45 +1873,75 @@ unionType
     : KW_UNIONTYPE LESSTHAN colTypeList GREATERTHAN -> ^(TOK_UNIONTYPE colTypeList)
     ;
 
-queryOperator
-@init { msgs.push("query operator"); }
+setOperator
+@init { msgs.push("set operator"); }
 @after { msgs.pop(); }
     : KW_UNION KW_ALL -> ^(TOK_UNION)
     ;
 
-// select statement select ... from ... where ... group by ... order by ...
-queryStatementExpression
-    : queryStatement (queryOperator^ queryStatement)*
+queryStatementExpression[boolean topLevel]
+    :
+    fromStatement[topLevel]
+    | regularBody[topLevel]
     ;
+    
+fromStatement[boolean topLevel]
+: (singleFromStatement  -> singleFromStatement)
+	(u=setOperator r=singleFromStatement
+	  -> ^($u {$fromStatement.tree} $r)
+	)*
+	 -> {u != null && topLevel}? ^(TOK_QUERY
+	       ^(TOK_FROM
+	         ^(TOK_SUBQUERY
+	           {$fromStatement.tree}
+	            {adaptor.create(Identifier, generateUnionAlias())}
+	           )
+	        )
+	       ^(TOK_INSERT 
+	          ^(TOK_DESTINATION ^(TOK_DIR TOK_TMP_FILE))
+	          ^(TOK_SELECT ^(TOK_SELEXPR TOK_ALLCOLREF))
+	        )
+	      )
+    -> {$fromStatement.tree}
+	;
 
-queryStatement
+
+singleFromStatement
     :
     fromClause
     ( b+=body )+ -> ^(TOK_QUERY fromClause body+)
-    | regular_body
     ;
 
-regular_body
+regularBody[boolean topLevel]
    :
-   insertClause
-   selectClause
-   fromClause
-   whereClause?
-   groupByClause?
-   havingClause?
-   orderByClause?
-   clusterByClause?
-   distributeByClause?
-   sortByClause?
-   window_clause?
-   limitClause? -> ^(TOK_QUERY fromClause ^(TOK_INSERT insertClause
-                     selectClause whereClause? groupByClause? havingClause? orderByClause? clusterByClause?
-                     distributeByClause? sortByClause? window_clause? limitClause?))
+   i=insertClause
+   s=selectStatement[topLevel]
+     {$s.tree.getChild(1).replaceChildren(0, 0, $i.tree);} -> {$s.tree}
    |
-   selectStatement
+   selectStatement[topLevel]
    ;
 
-selectStatement
+ selectStatement[boolean topLevel]
+ : (singleSelectStatement -> singleSelectStatement)
+   (u=setOperator b=singleSelectStatement
+       -> ^($u {$selectStatement.tree} $b)
+   )*
+   -> {u != null && topLevel}? ^(TOK_QUERY
+         ^(TOK_FROM
+           ^(TOK_SUBQUERY
+             {$selectStatement.tree}
+              {adaptor.create(Identifier, generateUnionAlias())}
+             )
+          )
+         ^(TOK_INSERT 
+            ^(TOK_DESTINATION ^(TOK_DIR TOK_TMP_FILE))
+            ^(TOK_SELECT ^(TOK_SELEXPR TOK_ALLCOLREF))
+          )
+        )
+    -> {$selectStatement.tree}
+ ;
+
+singleSelectStatement
    :
    selectClause
    fromClause
@@ -1864,7 +1957,6 @@ selectStatement
                      selectClause whereClause? groupByClause? havingClause? orderByClause? clusterByClause?
                      distributeByClause? sortByClause? window_clause? limitClause?))
    ;
-
 
 body
    :

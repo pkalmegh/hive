@@ -42,8 +42,6 @@ import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.Partition;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.session.SessionState;
-import org.apache.hadoop.hive.ql.session.SessionState.LogHelper;
-import org.apache.hadoop.hive.shims.ShimLoader;
 
 /**
  * Format table and index information for human readability using
@@ -130,7 +128,7 @@ class TextMetaDataFormatter implements MetaDataFormatter {
           } else {
             output = MetaDataFormatUtils.getAllColumnsInformation(cols, isFormatted);
           }
-          outStream.write(output.getBytes());
+          outStream.write(output.getBytes("UTF-8"));
 
           if (tableName.equals(colPath)) {
             if (isFormatted) {
@@ -139,7 +137,7 @@ class TextMetaDataFormatter implements MetaDataFormatter {
               } else {
                 output = MetaDataFormatUtils.getTableInformation(tbl);
               }
-              outStream.write(output.getBytes());
+              outStream.write(output.getBytes("UTF-8"));
             }
 
           // if extended desc table then show the complete details of the table
@@ -150,7 +148,7 @@ class TextMetaDataFormatter implements MetaDataFormatter {
                 // show partition information
                 outStream.writeBytes("Detailed Partition Information");
                 outStream.write(separator);
-                outStream.write(part.getTPartition().toString().getBytes());
+                outStream.write(part.getTPartition().toString().getBytes("UTF-8"));
                 outStream.write(separator);
                 // comment column is empty
                 outStream.write(terminator);
@@ -158,7 +156,7 @@ class TextMetaDataFormatter implements MetaDataFormatter {
                 // show table information
                 outStream.writeBytes("Detailed Table Information");
                 outStream.write(separator);
-                outStream.write(tbl.getTTable().toString().getBytes());
+                outStream.write(tbl.getTTable().toString().getBytes("UTF-8"));
                 outStream.write(separator);
                 outStream.write(terminator);
               }
@@ -443,7 +441,7 @@ class TextMetaDataFormatter implements MetaDataFormatter {
             outStream.writeBytes(database);
             outStream.write(separator);
             if (comment != null) {
-              outStream.write(comment.getBytes());
+              outStream.write(comment.getBytes("UTF-8"));
             }
             outStream.write(separator);
             if (location != null) {

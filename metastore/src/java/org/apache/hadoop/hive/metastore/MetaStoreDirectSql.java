@@ -24,7 +24,10 @@ import static org.apache.commons.lang.StringUtils.repeat;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -54,6 +57,7 @@ import org.apache.hadoop.hive.metastore.parser.ExpressionTree.LogicalOperator;
 import org.apache.hadoop.hive.metastore.parser.ExpressionTree.Operator;
 import org.apache.hadoop.hive.metastore.parser.ExpressionTree.TreeNode;
 import org.apache.hadoop.hive.metastore.parser.ExpressionTree.TreeVisitor;
+import org.apache.hadoop.hive.metastore.parser.FilterLexer;
 import org.apache.hadoop.hive.serde.serdeConstants;
 
 /**
@@ -715,6 +719,36 @@ class MetaStoreDirectSql {
       return filterBuffer.hasError();
     }
 
+    private static enum FilterType {
+      Integral,
+      String,
+      Date,
+
+      Invalid;
+
+      static FilterType fromType(String colTypeStr) {
+        if (colTypeStr.equals(serdeConstants.STRING_TYPE_NAME)) {
+          return FilterType.String;
+        } else if (colTypeStr.equals(serdeConstants.DATE_TYPE_NAME)) {
+          return FilterType.Date;
+        } else if (serdeConstants.IntegralTypes.contains(colTypeStr)) {
+          return FilterType.Integral;
+        }
+        return FilterType.Invalid;
+      }
+
+      public static FilterType fromClass(Object value) {
+        if (value instanceof String) {
+          return FilterType.String;
+        } else if (value instanceof Long) {
+          return FilterType.Integral;
+        } else if (value instanceof java.sql.Date) {
+          return FilterType.Date;
+        }
+        return FilterType.Invalid;
+      }
+    }
+
     @Override
     public void visit(LeafNode node) throws MetaException {
       if (node.operator == Operator.LIKE) {
@@ -726,27 +760,38 @@ class MetaStoreDirectSql {
       if (filterBuffer.hasError()) return;
 
       // We skipped 'like', other ops should all work as long as the types are right.
-      String colType = table.getPartitionKeys().get(partColIndex).getType();
-      boolean isStringCol = colType.equals(serdeConstants.STRING_TYPE_NAME);
-      if (!isStringCol && !serdeConstants.IntegralTypes.contains(colType)) {
-        filterBuffer.setError("Filter pushdown is only supported for string or integral columns");
+      String colTypeStr = table.getPartitionKeys().get(partColIndex).getType();
+      FilterType colType = FilterType.fromType(colTypeStr);
+      if (colType == FilterType.Invalid) {
+        filterBuffer.setError("Filter pushdown not supported for type " + colTypeStr);
+        return;
+      }
+      FilterType valType = FilterType.fromClass(node.value);
+      Object nodeValue = node.value;
+      if (valType == FilterType.Invalid) {
+        filterBuffer.setError("Filter pushdown not supported for value " + node.value.getClass());
         return;
       }
 
-      boolean isStringVal = node.value instanceof String;
-      if (!isStringVal && !(node.value instanceof Long)) {
-        filterBuffer.setError("Filter pushdown is only supported for string or integral values");
-        return;
-      } else if (isStringCol != isStringVal) {
+      // TODO: if Filter.g does date parsing for quoted strings, we'd need to verify there's no
+      //       type mismatch when string col is filtered by a string that looks like date.
+      if (colType == FilterType.Date && valType == FilterType.String) {
+        // TODO: Filter.g cannot parse a quoted date; try to parse date here too.
+        try {
+          nodeValue = new java.sql.Date(
+              HiveMetaStore.PARTITION_DATE_FORMAT.parse((String)nodeValue).getTime());
+          valType = FilterType.Date;
+        } catch (ParseException pe) { // do nothing, handled below - types will mismatch
+        }
+      }
+
+      if (colType != valType) {
         // It's not clear how filtering for e.g. "stringCol > 5" should work (which side is
         // to be coerced?). Let the expression evaluation sort this one out, not metastore.
         filterBuffer.setError("Cannot push down filter for "
-            + (isStringCol ? "string" : "integral") + " column and value " + node.value);
+            + colTypeStr + " column and value " + nodeValue.getClass());
         return;
       }
-
-      // Force string-based handling in some cases to be compatible with JDO pushdown.
-      boolean forceStringEq = !isStringCol && node.canJdoUseStringsWithIntegral();
 
       if (joins.isEmpty()) {
         // There's a fixed number of partition cols that we might have filters on. To avoid
@@ -758,23 +803,35 @@ class MetaStoreDirectSql {
         }
       }
       if (joins.get(partColIndex) == null) {
-        joins.set(partColIndex, "inner join \"PARTITION_KEY_VALS\" as \"FILTER" + partColIndex
+        joins.set(partColIndex, "inner join \"PARTITION_KEY_VALS\" \"FILTER" + partColIndex
             + "\" on \"FILTER"  + partColIndex + "\".\"PART_ID\" = \"PARTITIONS\".\"PART_ID\""
             + " and \"FILTER" + partColIndex + "\".\"INTEGER_IDX\" = " + partColIndex);
       }
 
       // Build the filter and add parameters linearly; we are traversing leaf nodes LTR.
       String tableValue = "\"FILTER" + partColIndex + "\".\"PART_KEY_VAL\"";
-      if (!isStringCol && !forceStringEq) {
+      if (node.isReverseOrder) {
+        params.add(nodeValue);
+      }
+      if (colType != FilterType.String) {
         // The underlying database field is varchar, we need to compare numbers.
-        tableValue = "cast(" + tableValue + " as decimal(21,0))";
+        // Note that this won't work with __HIVE_DEFAULT_PARTITION__. It will fail and fall
+        // back to JDO. That is by design; we could add an ugly workaround here but didn't.
+        if (colType == FilterType.Integral) {
+          tableValue = "cast(" + tableValue + " as decimal(21,0))";
+        } else if (colType == FilterType.Date) {
+          tableValue = "cast(" + tableValue + " as date)";
+        }
+
         // This is a workaround for DERBY-6358; as such, it is pretty horrible.
         tableValue = "(case when \"TBLS\".\"TBL_NAME\" = ? and \"DBS\".\"NAME\" = ? then "
           + tableValue + " else null end)";
         params.add(table.getTableName().toLowerCase());
         params.add(table.getDbName().toLowerCase());
       }
-      params.add(forceStringEq ? node.value.toString() : node.value);
+      if (!node.isReverseOrder) {
+        params.add(nodeValue);
+      }
 
       filterBuffer.append(node.isReverseOrder
           ? "(? " + node.operator.getSqlOp() + " " + tableValue + ")"

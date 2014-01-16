@@ -223,6 +223,9 @@ public class HiveConf extends Configuration {
     // ignore the mapjoin hint
     HIVEIGNOREMAPJOINHINT("hive.ignore.mapjoin.hint", true),
 
+    // Max number of lines of footer user can set for a table file.
+    HIVE_FILE_MAX_FOOTER("hive.file.max.footer", 100),
+
     // Hadoop Configuration Properties
     // Properties with null values are ignored and exist only for the purpose of giving us
     // a symbolic name to reference in the Hive source code. Properties with non-null
@@ -340,6 +343,9 @@ public class HiveConf extends Configuration {
     METASTORE_EXECUTE_SET_UGI("hive.metastore.execute.setugi", false),
     METASTORE_PARTITION_NAME_WHITELIST_PATTERN(
         "hive.metastore.partition.name.whitelist.pattern", ""),
+    // Whether to enable integral JDO pushdown. For partition columns storing integers
+    // in non-canonical form, (e.g. '012'), it may not work, so it's off by default.
+    METASTORE_INTEGER_JDO_PUSHDOWN("hive.metastore.integral.jdo.pushdown", false),
     METASTORE_TRY_DIRECT_SQL("hive.metastore.try.direct.sql", true),
     METASTORE_TRY_DIRECT_SQL_DDL("hive.metastore.try.direct.sql.ddl", true),
     METASTORE_DISALLOW_INCOMPATIBLE_COL_TYPE_CHANGES(
@@ -514,6 +520,10 @@ public class HiveConf extends Configuration {
 
     HIVE_ORC_DICTIONARY_KEY_SIZE_THRESHOLD("hive.exec.orc.dictionary.key.size.threshold", 0.8f),
 
+    HIVE_ORC_INCLUDE_FILE_FOOTER_IN_SPLITS("hive.orc.splits.include.file.footer", false),
+    HIVE_ORC_CACHE_STRIPE_DETAILS_SIZE("hive.orc.cache.stripe.details.size", 10000),
+    HIVE_ORC_COMPUTE_SPLITS_NUM_THREADS("hive.orc.compute.splits.num.threads", 10),
+
     HIVESKEWJOIN("hive.optimize.skewjoin", false),
     HIVECONVERTJOIN("hive.auto.convert.join", true),
     HIVECONVERTJOINNOCONDITIONALTASK("hive.auto.convert.join.noconditionaltask", true),
@@ -537,8 +547,6 @@ public class HiveConf extends Configuration {
     HIVEHASHTABLESCALE("hive.mapjoin.check.memory.rows", (long)100000),
 
     HIVEDEBUGLOCALTASK("hive.debug.localtask",false),
-
-    HIVEJOBPROGRESS("hive.task.progress", false),
 
     HIVEINPUTFORMAT("hive.input.format", "org.apache.hadoop.hive.ql.io.CombineHiveInputFormat"),
 
@@ -603,8 +611,8 @@ public class HiveConf extends Configuration {
 
     // Statistics
     HIVESTATSAUTOGATHER("hive.stats.autogather", true),
-    HIVESTATSDBCLASS("hive.stats.dbclass",
-        "jdbc:derby"), // other options are jdbc:mysql and hbase as defined in StatsSetupConst.java
+    HIVESTATSDBCLASS("hive.stats.dbclass", "counter",
+        new PatternValidator("jdbc(:.*)", "hbase", "counter", "custom")), // StatsSetupConst.StatDB
     HIVESTATSJDBCDRIVER("hive.stats.jdbcdriver",
         "org.apache.derby.jdbc.EmbeddedDriver"), // JDBC driver specific to the dbclass
     HIVESTATSDBCONNECTIONSTRING("hive.stats.dbconnectionstring",
@@ -635,6 +643,28 @@ public class HiveConf extends Configuration {
     HIVE_STATS_NDV_ERROR("hive.stats.ndv.error", (float)20.0),
     HIVE_STATS_KEY_PREFIX_MAX_LENGTH("hive.stats.key.prefix.max.length", 150),
     HIVE_STATS_KEY_PREFIX("hive.stats.key.prefix", ""), // internal usage only
+    // if length of variable length data type cannot be determined this length will be used.
+    HIVE_STATS_MAX_VARIABLE_LENGTH("hive.stats.max.variable.length", 100),
+    // if number of elements in list cannot be determined, this value will be used
+    HIVE_STATS_LIST_NUM_ENTRIES("hive.stats.list.num.entries", 10),
+    // if number of elements in map cannot be determined, this value will be used
+    HIVE_STATS_MAP_NUM_ENTRIES("hive.stats.map.num.entries", 10),
+    // to accurately compute statistics for GROUPBY map side parallelism needs to be known
+    HIVE_STATS_MAP_SIDE_PARALLELISM("hive.stats.map.parallelism", 1),
+    // statistics annotation fetches column statistics for all required columns and for all
+    // required partitions which can be very expensive sometimes
+    HIVE_STATS_FETCH_COLUMN_STATS("hive.stats.fetch.column.stats", false),
+    // in the absence of table/partition stats, average row size will be used to
+    // estimate the number of rows/data size
+    HIVE_STATS_AVG_ROW_SIZE("hive.stats.avg.row.size", 10000),
+    // in the absence of column statistics, the estimated number of rows/data size that will
+    // emitted from join operator will depend on t factor
+    HIVE_STATS_JOIN_FACTOR("hive.stats.join.factor", (float) 1.1),
+    // in the absence of uncompressed/raw data size, total file size will be used for statistics
+    // annotation. But the file may be compressed, encoded and serialized which may be lesser in size
+    // than the actual uncompressed/raw data size. This factor will be multiplied to file size to estimate
+    // the raw data size.
+    HIVE_STATS_DESERIALIZATION_FACTOR("hive.stats.deserialization.factor", (float) 1.0),
 
     // Concurrency
     HIVE_SUPPORT_CONCURRENCY("hive.support.concurrency", false),
@@ -682,7 +712,6 @@ public class HiveConf extends Configuration {
     HIVECONFVALIDATION("hive.conf.validation", true),
 
     SEMANTIC_ANALYZER_HOOK("hive.semantic.analyzer.hook", ""),
-
     HIVE_AUTHORIZATION_ENABLED("hive.security.authorization.enabled", false),
     HIVE_AUTHORIZATION_MANAGER("hive.security.authorization.manager",
         "org.apache.hadoop.hive.ql.security.authorization.DefaultHiveAuthorizationProvider"),
@@ -741,6 +770,9 @@ public class HiveConf extends Configuration {
     HIVE_DDL_OUTPUT_FORMAT("hive.ddl.output.format", null),
     HIVE_ENTITY_SEPARATOR("hive.entity.separator", "@"),
 
+    HIVE_SERVER2_MAX_START_ATTEMPTS("hive.server2.max.start.attempts", 30L,
+        new LongRangeValidator(0L, Long.MAX_VALUE)),
+
     // binary or http
     HIVE_SERVER2_TRANSPORT_MODE("hive.server2.transport.mode", "binary",
         new StringsValidator("binary", "http")),
@@ -763,7 +795,7 @@ public class HiveConf extends Configuration {
     // Number of async threads
     HIVE_SERVER2_ASYNC_EXEC_THREADS("hive.server2.async.exec.threads", 100),
     // Number of seconds HiveServer2 shutdown will wait for async threads to terminate
-    HIVE_SERVER2_ASYNC_EXEC_SHUTDOWN_TIMEOUT("hive.server2.async.exec.shutdown.timeout", 10L),
+    HIVE_SERVER2_ASYNC_EXEC_SHUTDOWN_TIMEOUT("hive.server2.async.exec.shutdown.timeout", 10),
     // Size of the wait queue for async thread pool in HiveServer2.
     // After hitting this limit, the async thread pool will reject new requests.
     HIVE_SERVER2_ASYNC_EXEC_WAIT_QUEUE_SIZE("hive.server2.async.exec.wait.queue.size", 100),
@@ -831,14 +863,37 @@ public class HiveConf extends Configuration {
     // Whether to show the unquoted partition names in query results.
     HIVE_DECODE_PARTITION_NAME("hive.decode.partition.name", false),
 
-    //Vectorization enabled
+    HIVE_EXECUTION_ENGINE("hive.execution.engine", "mr",
+        new StringsValidator("mr", "tez")),
+    HIVE_JAR_DIRECTORY("hive.jar.directory", "hdfs:///user/hive/"),
+    HIVE_USER_INSTALL_DIR("hive.user.install.directory", "hdfs:///user/"),
+
+    // Vectorization enabled
     HIVE_VECTORIZATION_ENABLED("hive.vectorized.execution.enabled", false),
+    HIVE_VECTORIZATION_GROUPBY_CHECKINTERVAL("hive.vectorized.groupby.checkinterval", 100000),
+    HIVE_VECTORIZATION_GROUPBY_MAXENTRIES("hive.vectorized.groupby.maxentries", 1000000),
+    HIVE_VECTORIZATION_GROUPBY_FLUSH_PERCENT("hive.vectorized.groupby.flush.percent", (float) 0.1),
+    
 
     HIVE_TYPE_CHECK_ON_INSERT("hive.typecheck.on.insert", true),
+
+    // Whether to send the query plan via local resource or RPC
+    HIVE_RPC_QUERY_PLAN("hive.rpc.query.plan", false),
+
+    // Whether to generate the splits locally or in the AM (tez only)
+    HIVE_AM_SPLIT_GENERATION("hive.compute.splits.in.am", true),
 
     // none, idonly, traverse, execution
     HIVESTAGEIDREARRANGE("hive.stageid.rearrange", "none"),
     HIVEEXPLAINDEPENDENCYAPPENDTASKTYPES("hive.explain.dependency.append.tasktype", false),
+
+    HIVECOUNTERGROUP("hive.counters.group.name", "HIVE"),
+    
+    // none, column
+    // none is the default(past) behavior. Implies only alphaNumeric and underscore are valid characters in identifiers.
+    // column: implies column names can contain any character.
+    HIVE_QUOTEDID_SUPPORT("hive.support.quoted.identifiers", "column",
+        new PatternValidator("none", "column"))
     ;
 
     public final String varname;
@@ -1214,14 +1269,7 @@ public class HiveConf extends Configuration {
     }
 
     // setup list of conf vars that are not allowed to change runtime
-    String restrictListStr = this.get(ConfVars.HIVE_CONF_RESTRICTED_LIST.toString(), "").trim();
-    for (String entry : restrictListStr.split(",")) {
-      entry = entry.trim();
-      if (!entry.isEmpty()) {
-        restrictList.add(entry);
-      }
-    }
-    restrictList.add(ConfVars.HIVE_CONF_RESTRICTED_LIST.toString());
+    setupRestrictList();
   }
 
 
@@ -1304,7 +1352,11 @@ public class HiveConf extends Configuration {
     return hiveDefaultURL;
   }
 
-  public URL getHiveSiteLocation() {
+  public static void setHiveSiteLocation(URL location) {
+    hiveSiteURL = location;
+  }
+
+  public static URL getHiveSiteLocation() {
     return hiveSiteURL;
   }
 
@@ -1359,6 +1411,53 @@ public class HiveConf extends Configuration {
     }
   }
 
+  public static class LongRangeValidator implements Validator {
+    private final long lower, upper;
+
+    public LongRangeValidator(long lower, long upper) {
+      this.lower = lower;
+      this.upper = upper;
+    }
+
+    @Override
+    public String validate(String value) {
+      try {
+        if(value == null) {
+          return "Value cannot be null";
+        }
+        value = value.trim();
+        long lvalue = Long.parseLong(value);
+        if (lvalue < lower || lvalue > upper) {
+          return "Invalid value  " + value + ", which should be in between " + lower + " and " + upper;
+        }
+      } catch (NumberFormatException e) {
+        return e.toString();
+      }
+      return null;
+    }
+  }
+
+  public static class PatternValidator implements Validator {
+    private final List<Pattern> expected = new ArrayList<Pattern>();
+    private PatternValidator(String... values) {
+      for (String value : values) {
+        expected.add(Pattern.compile(value));
+      }
+    }
+    @Override
+    public String validate(String value) {
+      if (value == null) {
+        return "Invalid value.. expects one of patterns " + expected;
+      }
+      for (Pattern pattern : expected) {
+        if (pattern.matcher(value).matches()) {
+          return null;
+        }
+      }
+      return "Invalid value.. expects one of patterns " + expected;
+    }
+  }
+
   public static class RatioValidator implements Validator {
     @Override
     public String validate(String value) {
@@ -1372,5 +1471,37 @@ public class HiveConf extends Configuration {
       }
       return null;
     }
+  }
+
+  /**
+   * Append comma separated list of config vars to the restrict List
+   * @param restrictListStr
+   */
+  public void addToRestrictList(String restrictListStr) {
+    if (restrictListStr == null) {
+      return;
+    }
+    String oldList = this.getVar(ConfVars.HIVE_CONF_RESTRICTED_LIST);
+    if (oldList == null || oldList.isEmpty()) {
+      this.setVar(ConfVars.HIVE_CONF_RESTRICTED_LIST, restrictListStr);
+    } else {
+      this.setVar(ConfVars.HIVE_CONF_RESTRICTED_LIST, oldList + "," + restrictListStr);
+    }
+    setupRestrictList();
+  }
+
+  /**
+   * Add the HIVE_CONF_RESTRICTED_LIST values to restrictList,
+   * including HIVE_CONF_RESTRICTED_LIST itself
+   */
+  private void setupRestrictList() {
+    String restrictListStr = this.getVar(ConfVars.HIVE_CONF_RESTRICTED_LIST);
+    restrictList.clear();
+    if (restrictListStr != null) {
+      for (String entry : restrictListStr.split(",")) {
+        restrictList.add(entry.trim());
+      }
+    }
+    restrictList.add(ConfVars.HIVE_CONF_RESTRICTED_LIST.toString());
   }
 }

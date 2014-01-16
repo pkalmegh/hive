@@ -388,7 +388,6 @@ STAGE PLANS:
     Fetch Operator
       limit: -1
 
-
 PREHOOK: query: explain
 select count(*), count(1), count(s), count(bo), count(bin), count(si), max(i), min(b) from stats_tbl_part
 PREHOOK: type: QUERY
@@ -545,7 +544,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: analyze table stats_tbl compute statistics for columns t,si,i,b,f,d,bo,s,bin
 PREHOOK: type: QUERY
@@ -822,7 +820,6 @@ STAGE PLANS:
     Fetch Operator
       limit: 1
 
-
 PREHOOK: query: select count(*), count(1), count(s), count(bo), count(bin), count(si), max(i), min(b), max(f), min(d) from stats_tbl
 PREHOOK: type: QUERY
 #### A masked pattern was here ####
@@ -935,7 +932,6 @@ STAGE PLANS:
     Fetch Operator
       limit: 1
 
-
 PREHOOK: query: select count(*), count(1), count(s), count(bo), count(bin), count(si), max(i), min(b), max(f), min(d) from stats_tbl_part
 PREHOOK: type: QUERY
 #### A masked pattern was here ####
@@ -986,7 +982,7 @@ POSTHOOK: Lineage: stats_tbl_part PARTITION(dt=2012).s SIMPLE [(over10k)over10k.
 POSTHOOK: Lineage: stats_tbl_part PARTITION(dt=2012).si SIMPLE [(over10k)over10k.FieldSchema(name:si, type:smallint, comment:null), ]
 POSTHOOK: Lineage: stats_tbl_part PARTITION(dt=2012).t SIMPLE [(over10k)over10k.FieldSchema(name:t, type:tinyint, comment:null), ]
 POSTHOOK: Lineage: stats_tbl_part PARTITION(dt=2012).ts SIMPLE [(over10k)over10k.FieldSchema(name:ts, type:timestamp, comment:null), ]
-9486	9486	9486	9486	9486	9486	65791	0	99.9800033569336	0.0
+9489	9489	9489	9489	9489	9489	65791	0	99.9800033569336	0.0
 PREHOOK: query: explain select count(ts) from stats_tbl_part
 PREHOOK: type: QUERY
 POSTHOOK: query: explain select count(ts) from stats_tbl_part
@@ -1089,7 +1085,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: drop table stats_tbl
 PREHOOK: type: DROPTABLE

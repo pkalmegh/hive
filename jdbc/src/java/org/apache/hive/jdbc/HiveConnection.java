@@ -27,6 +27,7 @@ import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
 import java.sql.NClob;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLClientInfoException;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
@@ -41,6 +42,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 import javax.security.sasl.Sasl;
 import javax.security.sasl.SaslException;
@@ -91,15 +93,16 @@ public class HiveConnection implements java.sql.Connection {
   private final Map<String, String> hiveVarMap;
   private final boolean isEmbeddedMode;
   private TTransport transport;
-  private TCLIService.Iface client;
+  private TCLIService.Iface client;   // todo should be replaced by CliServiceClient
   private boolean isClosed = true;
   private SQLWarning warningChain = null;
   private TSessionHandle sessHandle = null;
   private final List<TProtocolVersion> supportedProtocols = new LinkedList<TProtocolVersion>();
   private int loginTimeout = 0;
+  private TProtocolVersion protocol;
 
   public HiveConnection(String uri, Properties info) throws SQLException {
-    loginTimeout = DriverManager.getLoginTimeout();
+    setupLoginTimeout();
     jdbcURI = uri;
     // parse the connection uri
     Utils.JdbcConnectionParams connParams = Utils.parseURL(jdbcURI);
@@ -135,17 +138,17 @@ public class HiveConnection implements java.sql.Connection {
     supportedProtocols.add(TProtocolVersion.HIVE_CLI_SERVICE_PROTOCOL_V2);
     supportedProtocols.add(TProtocolVersion.HIVE_CLI_SERVICE_PROTOCOL_V3);
     supportedProtocols.add(TProtocolVersion.HIVE_CLI_SERVICE_PROTOCOL_V4);
+    supportedProtocols.add(TProtocolVersion.HIVE_CLI_SERVICE_PROTOCOL_V5);
+    supportedProtocols.add(TProtocolVersion.HIVE_CLI_SERVICE_PROTOCOL_V6);
 
     // open client session
     openSession();
 
-    configureConnection();
+    configureConnection(connParams.getDbName());
   }
 
   private void openTransport() throws SQLException {
-    transport = isHttpTransportMode() ?
-        createHttpTransport() :
-          createBinaryTransport();
+    transport = isHttpTransportMode() ? createHttpTransport() : createBinaryTransport();
     TProtocol protocol = new TBinaryProtocol(transport);
     client = new TCLIService.Client(protocol);
     try {
@@ -267,15 +270,17 @@ public class HiveConnection implements java.sql.Connection {
       if (!supportedProtocols.contains(openResp.getServerProtocolVersion())) {
         throw new TException("Unsupported Hive2 protocol");
       }
+      protocol = openResp.getServerProtocolVersion();
       sessHandle = openResp.getSessionHandle();
     } catch (TException e) {
+      e.printStackTrace();
       throw new SQLException("Could not establish connection to "
           + jdbcURI + ": " + e.getMessage(), " 08S01", e);
     }
     isClosed = false;
   }
 
-  private void configureConnection() throws SQLException {
+  private void configureConnection(String dbName) throws SQLException {
     // set the hive variable in session state for local mode
     if (isEmbeddedMode) {
       if (!hiveVarMap.isEmpty()) {
@@ -292,6 +297,8 @@ public class HiveConnection implements java.sql.Connection {
       for (Entry<String, String> hiveVar : hiveVarMap.entrySet()) {
         stmt.execute("set hivevar:" + hiveVar.getKey() + "=" + hiveVar.getValue());
       }
+      if(dbName!=null)
+        stmt.execute("use "+dbName);
       stmt.close();
     }
   }
@@ -323,6 +330,16 @@ public class HiveConnection implements java.sql.Connection {
       varValue = varDefault;
     }
     return varValue;
+  }
+
+  // copy loginTimeout from driver manager. Thrift timeout needs to be in millis
+  private void setupLoginTimeout() {
+    long timeOut = TimeUnit.SECONDS.toMillis(DriverManager.getLoginTimeout());
+    if (timeOut > Integer.MAX_VALUE) {
+      loginTimeout = Integer.MAX_VALUE;
+    } else {
+      loginTimeout = (int) timeOut;
+    }
   }
 
   public void abort(Executor executor) throws SQLException {
@@ -452,8 +469,16 @@ public class HiveConnection implements java.sql.Connection {
 
   public Statement createStatement(int resultSetType, int resultSetConcurrency)
       throws SQLException {
-    // TODO Auto-generated method stub
-    throw new SQLException("Method not supported");
+    if (resultSetConcurrency != ResultSet.CONCUR_READ_ONLY) {
+      throw new SQLException("Statement with resultset concurrency " +
+          resultSetConcurrency + " is not supported", "HYC00"); // Optional feature not implemented
+    }
+    if (resultSetType == ResultSet.TYPE_SCROLL_SENSITIVE) {
+      throw new SQLException("Statement with resultset type " + resultSetType +
+          " is not supported", "HYC00"); // Optional feature not implemented
+    }
+    return new HiveStatement(this, client, sessHandle,
+        resultSetType == ResultSet.TYPE_SCROLL_INSENSITIVE);
   }
 
   /*
@@ -540,6 +565,9 @@ public class HiveConnection implements java.sql.Connection {
    */
 
   public DatabaseMetaData getMetaData() throws SQLException {
+    if (isClosed) {
+      throw new SQLException("Connection is closed");
+    }
     return new HiveDatabaseMetaData(this, client, sessHandle);
   }
 
@@ -908,4 +936,7 @@ public class HiveConnection implements java.sql.Connection {
     throw new SQLException("Method not supported");
   }
 
+  public TProtocolVersion getProtocol() {
+    return protocol;
+  }
 }

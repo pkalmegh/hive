@@ -36,7 +36,6 @@ STAGE PLANS:
             Limit
               ListSink
 
-
 PREHOOK: query: EXPLAIN EXTENDED SELECT SIGMOID(2) FROM src LIMIT 1
 PREHOOK: type: QUERY
 POSTHOOK: query: EXPLAIN EXTENDED SELECT SIGMOID(2) FROM src LIMIT 1
@@ -54,15 +53,20 @@ STAGE PLANS:
       Processor Tree:
         TableScan
           alias: src
+          Statistics:
+              numRows: 0 dataSize: 5812 basicStatsState: PARTIAL colStatsState: COMPLETE
           GatherStats: false
           Select Operator
             expressions:
                   expr: SIGMOID(2)
                   type: double
             outputColumnNames: _col0
+            Statistics:
+                numRows: 0 dataSize: 5812 basicStatsState: PARTIAL colStatsState: COMPLETE
             Limit
+              Statistics:
+                  numRows: 0 dataSize: 5812 basicStatsState: PARTIAL colStatsState: COMPLETE
               ListSink
-
 
 PREHOOK: query: DROP TEMPORARY MACRO SIGMOID
 PREHOOK: type: DROPMACRO
@@ -106,7 +110,6 @@ STAGE PLANS:
             Limit
               ListSink
 
-
 PREHOOK: query: EXPLAIN EXTENDED SELECT FIXED_NUMBER() + 1 FROM src LIMIT 1
 PREHOOK: type: QUERY
 POSTHOOK: query: EXPLAIN EXTENDED SELECT FIXED_NUMBER() + 1 FROM src LIMIT 1
@@ -124,15 +127,20 @@ STAGE PLANS:
       Processor Tree:
         TableScan
           alias: src
+          Statistics:
+              numRows: 0 dataSize: 5812 basicStatsState: PARTIAL colStatsState: COMPLETE
           GatherStats: false
           Select Operator
             expressions:
                   expr: (FIXED_NUMBER() + 1)
                   type: int
             outputColumnNames: _col0
+            Statistics:
+                numRows: 0 dataSize: 5812 basicStatsState: PARTIAL colStatsState: COMPLETE
             Limit
+              Statistics:
+                  numRows: 0 dataSize: 5812 basicStatsState: PARTIAL colStatsState: COMPLETE
               ListSink
-
 
 PREHOOK: query: DROP TEMPORARY MACRO FIXED_NUMBER
 PREHOOK: type: DROPMACRO
@@ -197,7 +205,6 @@ STAGE PLANS:
             Limit
               ListSink
 
-
 PREHOOK: query: EXPLAIN EXTENDED SELECT SIMPLE_ADD(1, 9) FROM src LIMIT 1
 PREHOOK: type: QUERY
 POSTHOOK: query: EXPLAIN EXTENDED SELECT SIMPLE_ADD(1, 9) FROM src LIMIT 1
@@ -215,15 +222,20 @@ STAGE PLANS:
       Processor Tree:
         TableScan
           alias: src
+          Statistics:
+              numRows: 0 dataSize: 5812 basicStatsState: PARTIAL colStatsState: COMPLETE
           GatherStats: false
           Select Operator
             expressions:
                   expr: SIMPLE_ADD(1, 9)
                   type: int
             outputColumnNames: _col0
+            Statistics:
+                numRows: 0 dataSize: 5812 basicStatsState: PARTIAL colStatsState: COMPLETE
             Limit
+              Statistics:
+                  numRows: 0 dataSize: 5812 basicStatsState: PARTIAL colStatsState: COMPLETE
               ListSink
-
 
 PREHOOK: query: DROP TEMPORARY MACRO SIMPLE_ADD
 PREHOOK: type: DROPMACRO

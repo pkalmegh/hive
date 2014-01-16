@@ -23,9 +23,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.Stack;
 
@@ -33,10 +35,23 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
-import org.apache.hadoop.hive.ql.exec.*;
+import org.apache.hadoop.hive.ql.exec.ColumnInfo;
+import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
+import org.apache.hadoop.hive.ql.exec.FilterOperator;
+import org.apache.hadoop.hive.ql.exec.GroupByOperator;
+import org.apache.hadoop.hive.ql.exec.MapJoinOperator;
+import org.apache.hadoop.hive.ql.exec.Operator;
+import org.apache.hadoop.hive.ql.exec.OperatorFactory;
+import org.apache.hadoop.hive.ql.exec.ReduceSinkOperator;
+import org.apache.hadoop.hive.ql.exec.SelectOperator;
+import org.apache.hadoop.hive.ql.exec.TableScanOperator;
+import org.apache.hadoop.hive.ql.exec.Task;
+import org.apache.hadoop.hive.ql.exec.UDF;
 import org.apache.hadoop.hive.ql.exec.mr.MapRedTask;
+import org.apache.hadoop.hive.ql.exec.tez.TezTask;
 import org.apache.hadoop.hive.ql.exec.vector.VectorExpressionDescriptor;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizationContext;
+import org.apache.hadoop.hive.ql.exec.vector.VectorizationContextRegion;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedInputFormatInterface;
 import org.apache.hadoop.hive.ql.lib.DefaultGraphWalker;
 import org.apache.hadoop.hive.ql.lib.DefaultRuleDispatcher;
@@ -53,31 +68,96 @@ import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.parse.RowResolver;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
-import org.apache.hadoop.hive.ql.plan.*;
+import org.apache.hadoop.hive.ql.plan.AbstractOperatorDesc;
+import org.apache.hadoop.hive.ql.plan.AggregationDesc;
+import org.apache.hadoop.hive.ql.plan.BaseWork;
+import org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc;
+import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
+import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc;
+import org.apache.hadoop.hive.ql.plan.MapJoinDesc;
+import org.apache.hadoop.hive.ql.plan.MapWork;
+import org.apache.hadoop.hive.ql.plan.OperatorDesc;
+import org.apache.hadoop.hive.ql.plan.PartitionDesc;
+import org.apache.hadoop.hive.ql.plan.TableScanDesc;
+import org.apache.hadoop.hive.ql.plan.TezWork;
 import org.apache.hadoop.hive.ql.plan.api.OperatorType;
-import org.apache.hadoop.hive.ql.udf.*;
+import org.apache.hadoop.hive.ql.udf.UDFAcos;
+import org.apache.hadoop.hive.ql.udf.UDFAsin;
+import org.apache.hadoop.hive.ql.udf.UDFAtan;
+import org.apache.hadoop.hive.ql.udf.UDFBin;
+import org.apache.hadoop.hive.ql.udf.UDFConv;
+import org.apache.hadoop.hive.ql.udf.UDFCos;
+import org.apache.hadoop.hive.ql.udf.UDFDayOfMonth;
+import org.apache.hadoop.hive.ql.udf.UDFDegrees;
+import org.apache.hadoop.hive.ql.udf.UDFExp;
+import org.apache.hadoop.hive.ql.udf.UDFHex;
+import org.apache.hadoop.hive.ql.udf.UDFHour;
+import org.apache.hadoop.hive.ql.udf.UDFLength;
+import org.apache.hadoop.hive.ql.udf.UDFLike;
+import org.apache.hadoop.hive.ql.udf.UDFLn;
+import org.apache.hadoop.hive.ql.udf.UDFLog;
+import org.apache.hadoop.hive.ql.udf.UDFLog10;
+import org.apache.hadoop.hive.ql.udf.UDFLog2;
+import org.apache.hadoop.hive.ql.udf.UDFMinute;
+import org.apache.hadoop.hive.ql.udf.UDFMonth;
+import org.apache.hadoop.hive.ql.udf.UDFRadians;
+import org.apache.hadoop.hive.ql.udf.UDFRand;
+import org.apache.hadoop.hive.ql.udf.UDFRegExp;
+import org.apache.hadoop.hive.ql.udf.UDFSecond;
+import org.apache.hadoop.hive.ql.udf.UDFSign;
+import org.apache.hadoop.hive.ql.udf.UDFSin;
+import org.apache.hadoop.hive.ql.udf.UDFSqrt;
+import org.apache.hadoop.hive.ql.udf.UDFSubstr;
+import org.apache.hadoop.hive.ql.udf.UDFTan;
+import org.apache.hadoop.hive.ql.udf.UDFToBoolean;
+import org.apache.hadoop.hive.ql.udf.UDFToByte;
+import org.apache.hadoop.hive.ql.udf.UDFToDouble;
+import org.apache.hadoop.hive.ql.udf.UDFToFloat;
+import org.apache.hadoop.hive.ql.udf.UDFToInteger;
+import org.apache.hadoop.hive.ql.udf.UDFToLong;
+import org.apache.hadoop.hive.ql.udf.UDFToShort;
+import org.apache.hadoop.hive.ql.udf.UDFToString;
+import org.apache.hadoop.hive.ql.udf.UDFWeekOfYear;
+import org.apache.hadoop.hive.ql.udf.UDFYear;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFAbs;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBetween;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBridge;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFCase;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFCeil;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFConcat;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFFloor;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIf;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIn;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFLTrim;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFLower;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPAnd;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPDivide;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrGreaterThan;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrLessThan;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPGreaterThan;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPLessThan;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPMinus;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPMod;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPMultiply;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPNegative;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPNot;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPNotEqual;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPNotNull;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPNull;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPOr;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPPositive;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFPower;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFRound;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPPlus;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFPosMod;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFRTrim;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFTimestamp;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFToUnixTimeStamp;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFTrim;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFUpper;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFWhen;
 
 public class Vectorizer implements PhysicalPlanResolver {
 
@@ -107,13 +187,13 @@ public class Vectorizer implements PhysicalPlanResolver {
     supportedDataTypes.add("float");
     supportedDataTypes.add("double");
 
-    supportedGenericUDFs.add(UDFOPNegative.class);
-    supportedGenericUDFs.add(UDFOPPositive.class);
-    supportedGenericUDFs.add(UDFOPPlus.class);
-    supportedGenericUDFs.add(UDFOPMinus.class);
-    supportedGenericUDFs.add(UDFOPMultiply.class);
-    supportedGenericUDFs.add(UDFOPDivide.class);
-    supportedGenericUDFs.add(UDFOPMod.class);
+    supportedGenericUDFs.add(GenericUDFOPPlus.class);
+    supportedGenericUDFs.add(GenericUDFOPMinus.class);
+    supportedGenericUDFs.add(GenericUDFOPMultiply.class);
+    supportedGenericUDFs.add(GenericUDFOPDivide.class);
+    supportedGenericUDFs.add(GenericUDFOPMod.class);
+    supportedGenericUDFs.add(GenericUDFOPNegative.class);
+    supportedGenericUDFs.add(GenericUDFOPPositive.class);
 
     supportedGenericUDFs.add(GenericUDFOPEqualOrLessThan.class);
     supportedGenericUDFs.add(GenericUDFOPEqualOrGreaterThan.class);
@@ -126,22 +206,23 @@ public class Vectorizer implements PhysicalPlanResolver {
     supportedGenericUDFs.add(GenericUDFOPOr.class);
     supportedGenericUDFs.add(GenericUDFOPAnd.class);
     supportedGenericUDFs.add(GenericUDFOPEqual.class);
-    supportedGenericUDFs.add(GenericUDFToUnixTimeStamp.class);
-
-    supportedGenericUDFs.add(UDFHour.class);
     supportedGenericUDFs.add(UDFLength.class);
+
+    supportedGenericUDFs.add(UDFYear.class);
+    supportedGenericUDFs.add(UDFMonth.class);
+    supportedGenericUDFs.add(UDFDayOfMonth.class);
+    supportedGenericUDFs.add(UDFHour.class);
     supportedGenericUDFs.add(UDFMinute.class);
     supportedGenericUDFs.add(UDFSecond.class);
-    supportedGenericUDFs.add(UDFYear.class);
     supportedGenericUDFs.add(UDFWeekOfYear.class);
-    supportedGenericUDFs.add(UDFDayOfMonth.class);
+    supportedGenericUDFs.add(GenericUDFToUnixTimeStamp.class);
 
     supportedGenericUDFs.add(UDFLike.class);
     supportedGenericUDFs.add(UDFRegExp.class);
     supportedGenericUDFs.add(UDFSubstr.class);
-    supportedGenericUDFs.add(UDFLTrim.class);
-    supportedGenericUDFs.add(UDFRTrim.class);
-    supportedGenericUDFs.add(UDFTrim.class);
+    supportedGenericUDFs.add(GenericUDFLTrim.class);
+    supportedGenericUDFs.add(GenericUDFRTrim.class);
+    supportedGenericUDFs.add(GenericUDFTrim.class);
 
     supportedGenericUDFs.add(UDFSin.class);
     supportedGenericUDFs.add(UDFCos.class);
@@ -151,16 +232,16 @@ public class Vectorizer implements PhysicalPlanResolver {
     supportedGenericUDFs.add(UDFAtan.class);
     supportedGenericUDFs.add(UDFDegrees.class);
     supportedGenericUDFs.add(UDFRadians.class);
-    supportedGenericUDFs.add(UDFFloor.class);
-    supportedGenericUDFs.add(UDFCeil.class);
+    supportedGenericUDFs.add(GenericUDFFloor.class);
+    supportedGenericUDFs.add(GenericUDFCeil.class);
     supportedGenericUDFs.add(UDFExp.class);
     supportedGenericUDFs.add(UDFLn.class);
     supportedGenericUDFs.add(UDFLog2.class);
     supportedGenericUDFs.add(UDFLog10.class);
     supportedGenericUDFs.add(UDFLog.class);
-    supportedGenericUDFs.add(UDFPower.class);
-    supportedGenericUDFs.add(UDFPosMod.class);
+    supportedGenericUDFs.add(GenericUDFPower.class);
     supportedGenericUDFs.add(GenericUDFRound.class);
+    supportedGenericUDFs.add(GenericUDFPosMod.class);
     supportedGenericUDFs.add(UDFSqrt.class);
     supportedGenericUDFs.add(UDFSign.class);
     supportedGenericUDFs.add(UDFRand.class);
@@ -174,6 +255,8 @@ public class Vectorizer implements PhysicalPlanResolver {
     supportedGenericUDFs.add(GenericUDFAbs.class);
     supportedGenericUDFs.add(GenericUDFBetween.class);
     supportedGenericUDFs.add(GenericUDFIn.class);
+    supportedGenericUDFs.add(GenericUDFCase.class);
+    supportedGenericUDFs.add(GenericUDFWhen.class);
 
     // For type casts
     supportedGenericUDFs.add(UDFToLong.class);
@@ -185,6 +268,9 @@ public class Vectorizer implements PhysicalPlanResolver {
     supportedGenericUDFs.add(UDFToDouble.class);
     supportedGenericUDFs.add(UDFToString.class);
     supportedGenericUDFs.add(GenericUDFTimestamp.class);
+
+    // For conditional expressions
+    supportedGenericUDFs.add(GenericUDFIf.class);
 
     supportedAggregationUdfs.add("min");
     supportedAggregationUdfs.add("max");
@@ -210,16 +296,26 @@ public class Vectorizer implements PhysicalPlanResolver {
         throws SemanticException {
       Task<? extends Serializable> currTask = (Task<? extends Serializable>) nd;
       if (currTask instanceof MapRedTask) {
-        boolean ret = validateMRTask((MapRedTask) currTask);
-        if (ret) {
-          vectorizeMRTask((MapRedTask) currTask);
+        convertMapWork(((MapRedTask) currTask).getWork().getMapWork());
+      } else if (currTask instanceof TezTask) {
+        TezWork work = ((TezTask) currTask).getWork();
+        for (BaseWork w: work.getAllWork()) {
+          if (w instanceof MapWork) {
+            convertMapWork((MapWork)w);
+          }
         }
       }
       return null;
     }
 
-    private boolean validateMRTask(MapRedTask mrTask) throws SemanticException {
-      MapWork mapWork = mrTask.getWork().getMapWork();
+    private void convertMapWork(MapWork mapWork) throws SemanticException {
+      boolean ret = validateMapWork(mapWork);
+      if (ret) {
+        vectorizeMapWork(mapWork);
+      }
+    }
+
+    private boolean validateMapWork(MapWork mapWork) throws SemanticException {
 
       // Validate the input format
       for (String path : mapWork.getPathToPartitionInfo().keySet()) {
@@ -255,12 +351,11 @@ public class Vectorizer implements PhysicalPlanResolver {
       return true;
     }
 
-    private void vectorizeMRTask(MapRedTask mrTask) throws SemanticException {
+    private void vectorizeMapWork(MapWork mapWork) throws SemanticException {
       LOG.info("Vectorizing task...");
-      MapWork mapWork = mrTask.getWork().getMapWork();
       mapWork.setVectorMode(true);
       Map<Rule, NodeProcessor> opRules = new LinkedHashMap<Rule, NodeProcessor>();
-      VectorizationNodeProcessor vnp = new VectorizationNodeProcessor(mrTask);
+      VectorizationNodeProcessor vnp = new VectorizationNodeProcessor(mapWork);
       opRules.put(new RuleRegExp("R1", TableScanOperator.getOperatorName() + ".*" +
           ReduceSinkOperator.getOperatorName()), vnp);
       opRules.put(new RuleRegExp("R2", TableScanOperator.getOperatorName() + ".*"
@@ -272,8 +367,17 @@ public class Vectorizer implements PhysicalPlanResolver {
       topNodes.addAll(mapWork.getAliasToWork().values());
       HashMap<Node, Object> nodeOutput = new HashMap<Node, Object>();
       ogw.startWalking(topNodes, nodeOutput);
-      mapWork.setScratchColumnVectorTypes(vnp.getScratchColumnVectorTypes());
-      mapWork.setScratchColumnMap(vnp.getScratchColumnMap());
+
+      Map<String, Map<Integer, String>> columnVectorTypes = vnp.getScratchColumnVectorTypes();
+      mapWork.setScratchColumnVectorTypes(columnVectorTypes);
+      Map<String, Map<String, Integer>> columnMap = vnp.getScratchColumnMap();
+      mapWork.setScratchColumnMap(columnMap);
+
+      if (LOG.isDebugEnabled()) {
+        LOG.debug(String.format("vectorTypes: %s", columnVectorTypes.toString()));
+        LOG.debug(String.format("columnMap: %s", columnMap.toString()));
+      }
+
       return;
     }
   }
@@ -311,8 +415,8 @@ public class Vectorizer implements PhysicalPlanResolver {
     private final Set<Operator<? extends OperatorDesc>> opsDone =
         new HashSet<Operator<? extends OperatorDesc>>();
 
-    public VectorizationNodeProcessor(MapRedTask mrTask) {
-      this.mWork = mrTask.getWork().getMapWork();
+    public VectorizationNodeProcessor(MapWork mWork) {
+      this.mWork = mWork;
     }
 
     public Map<String, Map<Integer, String>> getScratchColumnVectorTypes() {
@@ -341,33 +445,42 @@ public class Vectorizer implements PhysicalPlanResolver {
     public Object process(Node nd, Stack<Node> stack, NodeProcessorCtx procCtx,
         Object... nodeOutputs) throws SemanticException {
 
-      Node firstOp = stack.firstElement();
-      TableScanOperator tsOp = null;
+      Operator<? extends OperatorDesc> op = (Operator<? extends OperatorDesc>) nd;
 
-      tsOp = (TableScanOperator) firstOp;
+      VectorizationContext vContext = null;
 
-      VectorizationContext vContext = vContextsByTSOp.get(tsOp);
-      if (vContext == null) {
-        String fileKey = "";
+      if (op instanceof TableScanOperator) {
+        vContext = getVectorizationContext(op, physicalContext);
         for (String onefile : mWork.getPathToAliases().keySet()) {
           List<String> aliases = mWork.getPathToAliases().get(onefile);
           for (String alias : aliases) {
-            Operator<? extends OperatorDesc> op = mWork.getAliasToWork().get(alias);
-            if (op == tsOp) {
-              fileKey = onefile;
-              if (vContext == null) {
-                vContext = getVectorizationContext(tsOp, physicalContext);
-              }
-              vContext.setFileKey(fileKey);
-              vectorizationContexts.put(fileKey, vContext);
+            Operator<? extends OperatorDesc> opRoot = mWork.getAliasToWork().get(alias);
+            if (op == opRoot) {
+              // The same vectorization context is copied multiple times into
+              // the MapWork scratch columnMap
+              // Each partition gets a copy
+              //
+              vContext.setFileKey(onefile);
+              vectorizationContexts.put(onefile, vContext);
               break;
             }
           }
         }
-        vContextsByTSOp.put(tsOp, vContext);
+        vContextsByTSOp.put(op, vContext);
+      } else {
+        assert stack.size() > 1;
+        // Walk down the stack of operators until we found one willing to give us a context.
+        // At the bottom will be the TS operator, guaranteed to have a context
+        int i= stack.size()-2;
+        while (vContext == null) {
+          Operator<? extends OperatorDesc> opParent = (Operator<? extends OperatorDesc>) stack.get(i);
+          vContext = vContextsByTSOp.get(opParent);
+          --i;
+        }
       }
 
-      Operator<? extends OperatorDesc> op = (Operator<? extends OperatorDesc>) nd;
+      assert vContext != null;
+
       if (op.getType().equals(OperatorType.REDUCESINK) &&
           op.getParentOperators().get(0).getType().equals(OperatorType.GROUPBY)) {
         // No need to vectorize
@@ -382,6 +495,12 @@ public class Vectorizer implements PhysicalPlanResolver {
             opsDone.add(op);
             if (vectorOp != op) {
               opsDone.add(vectorOp);
+            }
+            if (vectorOp instanceof VectorizationContextRegion) {
+              VectorizationContextRegion vcRegion = (VectorizationContextRegion) vectorOp;
+              VectorizationContext vOutContext = vcRegion.getOuputVectorizationContext();
+              vContextsByTSOp.put(op, vOutContext);
+              vectorizationContexts.put(vOutContext.getFileKey(), vOutContext);
             }
           }
         } catch (HiveException e) {
@@ -450,8 +569,10 @@ public class Vectorizer implements PhysicalPlanResolver {
       case REDUCESINK:
         ret = validateReduceSinkOperator((ReduceSinkOperator) op);
         break;
-      case FILESINK:
       case TABLESCAN:
+        ret = validateTableScanOperator((TableScanOperator) op);
+        break;
+      case FILESINK:
       case LIMIT:
         ret = true;
         break;
@@ -460,6 +581,11 @@ public class Vectorizer implements PhysicalPlanResolver {
         break;
     }
     return ret;
+  }
+
+  private boolean validateTableScanOperator(TableScanOperator op) {
+    TableScanDesc desc = op.getConf();
+    return !desc.isGatherStats();
   }
 
   private boolean validateMapJoinOperator(MapJoinOperator op) {
@@ -498,6 +624,10 @@ public class Vectorizer implements PhysicalPlanResolver {
   }
 
   private boolean validateGroupByOperator(GroupByOperator op) {
+    if (op.getConf().isGroupingSetsPresent()) {
+      LOG.warn("Grouping sets not supported in vector mode");
+      return false;
+    }
     boolean ret = validateExprNodeDesc(op.getConf().getKeys());
     if (!ret) {
       return false;
@@ -530,8 +660,12 @@ public class Vectorizer implements PhysicalPlanResolver {
   }
 
   private boolean validateExprNodeDescRecursive(ExprNodeDesc desc) {
-    boolean ret = validateDataType(desc.getTypeInfo().getTypeName());
+    String typeName = desc.getTypeInfo().getTypeName();
+    boolean ret = validateDataType(typeName);
     if (!ret) {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Cannot vectorize " + desc.getExprString() + " of type " + typeName);
+      }
       return false;
     }
     if (desc instanceof ExprNodeGenericFuncDesc) {
@@ -563,6 +697,7 @@ public class Vectorizer implements PhysicalPlanResolver {
     try {
       VectorizationContext vc = new ValidatorVectorizationContext();
       if (vc.getVectorExpression(desc, mode) == null) {
+        // TODO: this cannot happen - VectorizationContext throws in such cases.
         return false;
       }
     } catch (HiveException e) {
@@ -601,7 +736,7 @@ public class Vectorizer implements PhysicalPlanResolver {
     return supportedDataTypes.contains(type.toLowerCase());
   }
 
-  private VectorizationContext getVectorizationContext(TableScanOperator op,
+  private VectorizationContext getVectorizationContext(Operator<? extends OperatorDesc> op,
       PhysicalContext pctx) {
     RowResolver rr = pctx.getParseContext().getOpParseCtx().get(op).getRowResolver();
 

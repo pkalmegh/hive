@@ -35,6 +35,7 @@ import org.apache.hadoop.hive.ql.plan.OperatorDesc;
 import org.apache.hadoop.hive.ql.plan.TableDesc;
 import org.apache.hadoop.hive.ql.plan.TableScanDesc;
 import org.apache.hadoop.hive.ql.plan.api.OperatorType;
+import org.apache.hadoop.hive.ql.stats.CounterStatsPublisher;
 import org.apache.hadoop.hive.ql.stats.StatsPublisher;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
@@ -283,24 +284,21 @@ public class TableScanOperator extends Operator<TableScanDesc> implements
       return;
     }
 
-    String key;
     String taskID = Utilities.getTaskIdFromFilename(Utilities.getTaskId(hconf));
     Map<String, String> statsToPublish = new HashMap<String, String>();
 
     for (String pspecs : stats.keySet()) {
       statsToPublish.clear();
-      if (pspecs.isEmpty()) {
-        // In case of a non-partitioned table, the key for temp storage is just
-        // "tableName + taskID"
-        String keyPrefix = Utilities.getHashedStatsPrefix(
-            conf.getStatsAggPrefix(), conf.getMaxStatsKeyPrefixLength());
-        key = keyPrefix + taskID;
+      String prefix = Utilities.join(conf.getStatsAggPrefix(), pspecs);
+
+      String key;
+      int maxKeyLength = conf.getMaxStatsKeyPrefixLength();
+      if (statsPublisher instanceof CounterStatsPublisher) {
+        key = Utilities.getHashedStatsPrefix(prefix, maxKeyLength, 0);
       } else {
-        // In case of a partition, the key for temp storage is
-        // "tableName + partitionSpecs + taskID"
-        String keyPrefix = Utilities.getHashedStatsPrefix(
-            conf.getStatsAggPrefix() + pspecs, conf.getMaxStatsKeyPrefixLength());
-        key = keyPrefix + taskID;
+        // stats publisher except counter type needs postfix 'taskID'
+        prefix = Utilities.getHashedStatsPrefix(prefix, maxKeyLength, taskID.length());
+        key = prefix + taskID;
       }
       for(String statType : stats.get(pspecs).getStoredStats()) {
         statsToPublish.put(statType, Long.toString(stats.get(pspecs).getStat(statType)));

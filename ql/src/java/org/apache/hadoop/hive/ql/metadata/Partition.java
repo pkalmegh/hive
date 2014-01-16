@@ -19,7 +19,6 @@
 package org.apache.hadoop.hive.ql.metadata;
 
 import java.io.Serializable;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -74,7 +73,6 @@ public class Partition implements Serializable {
   private Deserializer deserializer;
   private Class<? extends HiveOutputFormat> outputFormatClass;
   private Class<? extends InputFormat> inputFormatClass;
-  private URI uri;
 
   /**
    * @return The values of the partition
@@ -227,11 +225,11 @@ public class Partition implements Serializable {
   }
 
   public Path[] getPath() {
-    Path[] ret = new Path[]{getPartitionPath()};
+    Path[] ret = new Path[]{getDataLocation()};
     return ret;
   }
 
-  public Path getPartitionPath() {
+  public Path getDataLocation() {
     if (table.isPartitioned()) {
       return new Path(tPartition.getSd().getLocation());
     } else {
@@ -239,31 +237,11 @@ public class Partition implements Serializable {
     }
   }
 
-  final public URI getDataLocation() {
-    if (uri == null) {
-      uri = getPartitionPath().toUri();
-    }
-    return uri;
-  }
-
   final public Deserializer getDeserializer() {
     if (deserializer == null) {
       try {
         deserializer = MetaStoreUtils.getDeserializer(Hive.get().getConf(),
             tPartition, table.getTTable());
-      } catch (HiveException e) {
-        throw new RuntimeException(e);
-      } catch (MetaException e) {
-        throw new RuntimeException(e);
-      }
-    }
-    return deserializer;
-  }
-
-  final public Deserializer getDeserializer(Properties props) {
-    if (deserializer == null) {
-      try {
-        deserializer = MetaStoreUtils.getDeserializer(Hive.get().getConf(), props);
       } catch (HiveException e) {
         throw new RuntimeException(e);
       } catch (MetaException e) {
@@ -392,9 +370,8 @@ public class Partition implements Serializable {
     try {
       // Previously, this got the filesystem of the Table, which could be
       // different from the filesystem of the partition.
-      FileSystem fs = FileSystem.get(getPartitionPath().toUri(), Hive.get()
-          .getConf());
-      String pathPattern = getPartitionPath().toString();
+      FileSystem fs = getDataLocation().getFileSystem(Hive.get().getConf());
+      String pathPattern = getDataLocation().toString();
       if (getBucketCount() > 0) {
         pathPattern = pathPattern + "/*";
       }

@@ -50,7 +50,6 @@ import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.QueryPlan;
 import org.apache.hadoop.hive.ql.exec.FetchOperator;
 import org.apache.hadoop.hive.ql.exec.HiveTotalOrderPartitioner;
-import org.apache.hadoop.hive.ql.exec.JobCloseFeedBack;
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.OperatorUtils;
 import org.apache.hadoop.hive.ql.exec.PartitionKeySampler;
@@ -82,7 +81,6 @@ import org.apache.hadoop.mapred.Counters;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Partitioner;
 import org.apache.hadoop.mapred.RunningJob;
 import org.apache.log4j.Appender;
@@ -185,17 +183,10 @@ public class ExecDriver extends Task<MapredWork> implements Serializable, Hadoop
    * @return true if fatal errors happened during job execution, false otherwise.
    */
   public boolean checkFatalErrors(Counters ctrs, StringBuilder errMsg) {
-    for (Operator<? extends OperatorDesc> op : work.getMapWork().getAliasToWork().values()) {
-      if (op.checkFatalErrors(ctrs, errMsg)) {
-        return true;
-      }
-    }
-    if (work.getReduceWork() != null) {
-      if (work.getReduceWork().getReducer().checkFatalErrors(ctrs, errMsg)) {
-        return true;
-      }
-    }
-    return false;
+     Counters.Counter cntr = ctrs.findCounter(
+        HiveConf.getVar(job, HiveConf.ConfVars.HIVECOUNTERGROUP),
+        Operator.HIVECOUNTERFATAL);
+    return cntr != null && cntr.getValue() > 0;
   }
 
    /**
@@ -414,9 +405,9 @@ public class ExecDriver extends Task<MapredWork> implements Serializable, Hadoop
       if (mWork.isGatheringStats() || (rWork != null && rWork.isGatheringStats())) {
         // initialize stats publishing table
         StatsPublisher statsPublisher;
-        String statsImplementationClass = HiveConf.getVar(job, HiveConf.ConfVars.HIVESTATSDBCLASS);
-        if (StatsFactory.setImplementation(statsImplementationClass, job)) {
-          statsPublisher = StatsFactory.getStatsPublisher();
+        StatsFactory factory = StatsFactory.newFactory(job);
+        if (factory != null) {
+          statsPublisher = factory.getStatsPublisher();
           if (!statsPublisher.init(job)) { // creating stats table if not exists
             if (HiveConf.getBoolVar(job, HiveConf.ConfVars.HIVE_STATS_RELIABLE)) {
               throw
@@ -474,14 +465,13 @@ public class ExecDriver extends Task<MapredWork> implements Serializable, Hadoop
     // get the list of Dynamic partition paths
     try {
       if (rj != null) {
-        JobCloseFeedBack feedBack = new JobCloseFeedBack();
         if (mWork.getAliasToWork() != null) {
           for (Operator<? extends OperatorDesc> op : mWork.getAliasToWork().values()) {
-            op.jobClose(job, success, feedBack);
+            op.jobClose(job, success);
           }
         }
         if (rWork != null) {
-          rWork.getReducer().jobClose(job, success, feedBack);
+          rWork.getReducer().jobClose(job, success);
         }
       }
     } catch (Exception e) {
@@ -508,21 +498,22 @@ public class ExecDriver extends Task<MapredWork> implements Serializable, Hadoop
     ArrayList<String> paths = mWork.getPaths();
     ArrayList<PartitionDesc> parts = mWork.getPartitionDescs();
 
-    Path onePath = new Path(paths.get(0));
-    String tmpPath = context.getCtx().getExternalTmpFileURI(onePath.toUri());
+    List<Path> inputPaths = new ArrayList<Path>(paths.size());
+    for (String path : paths) {
+      inputPaths.add(new Path(path));
+    }
 
+    Path tmpPath = context.getCtx().getExternalTmpPath(inputPaths.get(0).toUri());
     Path partitionFile = new Path(tmpPath, ".partitions");
     ShimLoader.getHadoopShims().setTotalOrderPartitionFile(job, partitionFile);
-
     PartitionKeySampler sampler = new PartitionKeySampler();
 
     if (mWork.getSamplingType() == MapWork.SAMPLING_ON_PREV_MR) {
       console.printInfo("Use sampling data created in previous MR");
       // merges sampling data from previous MR and make paritition keys for total sort
-      for (String path : paths) {
-        Path inputPath = new Path(path);
-        FileSystem fs = inputPath.getFileSystem(job);
-        for (FileStatus status : fs.globStatus(new Path(inputPath, ".sampling*"))) {
+      for (Path path : inputPaths) {
+        FileSystem fs = path.getFileSystem(job);
+        for (FileStatus status : fs.globStatus(new Path(path, ".sampling*"))) {
           sampler.addSampleFile(status.getPath(), job);
         }
       }
@@ -534,9 +525,9 @@ public class ExecDriver extends Task<MapredWork> implements Serializable, Hadoop
       FetchWork fetchWork;
       if (!partDesc.isPartitioned()) {
         assert paths.size() == 1;
-        fetchWork = new FetchWork(paths.get(0), partDesc.getTableDesc());
+        fetchWork = new FetchWork(inputPaths.get(0), partDesc.getTableDesc());
       } else {
-        fetchWork = new FetchWork(paths, parts, partDesc.getTableDesc());
+        fetchWork = new FetchWork(inputPaths, parts, partDesc.getTableDesc());
       }
       fetchWork.setSource(ts);
 
@@ -813,16 +804,6 @@ public class ExecDriver extends Task<MapredWork> implements Serializable, Hadoop
   @Override
   public String getName() {
     return "MAPRED";
-  }
-
-  @Override
-  public void updateCounters(Counters ctrs, RunningJob rj) throws IOException {
-    for (Operator<? extends OperatorDesc> op : work.getMapWork().getAliasToWork().values()) {
-      op.updateCounters(ctrs);
-    }
-    if (work.getReduceWork() != null) {
-      work.getReduceWork().getReducer().updateCounters(ctrs);
-    }
   }
 
   @Override

@@ -40,11 +40,10 @@ import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.SerDe;
+import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeUtils;
 import org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.ObjectInspectorCopyOption;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.io.BytesWritable;
@@ -52,6 +51,7 @@ import org.apache.hive.service.cli.FetchOrientation;
 import org.apache.hive.service.cli.HiveSQLException;
 import org.apache.hive.service.cli.OperationState;
 import org.apache.hive.service.cli.RowSet;
+import org.apache.hive.service.cli.RowSetFactory;
 import org.apache.hive.service.cli.TableSchema;
 import org.apache.hive.service.cli.session.HiveSession;
 
@@ -67,7 +67,8 @@ public class SQLOperation extends ExecuteStatementOperation {
   private Schema mResultSchema = null;
   private SerDe serde = null;
   private final boolean runAsync;
-  private Future<?> backgroundHandle;
+  private volatile Future<?> backgroundHandle;
+  private boolean fetchStarted = false;
 
   public SQLOperation(HiveSession parentSession, String statement, Map<String,
       String> confOverlay, boolean runInBackground) {
@@ -76,19 +77,13 @@ public class SQLOperation extends ExecuteStatementOperation {
     this.runAsync = runInBackground;
   }
 
-
-  public void prepare() throws HiveSQLException {
-  }
-
-  private void runInternal(HiveConf sqlOperationConf) throws HiveSQLException {
+  /***
+   * Compile the query and extract metadata
+   * @param sqlOperationConf
+   * @throws HiveSQLException
+   */
+  public void prepare(HiveConf sqlOperationConf) throws HiveSQLException {
     setState(OperationState.RUNNING);
-    String statement_trimmed = statement.trim();
-    String[] tokens = statement_trimmed.split("\\s");
-    String cmd_1 = statement_trimmed.substring(tokens[0].length()).trim();
-
-    int ret = 0;
-    String errorMessage = "";
-    String SQLState = null;
 
     try {
       driver = new Driver(sqlOperationConf, getParentSession().getUserName());
@@ -98,10 +93,9 @@ public class SQLOperation extends ExecuteStatementOperation {
       driver.setTryCount(Integer.MAX_VALUE);
 
       String subStatement = new VariableSubstitution().substitute(sqlOperationConf, statement);
-
-      response = driver.run(subStatement);
+      response = driver.compileAndRespond(subStatement);
       if (0 != response.getResponseCode()) {
-        throw new HiveSQLException("Error while processing statement: "
+        throw new HiveSQLException("Error while compiling statement: "
             + response.getErrorMessage(), response.getSQLState(), response.getResponseCode());
       }
 
@@ -112,7 +106,7 @@ public class SQLOperation extends ExecuteStatementOperation {
       if(driver.getPlan().getFetchTask() != null) {
         //Schema has to be set
         if (mResultSchema == null || !mResultSchema.isSetFieldSchemas()) {
-          throw new HiveSQLException("Error running query: Schema and FieldSchema " +
+          throw new HiveSQLException("Error compiling query: Schema and FieldSchema " +
               "should be set when query plan has a FetchTask");
         }
         resultSchema = new TableSchema(mResultSchema);
@@ -136,13 +130,36 @@ public class SQLOperation extends ExecuteStatementOperation {
       setState(OperationState.ERROR);
       throw new HiveSQLException("Error running query: " + e.toString(), e);
     }
+  }
+
+  private void runInternal(HiveConf sqlOperationConf) throws HiveSQLException {
+    try {
+      // In Hive server mode, we are not able to retry in the FetchTask
+      // case, when calling fetch queries since execute() has returned.
+      // For now, we disable the test attempts.
+      driver.setTryCount(Integer.MAX_VALUE);
+
+      response = driver.run();
+      if (0 != response.getResponseCode()) {
+        throw new HiveSQLException("Error while processing statement: "
+            + response.getErrorMessage(), response.getSQLState(), response.getResponseCode());
+      }
+
+    } catch (HiveSQLException e) {
+      setState(OperationState.ERROR);
+      throw e;
+    } catch (Exception e) {
+      setState(OperationState.ERROR);
+      throw new HiveSQLException("Error running query: " + e.toString(), e);
+    }
     setState(OperationState.FINISHED);
   }
 
   @Override
   public void run() throws HiveSQLException {
     setState(OperationState.PENDING);
-    if (!shouldRunAsync()) {
+    prepare(getConfigForOperation());
+    if (!runAsync) {
       runInternal(getConfigForOperation());
     } else {
       Runnable backgroundOperation = new Runnable() {
@@ -153,16 +170,15 @@ public class SQLOperation extends ExecuteStatementOperation {
           try {
             runInternal(getConfigForOperation());
           } catch (HiveSQLException e) {
+            setOperationException(e);
             LOG.error("Error: ", e);
-            // TODO: Return a more detailed error to the client,
-            // currently the async thread only writes to the log and sets the OperationState
           }
         }
       };
       try {
         // This submit blocks if no background threads are available to run this operation
         backgroundHandle =
-          getParentSession().getSessionManager().submitBackgroundOperation(backgroundOperation);
+            getParentSession().getSessionManager().submitBackgroundOperation(backgroundOperation);
       } catch (RejectedExecutionException rejected) {
         setState(OperationState.ERROR);
         throw new HiveSQLException("All the asynchronous threads are currently busy, " +
@@ -173,7 +189,7 @@ public class SQLOperation extends ExecuteStatementOperation {
 
   private void cleanup(OperationState state) throws HiveSQLException {
     setState(state);
-    if (shouldRunAsync()) {
+    if (runAsync) {
       if (backgroundHandle != null) {
         backgroundHandle.cancel(true);
       }
@@ -208,33 +224,26 @@ public class SQLOperation extends ExecuteStatementOperation {
     return resultSchema;
   }
 
+  private transient final List<Object> convey = new ArrayList<Object>();
 
   @Override
   public RowSet getNextRowSet(FetchOrientation orientation, long maxRows) throws HiveSQLException {
+    validateDefaultFetchOrientation(orientation);
     assertState(OperationState.FINISHED);
-    ArrayList<String> rows = new ArrayList<String>();
-    driver.setMaxRows((int)maxRows);
+
+    RowSet rowSet = RowSetFactory.create(resultSchema, getProtocolVersion());
 
     try {
-      driver.getResults(rows);
-
-      getSerDe();
-      StructObjectInspector soi = (StructObjectInspector) serde.getObjectInspector();
-      List<? extends StructField> fieldRefs = soi.getAllStructFieldRefs();
-      RowSet rowSet = new RowSet();
-
-      Object[] deserializedFields = new Object[fieldRefs.size()];
-      Object rowObj;
-      ObjectInspector fieldOI;
-
-      for (String rowString : rows) {
-        rowObj = serde.deserialize(new BytesWritable(rowString.getBytes()));
-        for (int i = 0; i < fieldRefs.size(); i++) {
-          StructField fieldRef = fieldRefs.get(i);
-          fieldOI = fieldRef.getFieldObjectInspector();
-          deserializedFields[i] = convertLazyToJava(soi.getStructFieldData(rowObj, fieldRef), fieldOI);
-        }
-        rowSet.addRow(resultSchema, deserializedFields);
+      /* if client is requesting fetch-from-start and its not the first time reading from this operation
+       * then reset the fetch position to beginning
+       */
+      if (orientation.equals(FetchOrientation.FETCH_FIRST) && fetchStarted) {
+        driver.resetFetch();
+      }
+      fetchStarted = true;
+      driver.setMaxRows((int) maxRows);
+      if (driver.getResults(convey)) {
+        return decode(convey, rowSet);
       }
       return rowSet;
     } catch (IOException e) {
@@ -243,32 +252,49 @@ public class SQLOperation extends ExecuteStatementOperation {
       throw new HiveSQLException(e);
     } catch (Exception e) {
       throw new HiveSQLException(e);
+    } finally {
+      convey.clear();
     }
   }
 
-  /**
-   * Convert a LazyObject to a standard Java object in compliance with JDBC 3.0 (see JDBC 3.0
-   * Specification, Table B-3: Mapping from JDBC Types to Java Object Types).
-   *
-   * This method is kept consistent with {@link HiveResultSetMetaData#hiveTypeToSqlType}.
-   */
-  private static Object convertLazyToJava(Object o, ObjectInspector oi) {
-    Object obj = ObjectInspectorUtils.copyToStandardObject(o, oi, ObjectInspectorCopyOption.JAVA);
-
-    if (obj == null) {
-      return null;
+  private RowSet decode(List<Object> rows, RowSet rowSet) throws Exception {
+    if (driver.isFetchingTable()) {
+      return prepareFromRow(rows, rowSet);
     }
-    if(oi.getTypeName().equals(serdeConstants.BINARY_TYPE_NAME)) {
-      return new String((byte[])obj);
-    }
-    // for now, expose non-primitive as a string
-    // TODO: expose non-primitive as a structured object while maintaining JDBC compliance
-    if (oi.getCategory() != ObjectInspector.Category.PRIMITIVE) {
-      return SerDeUtils.getJSONString(o, oi);
-    }
-    return obj;
+    return decodeFromString(rows, rowSet);
   }
 
+  // already encoded to thrift-able object in ThriftFormatter
+  private RowSet prepareFromRow(List<Object> rows, RowSet rowSet) throws Exception {
+    for (Object row : rows) {
+      rowSet.addRow((Object[]) row);
+    }
+    return rowSet;
+  }
+
+  private RowSet decodeFromString(List<Object> rows, RowSet rowSet)
+      throws SQLException, SerDeException {
+    getSerDe();
+    StructObjectInspector soi = (StructObjectInspector) serde.getObjectInspector();
+    List<? extends StructField> fieldRefs = soi.getAllStructFieldRefs();
+
+    Object[] deserializedFields = new Object[fieldRefs.size()];
+    Object rowObj;
+    ObjectInspector fieldOI;
+
+    int protocol = getProtocolVersion().getValue();
+    for (Object rowString : rows) {
+      rowObj = serde.deserialize(new BytesWritable(((String)rowString).getBytes()));
+      for (int i = 0; i < fieldRefs.size(); i++) {
+        StructField fieldRef = fieldRefs.get(i);
+        fieldOI = fieldRef.getFieldObjectInspector();
+        Object fieldData = soi.getStructFieldData(rowObj, fieldRef);
+        deserializedFields[i] = SerDeUtils.toThriftPayload(fieldData, fieldOI, protocol);
+      }
+      rowSet.addRow(deserializedFields);
+    }
+    return rowSet;
+  }
 
   private SerDe getSerDe() throws SQLException {
     if (serde != null) {
@@ -276,8 +302,6 @@ public class SQLOperation extends ExecuteStatementOperation {
     }
     try {
       List<FieldSchema> fieldSchemas = mResultSchema.getFieldSchemas();
-      List<String> columnNames = new ArrayList<String>();
-      List<String> columnTypes = new ArrayList<String>();
       StringBuilder namesSb = new StringBuilder();
       StringBuilder typesSb = new StringBuilder();
 
@@ -287,8 +311,6 @@ public class SQLOperation extends ExecuteStatementOperation {
             namesSb.append(",");
             typesSb.append(",");
           }
-          columnNames.add(fieldSchemas.get(pos).getName());
-          columnTypes.add(fieldSchemas.get(pos).getType());
           namesSb.append(fieldSchemas.get(pos).getName());
           typesSb.append(fieldSchemas.get(pos).getType());
         }
@@ -315,10 +337,6 @@ public class SQLOperation extends ExecuteStatementOperation {
     return serde;
   }
 
-  private boolean shouldRunAsync() {
-    return runAsync;
-  }
-
   /**
    * If there are query specific settings to overlay, then create a copy of config
    * There are two cases we need to clone the session config that's being passed to hive driver
@@ -331,7 +349,7 @@ public class SQLOperation extends ExecuteStatementOperation {
    */
   private HiveConf getConfigForOperation() throws HiveSQLException {
     HiveConf sqlOperationConf = getParentSession().getHiveConf();
-    if (!getConfOverlay().isEmpty() || shouldRunAsync()) {
+    if (!getConfOverlay().isEmpty() || runAsync) {
       // clone the partent session config for this query
       sqlOperationConf = new HiveConf(sqlOperationConf);
 

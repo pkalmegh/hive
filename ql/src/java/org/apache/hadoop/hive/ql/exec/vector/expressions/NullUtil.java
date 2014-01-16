@@ -18,6 +18,8 @@
 
 package org.apache.hadoop.hive.ql.exec.vector.expressions;
 
+import org.apache.hadoop.hive.common.type.Decimal128;
+import org.apache.hadoop.hive.ql.exec.vector.DecimalColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.LongColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.DoubleColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.ColumnVector;
@@ -27,8 +29,8 @@ import org.apache.hadoop.hive.ql.exec.vector.ColumnVector;
  * Utility functions to handle null propagation.
  */
 public class NullUtil {
-  
-  /*
+
+  /**
    * Set the data value for all NULL entries to the designated NULL_VALUE.
    */
   public static void setNullDataEntriesLong(
@@ -42,7 +44,7 @@ public class NullUtil {
         int i = sel[j];
         if(v.isNull[i]) {
           v.vector[i] = LongColumnVector.NULL_VALUE;
-        }       
+        }
       }
     } else {
       for (int i = 0; i != n; i++) {
@@ -50,22 +52,22 @@ public class NullUtil {
           v.vector[i] = LongColumnVector.NULL_VALUE;
         }
       }
-    } 
+    }
   }
-  
+
   // for use by Column-Scalar and Scalar-Column arithmetic for null propagation
   public static void setNullOutputEntriesColScalar(
       ColumnVector v, boolean selectedInUse, int[] sel, int n) {
     if (v instanceof DoubleColumnVector) {
-      
+
       // No need to set null data entries because the input NaN values
       // will automatically propagate to the output.
       return;
     }
     setNullDataEntriesLong((LongColumnVector) v, selectedInUse, sel, n);
   }
-  
-  /*
+
+  /**
    * Set the data value for all NULL entries to NaN
    */
   public static void setNullDataEntriesDouble(
@@ -77,28 +79,136 @@ public class NullUtil {
     } else if (selectedInUse) {
       for (int j = 0; j != n; j++) {
         int i = sel[j];
-        if(v.isNull[i]) {
-          v.vector[i] = DoubleColumnVector.NULL_VALUE;
-        }       
-      }
-    } else {
-      for (int i = 0; i != n; i++) {
-        if(v.isNull[i]) {
+        if (v.isNull[i]) {
           v.vector[i] = DoubleColumnVector.NULL_VALUE;
         }
       }
-    } 
+    } else {
+      for (int i = 0; i != n; i++) {
+        if (v.isNull[i]) {
+          v.vector[i] = DoubleColumnVector.NULL_VALUE;
+        }
+      }
+    }
   }
-  
+
+  /**
+   * Set all the entries for which denoms array contains zeroes to NULL; sets all the data
+   * values for NULL entries for DoubleColumnVector.NULL_VALUE.
+   */
+  public static void setNullAndDivBy0DataEntriesDouble(
+      DoubleColumnVector v, boolean selectedInUse, int[] sel, int n, LongColumnVector denoms) {
+    assert v.isRepeating || !denoms.isRepeating;
+    v.noNulls = false;
+    long[] vector = denoms.vector;
+    if (v.isRepeating && (v.isNull[0] = (v.isNull[0] || vector[0] == 0))) {
+      v.vector[0] = DoubleColumnVector.NULL_VALUE;
+    } else if (selectedInUse) {
+      for (int j = 0; j != n; j++) {
+        int i = sel[j];
+        if (v.isNull[i] = (v.isNull[i] || vector[i] == 0)) {
+          v.vector[i] = DoubleColumnVector.NULL_VALUE;
+        }
+      }
+    } else {
+      for (int i = 0; i != n; i++) {
+        if (v.isNull[i] = (v.isNull[i] || vector[i] == 0)) {
+          v.vector[i] = DoubleColumnVector.NULL_VALUE;
+        }
+      }
+    }
+  }
+
+  /**
+   * Set all the entries for which denoms array contains zeroes to NULL; sets all the data
+   * values for NULL entries for DoubleColumnVector.NULL_VALUE.
+   */
+  public static void setNullAndDivBy0DataEntriesDouble(
+      DoubleColumnVector v, boolean selectedInUse, int[] sel, int n, DoubleColumnVector denoms) {
+    assert v.isRepeating || !denoms.isRepeating;
+    v.noNulls = false;
+    double[] vector = denoms.vector;
+    if (v.isRepeating && (v.isNull[0] = (v.isNull[0] || vector[0] == 0))) {
+      v.vector[0] = DoubleColumnVector.NULL_VALUE;
+    } else if (selectedInUse) {
+      for (int j = 0; j != n; j++) {
+        int i = sel[j];
+        if (v.isNull[i] = (v.isNull[i] || vector[i] == 0)) {
+          v.vector[i] = DoubleColumnVector.NULL_VALUE;
+        }
+      }
+    } else {
+      for (int i = 0; i != n; i++) {
+        if (v.isNull[i] = (v.isNull[i] || vector[i] == 0)) {
+          v.vector[i] = DoubleColumnVector.NULL_VALUE;
+        }
+      }
+    }
+  }
+
+  /**
+   * Set all the entries for which denoms array contains zeroes to NULL; sets all the data
+   * values for NULL entries for LongColumnVector.NULL_VALUE.
+   */
+  public static void setNullAndDivBy0DataEntriesLong(
+      LongColumnVector v, boolean selectedInUse, int[] sel, int n, LongColumnVector denoms) {
+    assert v.isRepeating || !denoms.isRepeating;
+    v.noNulls = false;
+    long[] vector = denoms.vector;
+    if (v.isRepeating && (v.isNull[0] = (v.isNull[0] || vector[0] == 0))) {
+      v.vector[0] = LongColumnVector.NULL_VALUE;
+    } else if (selectedInUse) {
+      for (int j = 0; j != n; j++) {
+        int i = sel[j];
+        if (v.isNull[i] = (v.isNull[i] || vector[i] == 0)) {
+          v.vector[i] = LongColumnVector.NULL_VALUE;
+        }
+      }
+    } else {
+      for (int i = 0; i != n; i++) {
+        if (v.isNull[i] = (v.isNull[i] || vector[i] == 0)) {
+          v.vector[i] = LongColumnVector.NULL_VALUE;
+        }
+      }
+    }
+  }
+
+  /**
+   * Set all the entries for which denoms array contains zeroes to NULL; sets all the data
+   * values for NULL entries for LongColumnVector.NULL_VALUE.
+   */
+  public static void setNullAndDivBy0DataEntriesLong(
+      LongColumnVector v, boolean selectedInUse, int[] sel, int n, DoubleColumnVector denoms) {
+    assert v.isRepeating || !denoms.isRepeating;
+    v.noNulls = false;
+    double[] vector = denoms.vector;
+    if (v.isRepeating && (v.isNull[0] = (v.isNull[0] || vector[0] == 0))) {
+      v.vector[0] = LongColumnVector.NULL_VALUE;
+    } else if (selectedInUse) {
+      for (int j = 0; j != n; j++) {
+        int i = sel[j];
+        if (v.isNull[i] = (v.isNull[i] || vector[i] == 0)) {
+          v.vector[i] = LongColumnVector.NULL_VALUE;
+        }
+      }
+    } else {
+      for (int i = 0; i != n; i++) {
+        if (v.isNull[i] = (v.isNull[i] || vector[i] == 0)) {
+          v.vector[i] = LongColumnVector.NULL_VALUE;
+        }
+      }
+    }
+  }
+
   /*
    * Propagate null values for a two-input operator.
    */
   public static void propagateNullsColCol(ColumnVector inputColVector1,
-      ColumnVector inputColVector2, ColumnVector outputColVector, int[] sel, 
+      ColumnVector inputColVector2, ColumnVector outputColVector, int[] sel,
       int n, boolean selectedInUse) {
 
     outputColVector.noNulls = inputColVector1.noNulls && inputColVector2.noNulls;
-    
+
     if (inputColVector1.noNulls && !inputColVector2.noNulls) {
       if (inputColVector2.isRepeating) {
         outputColVector.isNull[0] = inputColVector2.isNull[0];
@@ -144,11 +254,11 @@ public class NullUtil {
                outputColVector.isNull[i] = inputColVector2.isNull[i];
              }
           } else {
-          
+
             // copy nulls from the non-repeating side
             System.arraycopy(inputColVector2.isNull, 0, outputColVector.isNull, 0, n);
           }
-        }       
+        }
       } else if (!inputColVector1.isRepeating && inputColVector2.isRepeating) {
         if (inputColVector2.isNull[0]) {
           outputColVector.isNull[0] = true;
@@ -161,11 +271,10 @@ public class NullUtil {
                outputColVector.isNull[i] = inputColVector1.isNull[i];
              }
           } else {
-          
             // copy nulls from the non-repeating side
             System.arraycopy(inputColVector1.isNull, 0, outputColVector.isNull, 0, n);
           }
-        } 
+        }
       } else {                      // neither side is repeating
         if (selectedInUse) {
           for(int j = 0; j != n; j++) {
@@ -176,6 +285,34 @@ public class NullUtil {
           for(int i = 0; i != n; i++) {
             outputColVector.isNull[i] = inputColVector1.isNull[i] || inputColVector2.isNull[i];
           }
+        }
+      }
+    }
+  }
+
+  /**
+   * Follow the convention that null decimal values are internally set to the smallest
+   * positive value available. Prevents accidental zero-divide later in expression
+   * evaluation.
+   */
+  public static void setNullDataEntriesDecimal(
+      DecimalColumnVector v, boolean selectedInUse, int[] sel,
+      int n) {
+    if (v.noNulls) {
+      return;
+    } else if (v.isRepeating && v.isNull[0]) {
+      v.vector[0].setNullDataValue();
+    } else if (selectedInUse) {
+      for (int j = 0; j != n; j++) {
+        int i = sel[j];
+        if(v.isNull[i]) {
+          v.vector[i].setNullDataValue();
+        }
+      }
+    } else {
+      for (int i = 0; i != n; i++) {
+        if(v.isNull[i]) {
+          v.vector[i].setNullDataValue();
         }
       }
     }

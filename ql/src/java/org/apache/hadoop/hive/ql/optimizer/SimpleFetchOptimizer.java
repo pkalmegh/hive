@@ -232,18 +232,17 @@ public class SimpleFetchOptimizer implements Transform {
       inputs.clear();
       if (!table.isPartitioned()) {
         inputs.add(new ReadEntity(table));
-        String path = table.getPath().toString();
-        FetchWork work = new FetchWork(path, Utilities.getTableDesc(table));
+        FetchWork work = new FetchWork(table.getPath(), Utilities.getTableDesc(table));
         PlanUtils.configureInputJobPropertiesForStorageHandler(work.getTblDesc());
         work.setSplitSample(splitSample);
         return work;
       }
-      List<String> listP = new ArrayList<String>();
+      List<Path> listP = new ArrayList<Path>();
       List<PartitionDesc> partP = new ArrayList<PartitionDesc>();
 
       for (Partition partition : partsList.getNotDeniedPartns()) {
         inputs.add(new ReadEntity(partition));
-        listP.add(partition.getPartitionPath().toString());
+        listP.add(partition.getDataLocation());
         partP.add(Utilities.getPartitionDesc(partition));
       }
       Table sourceTable = partsList.getSourceTable();
@@ -297,7 +296,7 @@ public class SimpleFetchOptimizer implements Transform {
       }
       long total = 0;
       for (Partition partition : partsList.getNotDeniedPartns()) {
-        Path path = partition.getPartitionPath();
+        Path path = partition.getDataLocation();
         total += getFileLength(jobConf, path, partition.getInputFormatClass());
       }
       return total;

@@ -302,7 +302,6 @@ STAGE PLANS:
     Fetch Operator
       limit: -1
 
-
 PREHOOK: query: select count(*) FROM
 (select bigTbl.key as key, bigTbl.value as value1,
  bigTbl.value as value2 FROM bigTbl JOIN smallTbl1 
@@ -486,7 +485,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: select count(*) FROM
 (select bigTbl.key as key, bigTbl.value as value1,
@@ -692,7 +690,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: select count(*) FROM
 (select bigTbl.key as key, bigTbl.value as value1,
@@ -1037,7 +1034,7 @@ STAGE PLANS:
   Stage: Stage-15
     Map Reduce
       Alias -> Map Operator Tree:
-        $INTNAME 
+        join3:join2:$INTNAME 
           TableScan
             Map Join Operator
               condition map:
@@ -1102,7 +1099,7 @@ STAGE PLANS:
   Stage: Stage-12
     Map Reduce
       Alias -> Map Operator Tree:
-        $INTNAME 
+        join3:$INTNAME 
           TableScan
             Map Join Operator
               condition map:
@@ -1466,11 +1463,11 @@ STAGE PLANS:
   Stage: Stage-24
     Map Reduce Local Work
       Alias -> Map Local Tables:
-        $INTNAME 
+        join3:$INTNAME 
           Fetch Operator
             limit: -1
       Alias -> Map Local Operator Tree:
-        $INTNAME 
+        join3:$INTNAME 
           TableScan
             HashTable Sink Operator
               condition expressions:
@@ -1530,7 +1527,7 @@ STAGE PLANS:
   Stage: Stage-2
     Map Reduce
       Alias -> Map Operator Tree:
-        $INTNAME 
+        join3:$INTNAME 
           TableScan
             Reduce Output Operator
               key expressions:
@@ -1606,11 +1603,11 @@ STAGE PLANS:
   Stage: Stage-26
     Map Reduce Local Work
       Alias -> Map Local Tables:
-        $INTNAME 
+        join3:join2:$INTNAME 
           Fetch Operator
             limit: -1
       Alias -> Map Local Operator Tree:
-        $INTNAME 
+        join3:join2:$INTNAME 
           TableScan
             HashTable Sink Operator
               condition expressions:
@@ -1668,7 +1665,7 @@ STAGE PLANS:
   Stage: Stage-1
     Map Reduce
       Alias -> Map Operator Tree:
-        $INTNAME 
+        join3:join2:$INTNAME 
           TableScan
             Reduce Output Operator
               key expressions:
@@ -1868,7 +1865,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: SELECT SUM(HASH(join3.key1)),
        SUM(HASH(join3.key2)),
@@ -2317,7 +2313,6 @@ STAGE PLANS:
     Fetch Operator
       limit: -1
 
-
 PREHOOK: query: SELECT SUM(HASH(join3.key1)),
        SUM(HASH(join3.key2)),
        SUM(HASH(join3.key3)),
@@ -2647,7 +2642,7 @@ STAGE PLANS:
   Stage: Stage-4
     Map Reduce
       Alias -> Map Operator Tree:
-        $INTNAME 
+        join3:$INTNAME 
           TableScan
             Map Join Operator
               condition map:
@@ -2788,7 +2783,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: SELECT SUM(HASH(join3.key1)),
        SUM(HASH(join3.key2)),
@@ -3085,7 +3079,7 @@ STAGE PLANS:
   Stage: Stage-15
     Map Reduce
       Alias -> Map Operator Tree:
-        $INTNAME 
+        join3:join2:$INTNAME 
           TableScan
             Map Join Operator
               condition map:
@@ -3150,7 +3144,7 @@ STAGE PLANS:
   Stage: Stage-12
     Map Reduce
       Alias -> Map Operator Tree:
-        $INTNAME 
+        join3:$INTNAME 
           TableScan
             Map Join Operator
               condition map:
@@ -3514,11 +3508,11 @@ STAGE PLANS:
   Stage: Stage-24
     Map Reduce Local Work
       Alias -> Map Local Tables:
-        $INTNAME 
+        join3:$INTNAME 
           Fetch Operator
             limit: -1
       Alias -> Map Local Operator Tree:
-        $INTNAME 
+        join3:$INTNAME 
           TableScan
             HashTable Sink Operator
               condition expressions:
@@ -3578,7 +3572,7 @@ STAGE PLANS:
   Stage: Stage-2
     Map Reduce
       Alias -> Map Operator Tree:
-        $INTNAME 
+        join3:$INTNAME 
           TableScan
             Reduce Output Operator
               key expressions:
@@ -3654,11 +3648,11 @@ STAGE PLANS:
   Stage: Stage-26
     Map Reduce Local Work
       Alias -> Map Local Tables:
-        $INTNAME 
+        join3:join2:$INTNAME 
           Fetch Operator
             limit: -1
       Alias -> Map Local Operator Tree:
-        $INTNAME 
+        join3:join2:$INTNAME 
           TableScan
             HashTable Sink Operator
               condition expressions:
@@ -3716,7 +3710,7 @@ STAGE PLANS:
   Stage: Stage-1
     Map Reduce
       Alias -> Map Operator Tree:
-        $INTNAME 
+        join3:join2:$INTNAME 
           TableScan
             Reduce Output Operator
               key expressions:
@@ -3916,7 +3910,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: SELECT SUM(HASH(join3.key1)),
        SUM(HASH(join3.key2)),

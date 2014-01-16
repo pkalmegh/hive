@@ -141,6 +141,8 @@ STAGE PLANS:
         a 
           TableScan
             alias: a
+            Statistics:
+                numRows: 1 dataSize: 114 basicStatsState: COMPLETE colStatsState: NONE
             GatherStats: false
             HashTable Sink Operator
               condition expressions:
@@ -158,6 +160,8 @@ STAGE PLANS:
         b 
           TableScan
             alias: b
+            Statistics:
+                numRows: 116 dataSize: 11624 basicStatsState: COMPLETE colStatsState: NONE
             GatherStats: false
             Map Join Operator
               condition map:
@@ -170,15 +174,23 @@ STAGE PLANS:
                 0 [Column[key]]
                 1 [Column[key]]
               Position of Big Table: 1
+              Statistics:
+                  numRows: 127 dataSize: 12786 basicStatsState: COMPLETE colStatsState: NONE
               Select Operator
+                Statistics:
+                    numRows: 127 dataSize: 12786 basicStatsState: COMPLETE colStatsState: NONE
                 Group By Operator
                   aggregations:
                         expr: count()
                   bucketGroup: false
                   mode: hash
                   outputColumnNames: _col0
+                  Statistics:
+                      numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: NONE
                   Reduce Output Operator
                     sort order: 
+                    Statistics:
+                        numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: NONE
                     tag: -1
                     value expressions:
                           expr: _col0
@@ -328,16 +340,22 @@ STAGE PLANS:
           bucketGroup: false
           mode: mergepartial
           outputColumnNames: _col0
+          Statistics:
+              numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: NONE
           Select Operator
             expressions:
                   expr: _col0
                   type: bigint
             outputColumnNames: _col0
+            Statistics:
+                numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: NONE
             File Output Operator
               compressed: false
               GlobalTableId: 0
 #### A masked pattern was here ####
               NumFilesPerFileSink: 1
+              Statistics:
+                  numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: NONE
 #### A masked pattern was here ####
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
@@ -357,7 +375,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: select count(*) FROM bucket_small a JOIN bucket_big b ON a.key = b.key
 PREHOOK: type: QUERY
@@ -450,6 +467,8 @@ STAGE PLANS:
         a 
           TableScan
             alias: a
+            Statistics:
+                numRows: 1 dataSize: 114 basicStatsState: COMPLETE colStatsState: NONE
             GatherStats: false
             HashTable Sink Operator
               condition expressions:
@@ -467,6 +486,8 @@ STAGE PLANS:
         b 
           TableScan
             alias: b
+            Statistics:
+                numRows: 116 dataSize: 11624 basicStatsState: COMPLETE colStatsState: NONE
             GatherStats: false
             Map Join Operator
               condition map:
@@ -479,15 +500,23 @@ STAGE PLANS:
                 0 [Column[key]]
                 1 [Column[key]]
               Position of Big Table: 1
+              Statistics:
+                  numRows: 127 dataSize: 12786 basicStatsState: COMPLETE colStatsState: NONE
               Select Operator
+                Statistics:
+                    numRows: 127 dataSize: 12786 basicStatsState: COMPLETE colStatsState: NONE
                 Group By Operator
                   aggregations:
                         expr: count()
                   bucketGroup: false
                   mode: hash
                   outputColumnNames: _col0
+                  Statistics:
+                      numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: NONE
                   Reduce Output Operator
                     sort order: 
+                    Statistics:
+                        numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: NONE
                     tag: -1
                     value expressions:
                           expr: _col0
@@ -637,16 +666,22 @@ STAGE PLANS:
           bucketGroup: false
           mode: mergepartial
           outputColumnNames: _col0
+          Statistics:
+              numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: NONE
           Select Operator
             expressions:
                   expr: _col0
                   type: bigint
             outputColumnNames: _col0
+            Statistics:
+                numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: NONE
             File Output Operator
               compressed: false
               GlobalTableId: 0
 #### A masked pattern was here ####
               NumFilesPerFileSink: 1
+              Statistics:
+                  numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: NONE
 #### A masked pattern was here ####
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
@@ -666,7 +701,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: select count(*) FROM bucket_small a JOIN bucket_big b ON a.key = b.key
 PREHOOK: type: QUERY
@@ -752,6 +786,8 @@ STAGE PLANS:
         a 
           TableScan
             alias: a
+            Statistics:
+                numRows: 1 dataSize: 114 basicStatsState: COMPLETE colStatsState: NONE
             GatherStats: false
             HashTable Sink Operator
               condition expressions:
@@ -776,6 +812,8 @@ STAGE PLANS:
         b 
           TableScan
             alias: b
+            Statistics:
+                numRows: 116 dataSize: 11624 basicStatsState: COMPLETE colStatsState: NONE
             GatherStats: false
             Map Join Operator
               condition map:
@@ -788,16 +826,24 @@ STAGE PLANS:
                 0 [Column[key]]
                 1 [Column[key]]
               Position of Big Table: 1
+              Statistics:
+                  numRows: 127 dataSize: 12786 basicStatsState: COMPLETE colStatsState: NONE
               BucketMapJoin: true
               Select Operator
+                Statistics:
+                    numRows: 127 dataSize: 12786 basicStatsState: COMPLETE colStatsState: NONE
                 Group By Operator
                   aggregations:
                         expr: count()
                   bucketGroup: false
                   mode: hash
                   outputColumnNames: _col0
+                  Statistics:
+                      numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: NONE
                   Reduce Output Operator
                     sort order: 
+                    Statistics:
+                        numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: NONE
                     tag: -1
                     value expressions:
                           expr: _col0
@@ -904,16 +950,22 @@ STAGE PLANS:
           bucketGroup: false
           mode: mergepartial
           outputColumnNames: _col0
+          Statistics:
+              numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: NONE
           Select Operator
             expressions:
                   expr: _col0
                   type: bigint
             outputColumnNames: _col0
+            Statistics:
+                numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: NONE
             File Output Operator
               compressed: false
               GlobalTableId: 0
 #### A masked pattern was here ####
               NumFilesPerFileSink: 1
+              Statistics:
+                  numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: NONE
 #### A masked pattern was here ####
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
@@ -933,7 +985,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: select /*+ mapjoin(a) */ count(*) FROM bucket_small a JOIN bucket_big b ON a.key = b.key
 PREHOOK: type: QUERY

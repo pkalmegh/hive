@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hive.metastore.parser;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -24,8 +25,11 @@ import java.util.Stack;
 
 import org.antlr.runtime.ANTLRStringStream;
 import org.antlr.runtime.CharStream;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.FileUtils;
+import org.apache.hadoop.hive.metastore.HiveMetaStore;
 import org.apache.hadoop.hive.metastore.ObjectStore;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.Table;
@@ -231,12 +235,12 @@ public class ExpressionTree {
      * @return a JDO filter statement
      * @throws MetaException
      */
-    public void generateJDOFilter(Table table, Map<String, Object> params,
-        FilterBuilder filterBuffer) throws MetaException {
+    public void generateJDOFilter(Configuration conf, Table table,
+        Map<String, Object> params, FilterBuilder filterBuffer) throws MetaException {
       if (filterBuffer.hasError()) return;
       if (lhs != null) {
         filterBuffer.append (" (");
-        lhs.generateJDOFilter(table, params, filterBuffer);
+        lhs.generateJDOFilter(conf, table, params, filterBuffer);
 
         if (rhs != null) {
           if( andOr == LogicalOperator.AND ) {
@@ -245,7 +249,7 @@ public class ExpressionTree {
             filterBuffer.append(" || ");
           }
 
-          rhs.generateJDOFilter(table, params, filterBuffer);
+          rhs.generateJDOFilter(conf, table, params, filterBuffer);
         }
         filterBuffer.append (") ");
       }
@@ -269,10 +273,10 @@ public class ExpressionTree {
     }
 
     @Override
-    public void generateJDOFilter(Table table, Map<String, Object> params,
+    public void generateJDOFilter(Configuration conf, Table table, Map<String, Object> params,
         FilterBuilder filterBuilder) throws MetaException {
       if (table != null) {
-        generateJDOFilterOverPartitions(table, params, filterBuilder);
+        generateJDOFilterOverPartitions(conf, table, params, filterBuilder);
       } else {
         generateJDOFilterOverTables(params, filterBuilder);
       }
@@ -342,13 +346,16 @@ public class ExpressionTree {
       }
     }
 
-    private void generateJDOFilterOverPartitions(Table table, Map<String, Object> params,
-        FilterBuilder filterBuilder) throws MetaException {
+    private void generateJDOFilterOverPartitions(Configuration conf, Table table,
+        Map<String, Object> params,  FilterBuilder filterBuilder) throws MetaException {
       int partitionColumnCount = table.getPartitionKeys().size();
       int partitionColumnIndex = getPartColIndexForFilter(table, filterBuilder);
       if (filterBuilder.hasError()) return;
 
-      String valueAsString = getJdoFilterPushdownParam(table, partitionColumnIndex, filterBuilder);
+      boolean canPushDownIntegral =
+          HiveConf.getBoolVar(conf, HiveConf.ConfVars.METASTORE_INTEGER_JDO_PUSHDOWN);
+      String valueAsString = getJdoFilterPushdownParam(
+          table, partitionColumnIndex, filterBuilder, canPushDownIntegral);
       if (filterBuilder.hasError()) return;
 
       String paramName = PARAM_PREFIX + params.size();
@@ -435,9 +442,9 @@ public class ExpressionTree {
      * @param filterBuilder filter builder used to report error, if any.
      * @return The parameter string.
      */
-    private String getJdoFilterPushdownParam(
-        Table table, int partColIndex, FilterBuilder filterBuilder) throws MetaException {
-      boolean isIntegralSupported = canJdoUseStringsWithIntegral();
+    private String getJdoFilterPushdownParam(Table table, int partColIndex,
+        FilterBuilder filterBuilder, boolean canPushDownIntegral) throws MetaException {
+      boolean isIntegralSupported = canPushDownIntegral && canJdoUseStringsWithIntegral();
       String colType = table.getPartitionKeys().get(partColIndex).getType();
       // Can only support partitions whose types are string, or maybe integers
       if (!colType.equals(serdeConstants.STRING_TYPE_NAME)
@@ -447,14 +454,20 @@ public class ExpressionTree {
         return null;
       }
 
-      boolean isStringValue = value instanceof String;
-      if (!isStringValue && (!isIntegralSupported || !(value instanceof Long))) {
+      // There's no support for date cast in JDO. Let's convert it to string; the date
+      // columns have been excluded above, so it will either compare w/string or fail.
+      Object val = value;
+      if (value instanceof Date) {
+        val = HiveMetaStore.PARTITION_DATE_FORMAT.format((Date)value);
+      }
+      boolean isStringValue = val instanceof String;
+      if (!isStringValue && (!isIntegralSupported || !(val instanceof Long))) {
         filterBuilder.setError("Filtering is supported only on partition keys of type " +
             "string" + (isIntegralSupported ? ", or integral types" : ""));
         return null;
       }
 
-      return isStringValue ? (String) value : Long.toString((Long) value);
+      return isStringValue ? (String)val : Long.toString((Long)val);
     }
   }
 
@@ -567,14 +580,14 @@ public class ExpressionTree {
    *     are the parameter values
    * @param filterBuilder the filter builder to append to.
    */
-  public void generateJDOFilterFragment(Table table, Map<String, Object> params,
-      FilterBuilder filterBuilder) throws MetaException {
+  public void generateJDOFilterFragment(Configuration conf, Table table,
+      Map<String, Object> params, FilterBuilder filterBuilder) throws MetaException {
     if (root == null) {
       return;
     }
 
     filterBuilder.append(" && ( ");
-    root.generateJDOFilter(table, params, filterBuilder);
+    root.generateJDOFilter(conf, table, params, filterBuilder);
     filterBuilder.append(" )");
   }
 

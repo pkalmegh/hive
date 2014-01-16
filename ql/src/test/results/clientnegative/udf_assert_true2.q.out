@@ -23,7 +23,7 @@ STAGE PLANS:
                   Select Operator
                     expressions:
                           expr: (1 + assert_true((_col4 < 2)))
-                          type: int
+                          type: double
                     outputColumnNames: _col0
                     Limit
                       File Output Operator
@@ -45,7 +45,7 @@ STAGE PLANS:
                     Select Operator
                       expressions:
                             expr: (1 + assert_true((_col4 < 2)))
-                            type: int
+                            type: double
                       outputColumnNames: _col0
                       Limit
                         File Output Operator
@@ -59,7 +59,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: 2
-
 
 PREHOOK: query: SELECT 1 + ASSERT_TRUE(x < 2) FROM src LATERAL VIEW EXPLODE(ARRAY(1, 2)) a AS x LIMIT 2
 PREHOOK: type: QUERY

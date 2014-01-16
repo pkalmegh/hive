@@ -39,6 +39,7 @@ import org.apache.hive.service.cli.FetchOrientation;
 import org.apache.hive.service.cli.HiveSQLException;
 import org.apache.hive.service.cli.OperationState;
 import org.apache.hive.service.cli.RowSet;
+import org.apache.hive.service.cli.RowSetFactory;
 import org.apache.hive.service.cli.TableSchema;
 import org.apache.hive.service.cli.session.HiveSession;
 
@@ -152,11 +153,15 @@ public class HiveCommandOperation extends ExecuteStatementOperation {
    */
   @Override
   public RowSet getNextRowSet(FetchOrientation orientation, long maxRows) throws HiveSQLException {
+    validateDefaultFetchOrientation(orientation);
+    if (orientation.equals(FetchOrientation.FETCH_FIRST)) {
+      resetResultReader();
+    }
     List<String> rows = readResults((int) maxRows);
-    RowSet rowSet = new RowSet();
+    RowSet rowSet = RowSetFactory.create(resultSchema, getProtocolVersion());
 
     for (String row : rows) {
-      rowSet.addRow(resultSchema, new String[] {row});
+      rowSet.addRow(new String[] {row});
     }
     return rowSet;
   }
@@ -178,7 +183,6 @@ public class HiveCommandOperation extends ExecuteStatementOperation {
         throw new HiveSQLException(e);
       }
     }
-
     List<String> results = new ArrayList<String>();
 
     for (int i = 0; i < nLines || nLines <= 0; ++i) {
@@ -199,11 +203,15 @@ public class HiveCommandOperation extends ExecuteStatementOperation {
   }
 
   private void cleanTmpFile() {
+    resetResultReader();
+    SessionState sessionState = getParentSession().getSessionState();
+    File tmp = sessionState.getTmpOutputFile();
+    tmp.delete();
+  }
+
+  private void resetResultReader() {
     if (resultReader != null) {
-      SessionState sessionState = getParentSession().getSessionState();
-      File tmp = sessionState.getTmpOutputFile();
       IOUtils.cleanup(LOG, resultReader);
-      tmp.delete();
       resultReader = null;
     }
   }

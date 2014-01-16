@@ -27,6 +27,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
@@ -189,6 +190,32 @@ public final class SerDeUtils {
       }
     }
     return (escape.toString());
+  }
+
+  /**
+   * Convert a Object to a standard Java object in compliance with JDBC 3.0 (see JDBC 3.0
+   * Specification, Table B-3: Mapping from JDBC Types to Java Object Types).
+   *
+   * This method is kept consistent with {@link HiveResultSetMetaData#hiveTypeToSqlType}.
+   */
+  public static Object toThriftPayload(Object val, ObjectInspector valOI, int version) {
+    if (valOI.getCategory() == ObjectInspector.Category.PRIMITIVE) {
+      if (val == null) {
+        return null;
+      }
+      Object obj = ObjectInspectorUtils.copyToStandardObject(val, valOI,
+          ObjectInspectorUtils.ObjectInspectorCopyOption.JAVA);
+      // uses string type for binary before HIVE_CLI_SERVICE_PROTOCOL_V6
+      if (version < 5 && ((PrimitiveObjectInspector)valOI).getPrimitiveCategory() ==
+          PrimitiveObjectInspector.PrimitiveCategory.BINARY) {
+        // todo HIVE-5269
+        return new String((byte[])obj);
+      }
+      return obj;
+    }
+    // for now, expose non-primitive as a string
+    // TODO: expose non-primitive as a structured object while maintaining JDBC compliance
+    return SerDeUtils.getJSONString(val, valOI);
   }
 
   public static String getJSONString(Object o, ObjectInspector oi) {

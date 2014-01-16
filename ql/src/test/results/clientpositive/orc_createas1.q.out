@@ -156,7 +156,6 @@ STAGE PLANS:
           hdfs directory: true
 #### A masked pattern was here ####
 
-
 PREHOOK: query: CREATE TABLE orc_createas1b
     STORED AS ORC AS
     SELECT * FROM src
@@ -227,7 +226,6 @@ STAGE PLANS:
     Fetch Operator
       limit: 5
 
-
 PREHOOK: query: SELECT * FROM orc_createas1b ORDER BY key LIMIT 5
 PREHOOK: type: QUERY
 PREHOOK: Input: default@orc_createas1b
@@ -288,7 +286,7 @@ STAGE PLANS:
                     type: int
                     expr: value
                     type: string
-                    expr: pmod(hash(key), 50)
+                    expr: (hash(key) pmod 50)
                     type: int
               outputColumnNames: _col0, _col1, _col2
               File Output Operator
@@ -363,7 +361,6 @@ STAGE PLANS:
       files:
           hdfs directory: true
 #### A masked pattern was here ####
-
 
 PREHOOK: query: CREATE TABLE orc_createas1c
     STORED AS ORC AS 

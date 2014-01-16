@@ -32,6 +32,8 @@ import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.ql.exec.FetchFormatter;
+import org.apache.hadoop.hive.ql.exec.ListSinkOperator;
 import org.apache.hadoop.hive.ql.history.HiveHistory;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hive.common.util.HiveVersionInfo;
@@ -52,6 +54,7 @@ import org.apache.hive.service.cli.operation.GetTableTypesOperation;
 import org.apache.hive.service.cli.operation.GetTypeInfoOperation;
 import org.apache.hive.service.cli.operation.MetadataOperation;
 import org.apache.hive.service.cli.operation.OperationManager;
+import org.apache.hive.service.cli.thrift.TProtocolVersion;
 
 /**
  * HiveSession
@@ -59,7 +62,8 @@ import org.apache.hive.service.cli.operation.OperationManager;
  */
 public class HiveSessionImpl implements HiveSession {
 
-  private final SessionHandle sessionHandle = new SessionHandle();
+  private final SessionHandle sessionHandle;
+
   private String username;
   private final String password;
   private final Map<String, String> sessionConf = new HashMap<String, String>();
@@ -76,9 +80,11 @@ public class HiveSessionImpl implements HiveSession {
   private IMetaStoreClient metastoreClient = null;
   private final Set<OperationHandle> opHandleSet = new HashSet<OperationHandle>();
 
-  public HiveSessionImpl(String username, String password, Map<String, String> sessionConf) {
+  public HiveSessionImpl(TProtocolVersion protocol, String username, String password,
+      Map<String, String> sessionConf) {
     this.username = username;
     this.password = password;
+    this.sessionHandle = new SessionHandle(protocol);
 
     if (sessionConf != null) {
       for (Map.Entry<String, String> entry : sessionConf.entrySet()) {
@@ -88,8 +94,16 @@ public class HiveSessionImpl implements HiveSession {
     // set an explicit session name to control the download directory name
     hiveConf.set(ConfVars.HIVESESSIONID.varname,
         sessionHandle.getHandleIdentifier().toString());
+    // use thrift transportable formatter
+    hiveConf.set(ListSinkOperator.OUTPUT_FORMATTER,
+        FetchFormatter.ThriftFormatter.class.getName());
+    hiveConf.setInt(ListSinkOperator.OUTPUT_PROTOCOL, protocol.getValue());
     sessionState = new SessionState(hiveConf);
     SessionState.start(sessionState);
+  }
+
+  public TProtocolVersion getProtocolVersion() {
+    return sessionHandle.getProtocolVersion();
   }
 
   public SessionManager getSessionManager() {
@@ -197,7 +211,11 @@ public class HiveSessionImpl implements HiveSession {
       opHandleSet.add(opHandle);
       return opHandle;
     } catch (HiveSQLException e) {
-      operationManager.closeOperation(opHandle);
+      // Cleanup opHandle in case the query is synchronous
+      // Async query needs to retain and pass back the opHandle for error reporting
+      if (!runAsync) {
+        operationManager.closeOperation(opHandle);
+      }
       throw e;
     } finally {
       release();

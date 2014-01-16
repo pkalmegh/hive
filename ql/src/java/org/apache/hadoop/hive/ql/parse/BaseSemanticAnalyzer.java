@@ -39,6 +39,8 @@ import org.antlr.runtime.tree.Tree;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.HiveMetaStore;
+import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Order;
 import org.apache.hadoop.hive.ql.Context;
@@ -67,6 +69,7 @@ import org.apache.hadoop.hive.ql.optimizer.listbucketingpruner.ListBucketingPrun
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.ListBucketingCtx;
 import org.apache.hadoop.hive.ql.plan.PlanUtils;
+import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.session.SessionState.LogHelper;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.io.DateWritable;
@@ -77,7 +80,6 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.mapred.TextInputFormat;
-import org.apache.hadoop.util.StringUtils;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -142,6 +144,7 @@ public abstract class BaseSemanticAnalyzer {
     String collItemDelim = null;
     String mapKeyDelim = null;
     String lineDelim = null;
+    String nullFormat = null;
 
     protected void analyzeRowFormat(AnalyzeCreateCommonVars shared, ASTNode child) throws SemanticException {
       child = (ASTNode) child.getChild(0);
@@ -173,6 +176,10 @@ public abstract class BaseSemanticAnalyzer {
             throw new SemanticException(SemanticAnalyzer.generateErrorMessage(rowChild,
                 ErrorMsg.LINES_TERMINATED_BY_NON_NEWLINE.getMsg()));
           }
+          break;
+        case HiveParser.TOK_TABLEROWFORMATNULL:
+          nullFormat = unescapeSQLString(rowChild.getChild(0)
+                    .getText());
           break;
         default:
           assert false;
@@ -255,13 +262,16 @@ public abstract class BaseSemanticAnalyzer {
         }
       }
     }
-
   }
 
   public BaseSemanticAnalyzer(HiveConf conf) throws SemanticException {
+   this(conf, createHiveDB(conf));
+  }
+
+  public BaseSemanticAnalyzer(HiveConf conf, Hive db) throws SemanticException {
     try {
       this.conf = conf;
-      db = Hive.get(conf);
+      this.db = db;
       rootTasks = new ArrayList<Task<? extends Serializable>>();
       LOG = LogFactory.getLog(this.getClass().getName());
       console = new LogHelper(LOG);
@@ -269,6 +279,14 @@ public abstract class BaseSemanticAnalyzer {
       inputs = new LinkedHashSet<ReadEntity>();
       outputs = new LinkedHashSet<WriteEntity>();
     } catch (Exception e) {
+      throw new SemanticException(e);
+    }
+  }
+
+  protected static Hive createHiveDB(HiveConf conf) throws SemanticException {
+    try {
+      return Hive.get(conf);
+    } catch (HiveException e) {
       throw new SemanticException(e);
     }
   }
@@ -609,7 +627,7 @@ public abstract class BaseSemanticAnalyzer {
     return colList;
   }
 
-  protected List<String> getColumnNames(ASTNode ast) {
+  public static List<String> getColumnNames(ASTNode ast) {
     List<String> colList = new ArrayList<String>();
     int numCh = ast.getChildCount();
     for (int i = 0; i < numCh; i++) {
@@ -749,7 +767,7 @@ public abstract class BaseSemanticAnalyzer {
         ASTNode partspec = (ASTNode) ast.getChild(1);
         partitions = new ArrayList<Partition>();
         // partSpec is a mapping from partition column name to its value.
-        partSpec = new LinkedHashMap<String, String>(partspec.getChildCount());
+        Map<String, String> tmpPartSpec = new HashMap<String, String>(partspec.getChildCount());
         for (int i = 0; i < partspec.getChildCount(); ++i) {
           ASTNode partspec_val = (ASTNode) partspec.getChild(i);
           String val = null;
@@ -764,15 +782,21 @@ public abstract class BaseSemanticAnalyzer {
           } else { // in the form of T partition (ds="2010-03-03")
             val = stripQuotes(partspec_val.getChild(1).getText());
           }
-          partSpec.put(colName, val);
+          tmpPartSpec.put(colName, val);
         }
 
         // check if the columns, as well as value types in the partition() clause are valid
-        validatePartSpec(tableHandle, partSpec, ast, conf);
+        validatePartSpec(tableHandle, tmpPartSpec, ast, conf);
+
+        List<FieldSchema> parts = tableHandle.getPartitionKeys();
+        partSpec = new LinkedHashMap<String, String>(partspec.getChildCount());
+        for (FieldSchema fs : parts) {
+          String partKey = fs.getName();
+          partSpec.put(partKey, tmpPartSpec.get(partKey));
+        }
 
         // check if the partition spec is valid
         if (numDynParts > 0) {
-          List<FieldSchema> parts = tableHandle.getPartitionKeys();
           int numStaPart = parts.size() - numDynParts;
           if (numStaPart == 0 &&
               conf.getVar(HiveConf.ConfVars.DYNAMICPARTITIONINGMODE).equalsIgnoreCase("strict")) {
@@ -1134,48 +1158,53 @@ public abstract class BaseSemanticAnalyzer {
     return storedAsDirs;
   }
 
-  private static void getPartExprNodeDesc(ASTNode astNode,
-      Map<ASTNode, ExprNodeDesc> astExprNodeMap)
-          throws SemanticException, HiveException {
+  private static boolean getPartExprNodeDesc(ASTNode astNode,
+      Map<ASTNode, ExprNodeDesc> astExprNodeMap) throws SemanticException {
 
-    if ((astNode == null) || (astNode.getChildren() == null) || 
-        (astNode.getChildren().size() == 0)) {
-      return;
+    if (astNode == null) {
+      return true;
+    } else if ((astNode.getChildren() == null) || (astNode.getChildren().size() == 0)) {
+      return astNode.getType() != HiveParser.TOK_PARTVAL;
     }
 
     TypeCheckCtx typeCheckCtx = new TypeCheckCtx(null);
+    boolean result = true;
     for (Node childNode : astNode.getChildren()) {
       ASTNode childASTNode = (ASTNode)childNode;
 
       if (childASTNode.getType() != HiveParser.TOK_PARTVAL) {
-        getPartExprNodeDesc(childASTNode, astExprNodeMap);
+        result = getPartExprNodeDesc(childASTNode, astExprNodeMap) && result;
       } else {
-        if (childASTNode.getChildren().size() <= 1) {
-          throw new HiveException("This is dynamic partitioning");
+        boolean isDynamicPart = childASTNode.getChildren().size() <= 1;
+        result = !isDynamicPart && result;
+        if (!isDynamicPart) {
+          ASTNode partVal = (ASTNode)childASTNode.getChildren().get(1);
+          astExprNodeMap.put((ASTNode)childASTNode.getChildren().get(0),
+            TypeCheckProcFactory.genExprNode(partVal, typeCheckCtx).get(partVal));
         }
-
-        ASTNode partValASTChild = (ASTNode)childASTNode.getChildren().get(1);
-        astExprNodeMap.put((ASTNode)childASTNode.getChildren().get(0),
-            TypeCheckProcFactory.genExprNode(partValASTChild, typeCheckCtx).get(partValASTChild));
       }
     }
+    return result;
   }
 
   public static void validatePartSpec(Table tbl, Map<String, String> partSpec,
       ASTNode astNode, HiveConf conf) throws SemanticException {
-    Map<ASTNode, ExprNodeDesc> astExprNodeMap = new HashMap<ASTNode, ExprNodeDesc>();
-
-    Utilities.validatePartSpec(tbl, partSpec);
+    Utilities.validatePartSpecColumnNames(tbl, partSpec);
 
     if (!HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_TYPE_CHECK_ON_INSERT)) {
       return;
     }
 
-    try {
-      getPartExprNodeDesc(astNode, astExprNodeMap);
-    } catch (HiveException e) {
-      return;
+    Map<ASTNode, ExprNodeDesc> astExprNodeMap = new HashMap<ASTNode, ExprNodeDesc>();
+    if (!getPartExprNodeDesc(astNode, astExprNodeMap)) {
+      STATIC_LOG.warn("Dynamic partitioning is used; only validating "
+          + astExprNodeMap.size() + " columns");
     }
+
+    if (astExprNodeMap.isEmpty()) {
+      return; // All columns are dynamic, nothing to do.
+    }
+
     List<FieldSchema> parts = tbl.getPartitionKeys();
     Map<String, String> partCols = new HashMap<String, String>(parts.size());
     for (FieldSchema col : parts) {
@@ -1205,8 +1234,8 @@ public abstract class BaseSemanticAnalyzer {
       Object convertedValue =
         ObjectInspectorConverters.getConverter(inputOI, outputOI).convert(value);
       if (convertedValue == null) {
-        throw new SemanticException(ErrorMsg.PARTITION_SPEC_TYPE_MISMATCH.format(astKeyName,
-            inputOI.getTypeName(), outputOI.getTypeName()));
+        throw new SemanticException(ErrorMsg.PARTITION_SPEC_TYPE_MISMATCH, astKeyName,
+            inputOI.getTypeName(), outputOI.getTypeName());
       }
 
       normalizeColSpec(partSpec, astKeyName, colType, colSpec, convertedValue);
@@ -1228,9 +1257,6 @@ public abstract class BaseSemanticAnalyzer {
     }
   }
 
-  /** A fixed date format to be used for hive partition column values. */
-  private static final DateFormat partitionDateFormat = new SimpleDateFormat("yyyy-MM-dd");
-
   private static String normalizeDateCol(
       Object colValue, String originalColSpec) throws SemanticException {
     Date value;
@@ -1241,6 +1267,86 @@ public abstract class BaseSemanticAnalyzer {
     } else {
       throw new SemanticException("Unexpected date type " + colValue.getClass());
     }
-    return partitionDateFormat.format(value);
+    return HiveMetaStore.PARTITION_DATE_FORMAT.format(value);
+  }
+
+  protected Database getDatabase(String dbName) throws SemanticException {
+    return getDatabase(dbName, true);
+  }
+
+  protected Database getDatabase(String dbName, boolean throwException) throws SemanticException {
+    try {
+      Database database = db.getDatabase(dbName);
+      if (database == null && throwException) {
+        throw new SemanticException(ErrorMsg.DATABASE_NOT_EXISTS.getMsg(dbName));
+      }
+      return database;
+    } catch (HiveException e) {
+      throw new SemanticException(ErrorMsg.DATABASE_NOT_EXISTS.getMsg(dbName), e);
+    }
+  }
+
+  protected Table getTable(String tblName) throws SemanticException {
+    return getTable(null, tblName, true);
+  }
+
+  protected Table getTable(String tblName, boolean throwException) throws SemanticException {
+    String currentDb = SessionState.get().getCurrentDatabase();
+    return getTable(currentDb, tblName, throwException);
+  }
+
+  // qnName : possibly contains database name (dot seperated)
+  protected Table getTableWithQN(String qnName, boolean throwException) throws SemanticException {
+    int dot = qnName.indexOf('.');
+    if (dot < 0) {
+      String currentDb = SessionState.get().getCurrentDatabase();
+      return getTable(currentDb, qnName, throwException);
+    }
+    return getTable(qnName.substring(0, dot), qnName.substring(dot + 1), throwException);
+  }
+
+  protected Table getTable(String database, String tblName, boolean throwException)
+      throws SemanticException {
+    try {
+      Table tab = database == null ? db.getTable(tblName, false)
+          : db.getTable(database, tblName, false);
+      if (tab == null && throwException) {
+        throw new SemanticException(ErrorMsg.INVALID_TABLE.getMsg(tblName));
+      }
+      return tab;
+    } catch (HiveException e) {
+      throw new SemanticException(ErrorMsg.INVALID_TABLE.getMsg(tblName), e);
+    }
+  }
+
+  protected Partition getPartition(Table table, Map<String, String> partSpec,
+      boolean throwException) throws SemanticException {
+    try {
+      Partition partition = db.getPartition(table, partSpec, false);
+      if (partition == null && throwException) {
+        throw new SemanticException(toMessage(ErrorMsg.INVALID_PARTITION, partSpec));
+      }
+      return partition;
+    } catch (HiveException e) {
+      throw new SemanticException(toMessage(ErrorMsg.INVALID_PARTITION, partSpec), e);
+    }
+  }
+
+  protected List<Partition> getPartitions(Table table, Map<String, String> partSpec,
+      boolean throwException) throws SemanticException {
+    try {
+      List<Partition> partitions = partSpec == null ? db.getPartitions(table) :
+          db.getPartitions(table, partSpec);
+      if (partitions.isEmpty() && throwException) {
+        throw new SemanticException(toMessage(ErrorMsg.INVALID_PARTITION, partSpec));
+      }
+      return partitions;
+    } catch (HiveException e) {
+      throw new SemanticException(toMessage(ErrorMsg.INVALID_PARTITION, partSpec), e);
+    }
+  }
+
+  protected String toMessage(ErrorMsg message, Object detail) {
+    return detail == null ? message.getMsg() : message.getMsg(detail.toString());
   }
 }

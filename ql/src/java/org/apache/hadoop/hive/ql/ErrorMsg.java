@@ -366,6 +366,11 @@ public enum ErrorMsg {
   UNSUPPORTED_SUBQUERY_EXPRESSION(10249, "Unsupported SubQuery Expression"),
   INVALID_SUBQUERY_EXPRESSION(10250, "Invalid SubQuery expression"),
 
+  INVALID_HDFS_URI(10251, "{0} is not a hdfs uri", true),
+  INVALID_DIR(10252, "{0} is not a directory", true),
+  NO_VALID_LOCATIONS(10253, "Could not find any valid location to place the jars. " +
+  "Please update hive.jar.directory or hive.user.install.directory with a valid location", false),
+
   SCRIPT_INIT_ERROR(20000, "Unable to initialize custom script."),
   SCRIPT_IO_ERROR(20001, "An error occurred while reading or writing to your custom script. "
       + "It may have crashed with an error."),
@@ -373,6 +378,9 @@ public enum ErrorMsg {
       + "running your custom script."),
   SCRIPT_CLOSING_ERROR(20003, "An error occurred when trying to close the Operator " +
       "running your custom script."),
+  DYNAMIC_PARTITIONS_TOO_MANY_PER_NODE_ERROR(20004, "Fatal error occurred when node " +
+      "tried to create too many dynamic partitions. The maximum number of dynamic partitions " +
+      "is controlled by hive.exec.max.dynamic.partitions and hive.exec.max.dynamic.partitions.pernode. "),
 
   STATSPUBLISHER_NOT_OBTAINED(30000, "StatsPublisher cannot be obtained. " +
     "There was a error to retrieve the StatsPublisher, and retrying " +
@@ -408,7 +416,17 @@ public enum ErrorMsg {
   DROP_COMMAND_NOT_ALLOWED_FOR_PARTITION(30011, "Partition protected from being dropped"),
   COLUMNSTATSCOLLECTOR_INVALID_COLUMN(30012, "Column statistics are not supported "
       + "for partition columns"),
-    ;
+
+  STATISTICS_CLONING_FAILED(30013, "Cloning of statistics failed"),
+
+  STATSAGGREGATOR_SOURCETASK_NULL(30014, "SourceTask of StatsTask should not be null"),
+  STATSAGGREGATOR_CONNECTION_ERROR(30015,
+      "Stats aggregator of type {0} cannot be connected to", true),
+  STATSAGGREGATOR_MISSED_SOMESTATS(30016,
+      "Stats type {0} is missing from stats aggregator. If you don't want the query " +
+      "to fail because of this, set hive.stats.atomic=false", true),
+  STATS_SKIPPING_BY_ERROR(30017, "Skipping stats aggregation by error {0}", true);
+  ;
 
   private int errorCode;
   private String mesg;
@@ -661,6 +679,10 @@ public enum ErrorMsg {
 
   public String getErrorCodedMsg() {
     return "[Error " + errorCode + "]: " + mesg;
+  }
+
+  public String getErrorCodedMsg(String... reasons) {
+    return "[Error " + errorCode + "]: " + format(reasons);
   }
 
   public static Pattern getErrorCodePattern() {

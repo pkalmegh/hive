@@ -281,11 +281,10 @@ public class ImportSemanticAnalyzer extends BaseSemanticAnalyzer {
 
   private Task<?> loadTable(URI fromURI, Table table) {
     Path dataPath = new Path(fromURI.toString(), "data");
-    String tmpURI = ctx.getExternalTmpFileURI(fromURI);
-    Task<?> copyTask = TaskFactory.get(new CopyWork(dataPath.toString(),
-        tmpURI, false), conf);
-    LoadTableDesc loadTableWork = new LoadTableDesc(tmpURI.toString(),
-        ctx.getExternalTmpFileURI(fromURI),
+    Path tmpPath = ctx.getExternalTmpPath(fromURI);
+    Task<?> copyTask = TaskFactory.get(new CopyWork(dataPath,
+       tmpPath, false), conf);
+    LoadTableDesc loadTableWork = new LoadTableDesc(tmpPath,
         Utilities.getTableDesc(table), new TreeMap<String, String>(),
         false);
     Task<?> loadTableTask = TaskFactory.get(new MoveWork(getInputs(),
@@ -326,13 +325,12 @@ public class ImportSemanticAnalyzer extends BaseSemanticAnalyzer {
       LOG.debug("adding dependent CopyWork/AddPart/MoveWork for partition "
           + partSpecToString(addPartitionDesc.getPartSpec())
           + " with source location: " + srcLocation);
-      String tmpURI = ctx.getExternalTmpFileURI(fromURI);
-      Task<?> copyTask = TaskFactory.get(new CopyWork(srcLocation,
-          tmpURI, false), conf);
+      Path tmpPath = ctx.getExternalTmpPath(fromURI);
+      Task<?> copyTask = TaskFactory.get(new CopyWork(new Path(srcLocation),
+          tmpPath, false), conf);
       Task<?> addPartTask = TaskFactory.get(new DDLWork(getInputs(),
           getOutputs(), addPartitionDesc), conf);
-      LoadTableDesc loadTableWork = new LoadTableDesc(tmpURI,
-          ctx.getExternalTmpFileURI(fromURI),
+      LoadTableDesc loadTableWork = new LoadTableDesc(tmpPath,
           Utilities.getTableDesc(table),
           addPartitionDesc.getPartSpec(), true);
       loadTableWork.setInheritTableSpecs(false);
@@ -401,7 +399,7 @@ public class ImportSemanticAnalyzer extends BaseSemanticAnalyzer {
         if (tableDesc.getLocation() != null) { // IMPORT statement specified
                                                // location
           if (!table.getDataLocation()
-              .equals(new URI(tableDesc.getLocation()))) {
+              .equals(new Path(tableDesc.getLocation()))) {
             throw new SemanticException(
                 ErrorMsg.INCOMPATIBLE_SCHEMA.getMsg(" Location does not match"));
           }

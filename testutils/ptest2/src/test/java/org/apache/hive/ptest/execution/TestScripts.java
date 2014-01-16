@@ -63,6 +63,7 @@ public class TestScripts  {
     templateVariables.put("workingDir", "/some/working/dir");
     templateVariables.put("buildTool", "maven");
     templateVariables.put("antArgs", "-Dant=arg1");
+    templateVariables.put("mavenArgs", "-Dant=arg1");
     templateVariables.put("testClass", "TestCliDriver");
     templateVariables.put("buildTag", "build-1");
     templateVariables.put("logDir", "/some/log/dir");
@@ -142,6 +143,9 @@ public class TestScripts  {
     templateVariables.put("clearLibraryCache", "true");
     templateVariables.put("javaHome", "/usr/java/jdk1.7");
     templateVariables.put("antEnvOpts", "-Dhttp.proxyHost=somehost -Dhttp.proxyPort=3128");
+    templateVariables.put("mavenArgs", "-X");
+    templateVariables.put("mavenBuildArgs", "-Phadoop-2");
+    templateVariables.put("mavenTestArgs", "-Phadoop-1");
     templateVariables.put("repositoryType", "git");
     String template = readResource("source-prep.vm");
     String actual = getTemplateResult(template, templateVariables);

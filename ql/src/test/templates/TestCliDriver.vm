@@ -25,6 +25,7 @@ import java.io.*;
 import java.util.*;
 
 import org.apache.hadoop.hive.ql.QTestUtil;
+import org.apache.hadoop.hive.ql.QTestUtil.MiniClusterType;
 import org.apache.hadoop.hive.ql.session.SessionState;
 
 public class $className extends TestCase {
@@ -33,10 +34,12 @@ public class $className extends TestCase {
   private static QTestUtil qt;
 
   static {
+
+    MiniClusterType miniMR = MiniClusterType.valueForString("$clusterMode");
+    String hiveConfDir = "$hiveConfDir";
     try {
-      boolean miniMR = "$clusterMode".equals("miniMR");
       String hadoopVer = "$hadoopVersion";
-      qt = new QTestUtil((HIVE_ROOT + "$resultsDir"), (HIVE_ROOT + "$logDir"), miniMR, hadoopVer);
+      qt = new QTestUtil((HIVE_ROOT + "$resultsDir"), (HIVE_ROOT + "$logDir"), miniMR, hiveConfDir, hadoopVer);
 
       // do a one time initialization
       qt.cleanUp();
@@ -46,7 +49,7 @@ public class $className extends TestCase {
       System.err.println("Exception: " + e.getMessage());
       e.printStackTrace();
       System.err.flush();
-      fail("Unexpected exception in static initialization");
+      fail("Unexpected exception in static initialization"+e.getMessage());
     }
   }
 
@@ -112,8 +115,8 @@ public class $className extends TestCase {
     return suite;
   }
 
-  static String debugHint = "\nSee build/ql/tmp/hive.log, "
-     + "or try \"ant test ... -Dtest.silent=false\" to get more logs.";
+  static String debugHint = "\nSee ./ql/target/tmp/log/hive.log or ./itests/qtest/target/tmp/log/hive.log, "
+     + "or check ./ql/target/surefire-reports or ./itests/qtest/target/surefire-reports/ for specific test cases logs.";
 
 #foreach ($qf in $qfiles)
   #set ($fname = $qf.getName())

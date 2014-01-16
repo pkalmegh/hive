@@ -20,6 +20,8 @@ package org.apache.hive.jdbc;
 
 import static org.apache.hive.service.cli.thrift.TCLIServiceConstants.TYPE_NAMES;
 
+import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Statement;
 import java.sql.SQLException;
@@ -30,6 +32,8 @@ import java.util.List;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.common.type.HiveDecimal;
+import org.apache.hive.service.cli.RowSet;
+import org.apache.hive.service.cli.RowSetFactory;
 import org.apache.hive.service.cli.TableSchema;
 import org.apache.hive.service.cli.thrift.TCLIService;
 import org.apache.hive.service.cli.thrift.TCLIServiceConstants;
@@ -41,7 +45,8 @@ import org.apache.hive.service.cli.thrift.TGetResultSetMetadataReq;
 import org.apache.hive.service.cli.thrift.TGetResultSetMetadataResp;
 import org.apache.hive.service.cli.thrift.TOperationHandle;
 import org.apache.hive.service.cli.thrift.TPrimitiveTypeEntry;
-import org.apache.hive.service.cli.thrift.TRow;
+import org.apache.hive.service.cli.thrift.TProtocolVersion;
+import org.apache.hive.service.cli.thrift.TRowSet;
 import org.apache.hive.service.cli.thrift.TSessionHandle;
 import org.apache.hive.service.cli.thrift.TTableSchema;
 import org.apache.hive.service.cli.thrift.TTypeQualifierValue;
@@ -62,13 +67,19 @@ public class HiveQueryResultSet extends HiveBaseResultSet {
   private int fetchSize;
   private int rowsFetched = 0;
 
-  private List<TRow> fetchedRows;
-  private Iterator<TRow> fetchedRowsItr;
+  private RowSet fetchedRows;
+  private Iterator<Object[]> fetchedRowsItr;
   private boolean isClosed = false;
   private boolean emptyResultSet = false;
+  private boolean isScrollable = false;
+  private boolean fetchFirst = false;
+
+  private final TProtocolVersion protocol;
+
 
   public static class Builder {
 
+    private final Connection connection;
     private final Statement statement;
     private TCLIService.Iface client = null;
     private TOperationHandle stmtHandle = null;
@@ -86,9 +97,16 @@ public class HiveQueryResultSet extends HiveBaseResultSet {
     private List<JdbcColumnAttributes> colAttributes;
     private int fetchSize = 50;
     private boolean emptyResultSet = false;
+    private boolean isScrollable = false;
 
-    public Builder(Statement statement) {
+    public Builder(Statement statement) throws SQLException {
       this.statement = statement;
+      this.connection = statement.getConnection();
+    }
+
+    public Builder(Connection connection) {
+      this.statement = null;
+      this.connection = connection;
     }
 
     public Builder setClient(TCLIService.Iface client) {
@@ -143,8 +161,17 @@ public class HiveQueryResultSet extends HiveBaseResultSet {
       return this;
     }
 
+    public Builder setScrollable(boolean setScrollable) {
+      this.isScrollable = setScrollable;
+      return this;
+    }
+
     public HiveQueryResultSet build() throws SQLException {
       return new HiveQueryResultSet(this);
+    }
+
+    public TProtocolVersion getProtocolVersion() throws SQLException {
+      return ((HiveConnection)connection).getProtocol();
     }
   }
 
@@ -168,6 +195,8 @@ public class HiveQueryResultSet extends HiveBaseResultSet {
     } else {
       this.maxRows = builder.maxRows;
     }
+    this.isScrollable = builder.isScrollable;
+    this.protocol = builder.getProtocolVersion();
   }
 
   /**
@@ -193,8 +222,8 @@ public class HiveQueryResultSet extends HiveBaseResultSet {
         case DECIMAL_TYPE:
           TTypeQualifierValue prec = tq.getQualifiers().get(TCLIServiceConstants.PRECISION);
           TTypeQualifierValue scale = tq.getQualifiers().get(TCLIServiceConstants.SCALE);
-          ret = new JdbcColumnAttributes(prec == null ? HiveDecimal.DEFAULT_PRECISION : prec.getI32Value(),
-              scale == null ? HiveDecimal.DEFAULT_SCALE : scale.getI32Value());
+          ret = new JdbcColumnAttributes(prec == null ? HiveDecimal.USER_DEFAULT_PRECISION : prec.getI32Value(),
+              scale == null ? HiveDecimal.USER_DEFAULT_SCALE : scale.getI32Value());
           break;
         default:
           break;
@@ -207,6 +236,7 @@ public class HiveQueryResultSet extends HiveBaseResultSet {
    * Retrieve schema from the server
    */
   private void retrieveSchema() throws SQLException {
+    System.err.println("[HiveQueryResultSet/next] 0");
     try {
       TGetResultSetMetadataReq metadataReq = new TGetResultSetMetadataReq(stmtHandle);
       // TODO need session handle
@@ -286,12 +316,22 @@ public class HiveQueryResultSet extends HiveBaseResultSet {
     }
 
     try {
+      TFetchOrientation orientation = TFetchOrientation.FETCH_NEXT;
+      if (fetchFirst) {
+        // If we are asked to start from begining, clear the current fetched resultset
+        orientation = TFetchOrientation.FETCH_FIRST;
+        fetchedRows = null;
+        fetchedRowsItr = null;
+        fetchFirst = false;
+      }
       if (fetchedRows == null || !fetchedRowsItr.hasNext()) {
         TFetchResultsReq fetchReq = new TFetchResultsReq(stmtHandle,
-            TFetchOrientation.FETCH_NEXT, fetchSize);
+            orientation, fetchSize);
         TFetchResultsResp fetchResp = client.FetchResults(fetchReq);
         Utils.verifySuccessWithInfo(fetchResp.getStatus());
-        fetchedRows = fetchResp.getResults().getRows();
+
+        TRowSet results = fetchResp.getResults();
+        fetchedRows = RowSetFactory.create(results, protocol);
         fetchedRowsItr = fetchedRows.iterator();
       }
 
@@ -334,6 +374,18 @@ public class HiveQueryResultSet extends HiveBaseResultSet {
   }
 
   @Override
+  public int getType() throws SQLException {
+    if (isClosed) {
+      throw new SQLException("Resultset is closed");
+    }
+    if (isScrollable) {
+      return ResultSet.TYPE_SCROLL_INSENSITIVE;
+    } else {
+      return ResultSet.TYPE_FORWARD_ONLY;
+    }
+  }
+
+  @Override
   public int getFetchSize() throws SQLException {
     if (isClosed) {
       throw new SQLException("Resultset is closed");
@@ -349,5 +401,37 @@ public class HiveQueryResultSet extends HiveBaseResultSet {
   public <T> T getObject(int columnIndex, Class<T> type)  throws SQLException {
     //JDK 1.7
     throw new SQLException("Method not supported");
+  }
+
+  /**
+   * Moves the cursor before the first row of the resultset.
+   *
+   * @see java.sql.ResultSet#next()
+   * @throws SQLException
+   *           if a database access error occurs.
+   */
+  @Override
+  public void beforeFirst() throws SQLException {
+    if (isClosed) {
+      throw new SQLException("Resultset is closed");
+    }
+    if (!isScrollable) {
+      throw new SQLException("Method not supported for TYPE_FORWARD_ONLY resultset");
+    }
+    fetchFirst = true;
+    rowsFetched = 0;
+  }
+
+  @Override
+  public boolean isBeforeFirst() throws SQLException {
+    if (isClosed) {
+      throw new SQLException("Resultset is closed");
+    }
+    return (rowsFetched == 0);
+  }
+
+  @Override
+  public int getRow() throws SQLException {
+    return rowsFetched;
   }
 }

@@ -52,8 +52,8 @@ STAGE PLANS:
                 1 {value}
               handleSkewJoin: false
               keys:
-                0 [class org.apache.hadoop.hive.ql.udf.generic.GenericUDFBridge(Column[_col0], Column[_col4]()]
-                1 [class org.apache.hadoop.hive.ql.udf.generic.GenericUDFBridge(Column[key]()]
+                0 [GenericUDFOPPlus(Column[_col0], Column[_col4])]
+                1 [GenericUDFBridge(Column[key])]
               Position of Big Table: 0
 
   Stage: Stage-6
@@ -82,8 +82,8 @@ STAGE PLANS:
                   1 {value}
                 handleSkewJoin: false
                 keys:
-                  0 [class org.apache.hadoop.hive.ql.udf.generic.GenericUDFBridge(Column[_col0], Column[_col4]()]
-                  1 [class org.apache.hadoop.hive.ql.udf.generic.GenericUDFBridge(Column[key]()]
+                  0 [GenericUDFOPPlus(Column[_col0], Column[_col4])]
+                  1 [GenericUDFBridge(Column[key])]
                 outputColumnNames: _col4, _col9
                 Position of Big Table: 0
                 Select Operator
@@ -116,7 +116,6 @@ STAGE PLANS:
 
   Stage: Stage-3
     Stats-Aggr Operator
-
 
 PREHOOK: query: FROM src src1 JOIN src src2 ON (src1.key = src2.key) JOIN src src3 ON (src1.key + src2.key = src3.key)
 INSERT OVERWRITE TABLE dest_j2 SELECT src1.key, src3.value

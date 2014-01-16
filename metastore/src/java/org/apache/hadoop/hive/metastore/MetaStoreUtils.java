@@ -282,7 +282,7 @@ public class MetaStoreUtils {
         // The partitition location already existed and may contain data. Lets try to
         // populate those statistics that don't require a full scan of the data.
         LOG.warn("Updating partition stats fast for: " + part.getTableName());
-        FileStatus[] fileStatus = wh.getFileStatusesForPartition(part);
+        FileStatus[] fileStatus = wh.getFileStatusesForSD(part.getSd());
         params.put(StatsSetupConst.NUM_FILES, Integer.toString(fileStatus.length));
         long partSize = 0L;
         for (int i = 0; i < fileStatus.length; i++) {
@@ -305,42 +305,6 @@ public class MetaStoreUtils {
       updated = true;
     }
     return updated;
-  }
-
-  /**
-   * getDeserializer
-   *
-   * Get the Deserializer for a table given its name and properties.
-   *
-   * @param conf
-   *          hadoop config
-   * @param schema
-   *          the properties to use to instantiate the deserializer
-   * @return
-   *   Returns instantiated deserializer by looking up class name of deserializer stored in passed
-   *   in properties. Also, initializes the deserializer with schema stored in passed in properties.
-   * @exception MetaException
-   *              if any problems instantiating the Deserializer
-   *
-   *              todo - this should move somewhere into serde.jar
-   *
-   */
-  static public Deserializer getDeserializer(Configuration conf,
-      Properties schema) throws MetaException {
-    try {
-      String clazzName = schema.getProperty(serdeConstants.SERIALIZATION_LIB);
-      if(clazzName == null) {
-        throw new IllegalStateException("Property " + serdeConstants.SERIALIZATION_LIB + " cannot be null");
-      }
-      Deserializer deserializer = ReflectionUtils.newInstance(conf.getClassByName(clazzName)
-          .asSubclass(Deserializer.class), conf);
-      deserializer.initialize(conf, schema);
-      return deserializer;
-    } catch (Exception e) {
-      LOG.error("error in initSerDe: " + e.getClass().getName() + " "
-          + e.getMessage(), e);
-      throw new MetaException(e.getClass().getName() + " " + e.getMessage());
-    }
   }
 
   /**
@@ -507,10 +471,17 @@ public class MetaStoreUtils {
     }
     return false;
   }
-
+  
+  /*
+   * At the Metadata level there are no restrictions on Column Names.
+   */
+  public static final boolean validateColumnName(String name) {
+    return true;
+  }
+  
   static public String validateTblColumns(List<FieldSchema> cols) {
     for (FieldSchema fieldSchema : cols) {
-      if (!validateName(fieldSchema.getName())) {
+      if (!validateColumnName(fieldSchema.getName())) {
         return "name: " + fieldSchema.getName();
       }
       if (!validateColumnType(fieldSchema.getType())) {
@@ -595,7 +566,7 @@ public class MetaStoreUtils {
       return null;
     }
     for (String col : cols) {
-      if (!validateName(col)) {
+      if (!validateColumnName(col)) {
         return col;
       }
     }

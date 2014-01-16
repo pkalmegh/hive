@@ -77,11 +77,8 @@ import org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeConstantDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc;
-import org.apache.hadoop.hive.ql.plan.ExprNodeNullDesc;
 import org.apache.hadoop.hive.ql.udf.UDFConv;
 import org.apache.hadoop.hive.ql.udf.UDFHex;
-import org.apache.hadoop.hive.ql.udf.UDFOPNegative;
-import org.apache.hadoop.hive.ql.udf.UDFOPPositive;
 import org.apache.hadoop.hive.ql.udf.UDFToBoolean;
 import org.apache.hadoop.hive.ql.udf.UDFToByte;
 import org.apache.hadoop.hive.ql.udf.UDFToDouble;
@@ -296,7 +293,20 @@ public class VectorizationContext {
                    || arg0Type(expr).equals("float"))) {
         return true;
       }
-    } else if (gudf instanceof GenericUDFTimestamp && arg0Type(expr).equals("string")) {
+    } else if ((gudf instanceof GenericUDFTimestamp && arg0Type(expr).equals("string"))
+
+            /* GenericUDFCase and GenericUDFWhen are implemented with the UDF Adaptor because
+             * of their complexity and generality. In the future, variations of these
+             * can be optimized to run faster for the vectorized code path. For example,
+             * CASE col WHEN 1 then "one" WHEN 2 THEN "two" ELSE "other" END
+             * is an example of a GenericUDFCase that has all constant arguments
+             * except for the first argument. This is probably a common case and a
+             * good candidate for a fast, special-purpose VectorExpression. Then
+             * the UDF Adaptor code path could be used as a catch-all for
+             * non-optimized general cases.
+             */
+            || gudf instanceof GenericUDFCase
+            || gudf instanceof GenericUDFWhen) {
       return true;
     }
     return false;
@@ -355,22 +365,15 @@ public class VectorizationContext {
     }
 
     GenericUDF gudf = ((ExprNodeGenericFuncDesc) exprDesc).getGenericUDF();
-    if (!(gudf instanceof GenericUDFBridge)) {
-      return exprDesc;
-    }
-
-    Class<? extends UDF> cl = ((GenericUDFBridge) gudf).getUdfClass();
-
-    if (cl.equals(UDFOPNegative.class) || cl.equals(UDFOPPositive.class)) {
+    if (gudf instanceof GenericUDFOPNegative || gudf instanceof GenericUDFOPPositive) {
       ExprNodeEvaluator<?> evaluator = ExprNodeEvaluatorFactory.get(exprDesc);
       ObjectInspector output = evaluator.initialize(null);
-
       Object constant = evaluator.evaluate(null);
       Object java = ObjectInspectorUtils.copyToStandardJavaObject(constant, output);
       return new ExprNodeConstantDesc(java);
-    } else {
-      return exprDesc;
     }
+
+    return exprDesc;
   }
 
   /* Fold simple unary expressions in all members of the input list and return new list
@@ -560,7 +563,9 @@ public class VectorizationContext {
     if (udf instanceof GenericUDFBetween) {
       return getBetweenFilterExpression(childExpr, mode);
     } else if (udf instanceof GenericUDFIn) {
-      return getInFilterExpression(childExpr);
+      return getInExpression(childExpr, mode);
+    } else if (udf instanceof GenericUDFOPPositive) {
+      return getIdentityExpression(childExpr);
     } else if (udf instanceof GenericUDFBridge) {
       VectorExpression v = getGenericUDFBridgeVectorExpression((GenericUDFBridge) udf, childExpr, mode);
       if (v != null) {
@@ -583,11 +588,9 @@ public class VectorizationContext {
   }
 
   /**
-   * Create a filter expression for column IN ( <list-of-constants> )
-   * @param childExpr
-   * @return
+   * Create a filter or boolean-valued expression for column IN ( <list-of-constants> )
    */
-  private VectorExpression getInFilterExpression(List<ExprNodeDesc> childExpr)
+  private VectorExpression getInExpression(List<ExprNodeDesc> childExpr, Mode mode)
       throws HiveException {
     ExprNodeDesc colExpr = childExpr.get(0);
     String colType = colExpr.getTypeString();
@@ -609,48 +612,41 @@ public class VectorizationContext {
     // determine class
     Class<?> cl = null;
     if (isIntFamily(colType)) {
-      cl = FilterLongColumnInList.class;
+      cl = (mode == Mode.FILTER ? FilterLongColumnInList.class : LongColumnInList.class);
       long[] inVals = new long[childrenForInList.size()];
       for (int i = 0; i != inVals.length; i++) {
         inVals[i] = getIntFamilyScalarAsLong((ExprNodeConstantDesc) childrenForInList.get(i));
       }
-      FilterLongColumnInList f = (FilterLongColumnInList)
-          createVectorExpression(cl, childExpr.subList(0, 1), Mode.PROJECTION);
-      f.setInListValues(inVals);
-      expr = f;
+      expr = createVectorExpression(cl, childExpr.subList(0, 1), Mode.PROJECTION);
+      ((ILongInExpr) expr).setInListValues(inVals);
     } else if (colType.equals("timestamp")) {
-      cl = FilterLongColumnInList.class;
+      cl = (mode == Mode.FILTER ? FilterLongColumnInList.class : LongColumnInList.class);
       long[] inVals = new long[childrenForInList.size()];
       for (int i = 0; i != inVals.length; i++) {
         inVals[i] = getTimestampScalar(childrenForInList.get(i));
       }
-      FilterLongColumnInList f = (FilterLongColumnInList)
-          createVectorExpression(cl, childExpr.subList(0, 1), Mode.PROJECTION);
-      f.setInListValues(inVals);
-      expr = f;
+      expr = createVectorExpression(cl, childExpr.subList(0, 1), Mode.PROJECTION);
+      ((ILongInExpr) expr).setInListValues(inVals);
     } else if (colType.equals("string")) {
-      cl = FilterStringColumnInList.class;
+      cl = (mode == Mode.FILTER ? FilterStringColumnInList.class : StringColumnInList.class);
       byte[][] inVals = new byte[childrenForInList.size()][];
       for (int i = 0; i != inVals.length; i++) {
         inVals[i] = getStringScalarAsByteArray((ExprNodeConstantDesc) childrenForInList.get(i));
       }
-      FilterStringColumnInList f =(FilterStringColumnInList)
-          createVectorExpression(cl, childExpr.subList(0, 1), Mode.PROJECTION);
-      f.setInListValues(inVals);
-      expr = f;
+      expr = createVectorExpression(cl, childExpr.subList(0, 1), Mode.PROJECTION);
+      ((IStringInExpr) expr).setInListValues(inVals);
     } else if (isFloatFamily(colType)) {
-      cl = FilterDoubleColumnInList.class;
+      cl = (mode == Mode.FILTER ? FilterDoubleColumnInList.class : DoubleColumnInList.class);
       double[] inValsD = new double[childrenForInList.size()];
       for (int i = 0; i != inValsD.length; i++) {
         inValsD[i] = getNumericScalarAsDouble(childrenForInList.get(i));
       }
-      FilterDoubleColumnInList f = (FilterDoubleColumnInList)
-          createVectorExpression(cl, childExpr.subList(0, 1), Mode.PROJECTION);
-      f.setInListValues(inValsD);
-      expr = f;
-    } else {
-      throw new HiveException("Type " + colType + " not supported for IN in vectorized mode");
+      expr = createVectorExpression(cl, childExpr.subList(0, 1), Mode.PROJECTION);
+      ((IDoubleInExpr) expr).setInListValues(inValsD);
     }
+
+    // Return the desired VectorExpression if found. Otherwise, return null to cause
+    // execution to fall back to row mode.
     return expr;
   }
 
@@ -670,9 +666,7 @@ public class VectorizationContext {
   private VectorExpression getGenericUDFBridgeVectorExpression(GenericUDFBridge udf,
       List<ExprNodeDesc> childExpr, Mode mode) throws HiveException {
     Class<? extends UDF> cl = udf.getUdfClass();
-    if (cl.equals(UDFOPPositive.class)) {
-      return getIdentityExpression(childExpr);
-    } else if (isCastToIntFamily(cl)) {
+    if (isCastToIntFamily(cl)) {
       return getCastToLongExpression(childExpr);
     } else if (cl.equals(UDFToBoolean.class)) {
       return getCastToBoolean(childExpr);

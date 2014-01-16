@@ -170,7 +170,6 @@ STAGE PLANS:
     Fetch Operator
       limit: -1
 
-
 PREHOOK: query: explain 
 select count(*), count(a), count(b), count(c), count(d) from stats_null_part
 PREHOOK: type: QUERY
@@ -274,7 +273,6 @@ STAGE PLANS:
     Fetch Operator
       limit: -1
 
-
 PREHOOK: query: analyze table stats_null compute statistics for columns a,b,c,d
 PREHOOK: type: QUERY
 PREHOOK: Input: default@stats_null
@@ -377,8 +375,8 @@ Protect Mode:       	None
 Partition Parameters:	 	 
 	COLUMN_STATS_ACCURATE	true                
 	numFiles            	1                   
-	numRows             	5                   
-	rawDataSize         	70                  
+	numRows             	6                   
+	rawDataSize         	71                  
 	totalSize           	77                  
 #### A masked pattern was here ####
 	 	 
@@ -430,8 +428,8 @@ Protect Mode:       	None
 Partition Parameters:	 	 
 	COLUMN_STATS_ACCURATE	true                
 	numFiles            	1                   
-	numRows             	3                   
-	rawDataSize         	48                  
+	numRows             	4                   
+	rawDataSize         	49                  
 	totalSize           	53                  
 #### A masked pattern was here ####
 	 	 
@@ -474,7 +472,6 @@ STAGE PLANS:
     Fetch Operator
       limit: 1
 
-
 PREHOOK: query: explain 
 select count(*), count(a), count(b), count(c), count(d) from stats_null_part
 PREHOOK: type: QUERY
@@ -503,7 +500,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: 1
-
 
 PREHOOK: query: select count(*), count(a), count(b), count(c), count(d) from stats_null
 PREHOOK: type: QUERY
@@ -542,7 +538,7 @@ POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).a SIMPLE [(temps_null)temp
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).b SIMPLE [(temps_null)temps_null.FieldSchema(name:b, type:int, comment:null), ]
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).c SIMPLE [(temps_null)temps_null.FieldSchema(name:c, type:string, comment:null), ]
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).d SIMPLE [(temps_null)temps_null.FieldSchema(name:d, type:smallint, comment:null), ]
-8	6	6	8	8
+10	8	8	10	10
 PREHOOK: query: drop table stats_null
 PREHOOK: type: DROPTABLE
 PREHOOK: Input: default@stats_null

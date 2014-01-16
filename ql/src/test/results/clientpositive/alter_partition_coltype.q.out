@@ -112,16 +112,24 @@ STAGE PLANS:
         alter_coltype 
           TableScan
             alias: alter_coltype
+            Statistics:
+                numRows: 25 dataSize: 191 basicStatsState: COMPLETE colStatsState: COMPLETE
             GatherStats: false
             Select Operator
+              Statistics:
+                  numRows: 25 dataSize: 191 basicStatsState: COMPLETE colStatsState: COMPLETE
               Group By Operator
                 aggregations:
                       expr: count()
                 bucketGroup: false
                 mode: hash
                 outputColumnNames: _col0
+                Statistics:
+                    numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
                 Reduce Output Operator
                   sort order: 
+                  Statistics:
+                      numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
                   tag: -1
                   value expressions:
                         expr: _col0
@@ -181,16 +189,22 @@ STAGE PLANS:
           bucketGroup: false
           mode: mergepartial
           outputColumnNames: _col0
+          Statistics:
+              numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
           Select Operator
             expressions:
                   expr: _col0
                   type: bigint
             outputColumnNames: _col0
+            Statistics:
+                numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
             File Output Operator
               compressed: false
               GlobalTableId: 0
 #### A masked pattern was here ####
               NumFilesPerFileSink: 1
+              Statistics:
+                  numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
 #### A masked pattern was here ####
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
@@ -211,12 +225,11 @@ STAGE PLANS:
     Fetch Operator
       limit: -1
 
-
-PREHOOK: query: select count(*) from alter_coltype where dt = 100
+PREHOOK: query: select count(*) from alter_coltype where dt = '100'
 PREHOOK: type: QUERY
 PREHOOK: Input: default@alter_coltype
 #### A masked pattern was here ####
-POSTHOOK: query: select count(*) from alter_coltype where dt = 100
+POSTHOOK: query: select count(*) from alter_coltype where dt = '100'
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@alter_coltype
 #### A masked pattern was here ####
@@ -308,16 +321,24 @@ STAGE PLANS:
         alter_coltype 
           TableScan
             alias: alter_coltype
+            Statistics:
+                numRows: 25 dataSize: 191 basicStatsState: COMPLETE colStatsState: COMPLETE
             GatherStats: false
             Select Operator
+              Statistics:
+                  numRows: 25 dataSize: 191 basicStatsState: COMPLETE colStatsState: COMPLETE
               Group By Operator
                 aggregations:
                       expr: count()
                 bucketGroup: false
                 mode: hash
                 outputColumnNames: _col0
+                Statistics:
+                    numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
                 Reduce Output Operator
                   sort order: 
+                  Statistics:
+                      numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
                   tag: -1
                   value expressions:
                         expr: _col0
@@ -377,16 +398,22 @@ STAGE PLANS:
           bucketGroup: false
           mode: mergepartial
           outputColumnNames: _col0
+          Statistics:
+              numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
           Select Operator
             expressions:
                   expr: _col0
                   type: bigint
             outputColumnNames: _col0
+            Statistics:
+                numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
             File Output Operator
               compressed: false
               GlobalTableId: 0
 #### A masked pattern was here ####
               NumFilesPerFileSink: 1
+              Statistics:
+                  numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
 #### A masked pattern was here ####
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
@@ -406,7 +433,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: --  validate partition key column predicate on two different partition column data type 
 --  can still work.
@@ -457,21 +483,31 @@ STAGE PLANS:
         alter_coltype 
           TableScan
             alias: alter_coltype
+            Statistics:
+                numRows: 75 dataSize: 573 basicStatsState: COMPLETE colStatsState: COMPLETE
             GatherStats: false
             Filter Operator
               isSamplingPred: false
               predicate:
                   expr: ((ts = 3.0) and (dt = 10))
                   type: boolean
+              Statistics:
+                  numRows: 75 dataSize: 0 basicStatsState: PARTIAL colStatsState: COMPLETE
               Select Operator
+                Statistics:
+                    numRows: 75 dataSize: 0 basicStatsState: PARTIAL colStatsState: COMPLETE
                 Group By Operator
                   aggregations:
                         expr: count()
                   bucketGroup: false
                   mode: hash
                   outputColumnNames: _col0
+                  Statistics:
+                      numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
                   Reduce Output Operator
                     sort order: 
+                    Statistics:
+                        numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
                     tag: -1
                     value expressions:
                           expr: _col0
@@ -617,16 +653,22 @@ STAGE PLANS:
           bucketGroup: false
           mode: mergepartial
           outputColumnNames: _col0
+          Statistics:
+              numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
           Select Operator
             expressions:
                   expr: _col0
                   type: bigint
             outputColumnNames: _col0
+            Statistics:
+                numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
             File Output Operator
               compressed: false
               GlobalTableId: 0
 #### A masked pattern was here ####
               NumFilesPerFileSink: 1
+              Statistics:
+                  numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
 #### A masked pattern was here ####
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
@@ -646,7 +688,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: -- query where multiple partition values (of different datatypes) are being selected 
 select key, value, dt, ts from alter_coltype where dt is not null
@@ -769,6 +810,8 @@ STAGE PLANS:
         alter_coltype 
           TableScan
             alias: alter_coltype
+            Statistics:
+                numRows: 75 dataSize: 573 basicStatsState: COMPLETE colStatsState: NONE
             GatherStats: false
             Select Operator
               expressions:
@@ -781,11 +824,15 @@ STAGE PLANS:
                     expr: ts
                     type: string
               outputColumnNames: _col0, _col1, _col2, _col3
+              Statistics:
+                  numRows: 75 dataSize: 573 basicStatsState: COMPLETE colStatsState: NONE
               File Output Operator
                 compressed: false
                 GlobalTableId: 0
 #### A masked pattern was here ####
                 NumFilesPerFileSink: 1
+                Statistics:
+                    numRows: 75 dataSize: 573 basicStatsState: COMPLETE colStatsState: NONE
 #### A masked pattern was here ####
                 table:
                     input format: org.apache.hadoop.mapred.TextInputFormat
@@ -939,7 +986,6 @@ STAGE PLANS:
     Fetch Operator
       limit: -1
 
-
 PREHOOK: query: select count(*) from alter_coltype where ts = 3.0
 PREHOOK: type: QUERY
 PREHOOK: Input: default@alter_coltype
@@ -1008,16 +1054,24 @@ STAGE PLANS:
         alter_coltype 
           TableScan
             alias: alter_coltype
+            Statistics:
+                numRows: 75 dataSize: 573 basicStatsState: COMPLETE colStatsState: COMPLETE
             GatherStats: false
             Select Operator
+              Statistics:
+                  numRows: 75 dataSize: 573 basicStatsState: COMPLETE colStatsState: COMPLETE
               Group By Operator
                 aggregations:
                       expr: count()
                 bucketGroup: false
                 mode: hash
                 outputColumnNames: _col0
+                Statistics:
+                    numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
                 Reduce Output Operator
                   sort order: 
+                  Statistics:
+                      numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
                   tag: -1
                   value expressions:
                         expr: _col0
@@ -1163,16 +1217,22 @@ STAGE PLANS:
           bucketGroup: false
           mode: mergepartial
           outputColumnNames: _col0
+          Statistics:
+              numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
           Select Operator
             expressions:
                   expr: _col0
                   type: bigint
             outputColumnNames: _col0
+            Statistics:
+                numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
             File Output Operator
               compressed: false
               GlobalTableId: 0
 #### A masked pattern was here ####
               NumFilesPerFileSink: 1
+              Statistics:
+                  numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
 #### A masked pattern was here ####
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
@@ -1192,7 +1252,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: desc alter_coltype
 PREHOOK: type: DESCTABLE

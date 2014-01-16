@@ -29,7 +29,9 @@ import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.exec.ColumnInfo;
@@ -133,10 +135,15 @@ public final class PlanUtils {
       if (localDirectoryDesc.getSerName() != null) {
         tableDesc.getProperties().setProperty(
             serdeConstants.SERIALIZATION_LIB, localDirectoryDesc.getSerName());
-        }
+      }
       if (localDirectoryDesc.getOutputFormat() != null){
           tableDesc.setOutputFileFormatClass(Class.forName(localDirectoryDesc.getOutputFormat()));
       }
+      if (localDirectoryDesc.getNullFormat() != null) {
+        tableDesc.getProperties().setProperty(serdeConstants.SERIALIZATION_NULL_FORMAT,
+              localDirectoryDesc.getNullFormat());
+      }
+
     } catch (ClassNotFoundException e) {
       // mimicking behaviour in CreateTableDesc tableDesc creation
       // returning null table description for output.
@@ -323,6 +330,11 @@ public final class PlanUtils {
         properties.setProperty(serdeConstants.LINE_DELIM, crtTblDesc.getLineDelim());
       }
 
+      if (crtTblDesc.getNullFormat() != null) {
+        properties.setProperty(serdeConstants.SERIALIZATION_NULL_FORMAT,
+              crtTblDesc.getNullFormat());
+      }
+
       if (crtTblDesc.getTableName() != null && crtTblDesc.getDatabaseName() != null) {
         properties.setProperty(org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.META_TABLE_NAME,
             crtTblDesc.getDatabaseName() + "." + crtTblDesc.getTableName());
@@ -376,28 +388,49 @@ public final class PlanUtils {
   /**
    * Generate the table descriptor for Map-side join key.
    */
-  public static TableDesc getMapJoinKeyTableDesc(List<FieldSchema> fieldSchemas) {
-    return new TableDesc(SequenceFileInputFormat.class,
-        SequenceFileOutputFormat.class, Utilities.makeProperties("columns",
-        MetaStoreUtils.getColumnNamesFromFieldSchema(fieldSchemas),
-        "columns.types", MetaStoreUtils
-        .getColumnTypesFromFieldSchema(fieldSchemas),
-        serdeConstants.ESCAPE_CHAR, "\\",
-        serdeConstants.SERIALIZATION_LIB,LazyBinarySerDe.class.getName()));
+  public static TableDesc getMapJoinKeyTableDesc(Configuration conf,
+      List<FieldSchema> fieldSchemas) {
+    if (HiveConf.getVar(conf, ConfVars.HIVE_EXECUTION_ENGINE).equals("tez")) {
+      // In tez we use a different way of transmitting the hash table.
+      // We basically use ReduceSinkOperators and set the transfer to
+      // be broadcast (instead of partitioned). As a consequence we use
+      // a different SerDe than in the MR mapjoin case.
+      StringBuffer order = new StringBuffer();
+      for (FieldSchema f: fieldSchemas) {
+        order.append("+");
+      }
+      return new TableDesc(
+          SequenceFileInputFormat.class, SequenceFileOutputFormat.class,
+          Utilities.makeProperties(serdeConstants.LIST_COLUMNS, MetaStoreUtils
+              .getColumnNamesFromFieldSchema(fieldSchemas),
+              serdeConstants.LIST_COLUMN_TYPES, MetaStoreUtils
+              .getColumnTypesFromFieldSchema(fieldSchemas),
+              serdeConstants.SERIALIZATION_SORT_ORDER, order.toString(),
+              serdeConstants.SERIALIZATION_LIB, BinarySortableSerDe.class.getName()));
+    } else {
+      return new TableDesc(SequenceFileInputFormat.class,
+          SequenceFileOutputFormat.class, Utilities.makeProperties("columns",
+              MetaStoreUtils.getColumnNamesFromFieldSchema(fieldSchemas),
+              "columns.types", MetaStoreUtils
+              .getColumnTypesFromFieldSchema(fieldSchemas),
+              serdeConstants.ESCAPE_CHAR, "\\",
+              serdeConstants.SERIALIZATION_LIB,LazyBinarySerDe.class.getName()));
+    }
   }
 
   /**
-   * Generate the table descriptor for Map-side join key.
+   * Generate the table descriptor for Map-side join value.
    */
   public static TableDesc getMapJoinValueTableDesc(
       List<FieldSchema> fieldSchemas) {
-    return new TableDesc(SequenceFileInputFormat.class,
-        SequenceFileOutputFormat.class, Utilities.makeProperties("columns",
-        MetaStoreUtils.getColumnNamesFromFieldSchema(fieldSchemas),
-        "columns.types", MetaStoreUtils
-        .getColumnTypesFromFieldSchema(fieldSchemas),
-        serdeConstants.ESCAPE_CHAR, "\\",
-        serdeConstants.SERIALIZATION_LIB,LazyBinarySerDe.class.getName()));
+      return new TableDesc(SequenceFileInputFormat.class,
+          SequenceFileOutputFormat.class, Utilities.makeProperties(
+              serdeConstants.LIST_COLUMNS, MetaStoreUtils
+              .getColumnNamesFromFieldSchema(fieldSchemas),
+              serdeConstants.LIST_COLUMN_TYPES, MetaStoreUtils
+              .getColumnTypesFromFieldSchema(fieldSchemas),
+              serdeConstants.ESCAPE_CHAR, "\\",
+              serdeConstants.SERIALIZATION_LIB,LazyBinarySerDe.class.getName()));
   }
 
   /**

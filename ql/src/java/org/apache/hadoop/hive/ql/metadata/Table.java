@@ -20,7 +20,6 @@ package org.apache.hadoop.hive.ql.metadata;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -48,6 +47,7 @@ import org.apache.hadoop.hive.metastore.api.SkewedInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.ql.io.HiveFileFormatUtils;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
+import org.apache.hadoop.hive.ql.io.HivePassThroughOutputFormat;
 import org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.Deserializer;
@@ -82,7 +82,7 @@ public class Table implements Serializable {
   private Deserializer deserializer;
   private Class<? extends HiveOutputFormat> outputFormatClass;
   private Class<? extends InputFormat> inputFormatClass;
-  private URI uri;
+  private Path path;
   private HiveStorageHandler storageHandler;
 
   /**
@@ -195,7 +195,7 @@ public class Table implements Serializable {
     List<String> colNames = new ArrayList<String>();
     while (iterCols.hasNext()) {
       String colName = iterCols.next().getName();
-      if (!MetaStoreUtils.validateName(colName)) {
+      if (!MetaStoreUtils.validateColumnName(colName)) {
         throw new HiveException("Invalid column name '" + colName
             + "' in the table definition");
       }
@@ -250,14 +250,11 @@ public class Table implements Serializable {
     return tTable.getTableName();
   }
 
-  final public URI getDataLocation() {
-    if (uri == null) {
-      Path path = getPath();
-      if (path != null) {
-        uri = path.toUri();
-      }
+  final public Path getDataLocation() {
+    if (path == null) {
+      path = getPath();
     }
-    return uri;
+    return path;
   }
 
   final public Deserializer getDeserializer() {
@@ -325,8 +322,22 @@ public class Table implements Serializable {
           }
           c = getStorageHandler().getOutputFormatClass();
         } else {
-          c = Class.forName(className, true,
-            JavaUtils.getClassLoader());
+            // if HivePassThroughOutputFormat
+            if (className.equals(
+                 HivePassThroughOutputFormat.HIVE_PASSTHROUGH_OF_CLASSNAME)) {
+              if (getStorageHandler() != null) {
+                // get the storage handler real output format class
+                c = getStorageHandler().getOutputFormatClass();
+              }
+              else {
+                //should not happen
+                return null;
+              }
+            }
+            else {
+              c = Class.forName(className, true,
+                  JavaUtils.getClassLoader());
+            }
         }
         if (!HiveOutputFormat.class.isAssignableFrom(c)) {
           if (getStorageHandler() != null) {
@@ -498,13 +509,13 @@ public class Table implements Serializable {
     return bcols.get(0);
   }
 
-  public void setDataLocation(URI uri) {
-    this.uri = uri;
-    tTable.getSd().setLocation(uri.toString());
+  public void setDataLocation(Path path) {
+    this.path = path;
+    tTable.getSd().setLocation(path.toString());
   }
 
   public void unsetDataLocation() {
-    this.uri = null;
+    this.path = null;
     tTable.getSd().unsetLocation();
   }
 
@@ -635,7 +646,7 @@ public class Table implements Serializable {
    *          Source directory
    */
   protected void replaceFiles(Path srcf) throws HiveException {
-    Path tableDest =  new Path(getDataLocation().getPath());
+    Path tableDest = getPath();
     Hive.replaceFiles(srcf, tableDest, tableDest, Hive.get().getConf());
   }
 
@@ -648,8 +659,8 @@ public class Table implements Serializable {
   protected void copyFiles(Path srcf) throws HiveException {
     FileSystem fs;
     try {
-      fs = FileSystem.get(getDataLocation(), Hive.get().getConf());
-      Hive.copyFiles(Hive.get().getConf(), srcf, new Path(getDataLocation().getPath()), fs);
+      fs = getDataLocation().getFileSystem(Hive.get().getConf());
+      Hive.copyFiles(Hive.get().getConf(), srcf, getPath(), fs);
     } catch (IOException e) {
       throw new HiveException("addFiles: filesystem error in check phase", e);
     }

@@ -146,7 +146,6 @@ STAGE PLANS:
     Fetch Operator
       limit: -1
 
-
 PREHOOK: query: select key, value from combine2 where value is not null order by key
 PREHOOK: type: QUERY
 PREHOOK: Input: default@combine2
@@ -219,16 +218,24 @@ STAGE PLANS:
         combine2 
           TableScan
             alias: combine2
+            Statistics:
+                numRows: 12 dataSize: 14 basicStatsState: COMPLETE colStatsState: COMPLETE
             GatherStats: false
             Select Operator
+              Statistics:
+                  numRows: 12 dataSize: 14 basicStatsState: COMPLETE colStatsState: COMPLETE
               Group By Operator
                 aggregations:
                       expr: count(1)
                 bucketGroup: false
                 mode: hash
                 outputColumnNames: _col0
+                Statistics:
+                    numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
                 Reduce Output Operator
                   sort order: 
+                  Statistics:
+                      numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
                   tag: -1
                   value expressions:
                         expr: _col0
@@ -581,16 +588,22 @@ STAGE PLANS:
           bucketGroup: false
           mode: mergepartial
           outputColumnNames: _col0
+          Statistics:
+              numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
           Select Operator
             expressions:
                   expr: _col0
                   type: bigint
             outputColumnNames: _col0
+            Statistics:
+                numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
             File Output Operator
               compressed: false
               GlobalTableId: 0
 #### A masked pattern was here ####
               NumFilesPerFileSink: 1
+              Statistics:
+                  numRows: 1 dataSize: 8 basicStatsState: COMPLETE colStatsState: COMPLETE
 #### A masked pattern was here ####
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
@@ -610,7 +623,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: select count(1) from combine2 where value is not null
 PREHOOK: type: QUERY
@@ -727,7 +739,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
-
 
 PREHOOK: query: select ds, count(1) from srcpart where ds is not null group by ds
 PREHOOK: type: QUERY

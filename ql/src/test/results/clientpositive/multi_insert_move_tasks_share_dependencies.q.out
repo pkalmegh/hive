@@ -104,7 +104,6 @@ STAGE PLANS:
   Stage: Stage-5
     Stats-Aggr Operator
 
-
 PREHOOK: query: from src
 insert overwrite table src_multi1 select * where key < 10
 insert overwrite table src_multi2 select * where key > 10 and key < 20
@@ -185,16 +184,16 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-2 is a root stage
-  Stage-8 depends on stages: Stage-2 , consists of Stage-5, Stage-4, Stage-6
-  Stage-5
-  Stage-9 depends on stages: Stage-5, Stage-4, Stage-7, Stage-12, Stage-11, Stage-14
-  Stage-0 depends on stages: Stage-9
-  Stage-3 depends on stages: Stage-0
-  Stage-1 depends on stages: Stage-9
-  Stage-10 depends on stages: Stage-1
-  Stage-4
+  Stage-9 depends on stages: Stage-2 , consists of Stage-6, Stage-5, Stage-7
   Stage-6
-  Stage-7 depends on stages: Stage-6
+  Stage-4 depends on stages: Stage-6, Stage-5, Stage-8, Stage-12, Stage-11, Stage-14
+  Stage-0 depends on stages: Stage-4
+  Stage-3 depends on stages: Stage-0
+  Stage-1 depends on stages: Stage-4
+  Stage-10 depends on stages: Stage-1
+  Stage-5
+  Stage-7
+  Stage-8 depends on stages: Stage-7
   Stage-15 depends on stages: Stage-2 , consists of Stage-12, Stage-11, Stage-13
   Stage-12
   Stage-11
@@ -247,16 +246,16 @@ STAGE PLANS:
                       serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                       name: default.src_multi2
 
-  Stage: Stage-8
+  Stage: Stage-9
     Conditional Operator
 
-  Stage: Stage-5
+  Stage: Stage-6
     Move Operator
       files:
           hdfs directory: true
 #### A masked pattern was here ####
 
-  Stage: Stage-9
+  Stage: Stage-4
     Dependency Collection
 
   Stage: Stage-0
@@ -285,21 +284,7 @@ STAGE PLANS:
   Stage: Stage-10
     Stats-Aggr Operator
 
-  Stage: Stage-4
-    Map Reduce
-      Alias -> Map Operator Tree:
-#### A masked pattern was here ####
-          TableScan
-            File Output Operator
-              compressed: false
-              GlobalTableId: 0
-              table:
-                  input format: org.apache.hadoop.mapred.TextInputFormat
-                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                  name: default.src_multi1
-
-  Stage: Stage-6
+  Stage: Stage-5
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
@@ -314,6 +299,20 @@ STAGE PLANS:
                   name: default.src_multi1
 
   Stage: Stage-7
+    Map Reduce
+      Alias -> Map Operator Tree:
+#### A masked pattern was here ####
+          TableScan
+            File Output Operator
+              compressed: false
+              GlobalTableId: 0
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.src_multi1
+
+  Stage: Stage-8
     Move Operator
       files:
           hdfs directory: true
@@ -361,7 +360,6 @@ STAGE PLANS:
       files:
           hdfs directory: true
 #### A masked pattern was here ####
-
 
 PREHOOK: query: from src
 insert overwrite table src_multi1 select * where key < 10
@@ -540,7 +538,6 @@ STAGE PLANS:
   Stage: Stage-5
     Stats-Aggr Operator
 
-
 PREHOOK: query: from src
 insert overwrite table src_multi1 select * where key < 10
 insert overwrite table src_multi2 select * where key > 10 and key < 20
@@ -653,16 +650,16 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-2 is a root stage
-  Stage-8 depends on stages: Stage-2 , consists of Stage-5, Stage-4, Stage-6
-  Stage-5
-  Stage-9 depends on stages: Stage-5, Stage-4, Stage-7, Stage-12, Stage-11, Stage-14
-  Stage-0 depends on stages: Stage-9
-  Stage-3 depends on stages: Stage-0
-  Stage-1 depends on stages: Stage-9
-  Stage-10 depends on stages: Stage-1
-  Stage-4
+  Stage-9 depends on stages: Stage-2 , consists of Stage-6, Stage-5, Stage-7
   Stage-6
-  Stage-7 depends on stages: Stage-6
+  Stage-4 depends on stages: Stage-6, Stage-5, Stage-8, Stage-12, Stage-11, Stage-14
+  Stage-0 depends on stages: Stage-4
+  Stage-3 depends on stages: Stage-0
+  Stage-1 depends on stages: Stage-4
+  Stage-10 depends on stages: Stage-1
+  Stage-5
+  Stage-7
+  Stage-8 depends on stages: Stage-7
   Stage-15 depends on stages: Stage-2 , consists of Stage-12, Stage-11, Stage-13
   Stage-12
   Stage-11
@@ -715,16 +712,16 @@ STAGE PLANS:
                       serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                       name: default.src_multi2
 
-  Stage: Stage-8
+  Stage: Stage-9
     Conditional Operator
 
-  Stage: Stage-5
+  Stage: Stage-6
     Move Operator
       files:
           hdfs directory: true
 #### A masked pattern was here ####
 
-  Stage: Stage-9
+  Stage: Stage-4
     Dependency Collection
 
   Stage: Stage-0
@@ -753,21 +750,7 @@ STAGE PLANS:
   Stage: Stage-10
     Stats-Aggr Operator
 
-  Stage: Stage-4
-    Map Reduce
-      Alias -> Map Operator Tree:
-#### A masked pattern was here ####
-          TableScan
-            File Output Operator
-              compressed: false
-              GlobalTableId: 0
-              table:
-                  input format: org.apache.hadoop.mapred.TextInputFormat
-                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                  name: default.src_multi1
-
-  Stage: Stage-6
+  Stage: Stage-5
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
@@ -782,6 +765,20 @@ STAGE PLANS:
                   name: default.src_multi1
 
   Stage: Stage-7
+    Map Reduce
+      Alias -> Map Operator Tree:
+#### A masked pattern was here ####
+          TableScan
+            File Output Operator
+              compressed: false
+              GlobalTableId: 0
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.src_multi1
+
+  Stage: Stage-8
     Move Operator
       files:
           hdfs directory: true
@@ -829,7 +826,6 @@ STAGE PLANS:
       files:
           hdfs directory: true
 #### A masked pattern was here ####
-
 
 PREHOOK: query: from src
 insert overwrite table src_multi1 select * where key < 10
@@ -1084,7 +1080,6 @@ STAGE PLANS:
   Stage: Stage-5
     Stats-Aggr Operator
 
-
 PREHOOK: query: from src
 insert overwrite table src_multi1 select * where key < 10 group by key, value
 insert overwrite table src_multi2 select * where key > 10 and key < 20 group by key, value
@@ -1206,16 +1201,16 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-2 is a root stage
-  Stage-8 depends on stages: Stage-2 , consists of Stage-5, Stage-4, Stage-6
-  Stage-5
-  Stage-9 depends on stages: Stage-5, Stage-4, Stage-7, Stage-12, Stage-11, Stage-14
-  Stage-0 depends on stages: Stage-9
-  Stage-3 depends on stages: Stage-0
-  Stage-1 depends on stages: Stage-9
-  Stage-10 depends on stages: Stage-1
-  Stage-4
+  Stage-9 depends on stages: Stage-2 , consists of Stage-6, Stage-5, Stage-7
   Stage-6
-  Stage-7 depends on stages: Stage-6
+  Stage-4 depends on stages: Stage-6, Stage-5, Stage-8, Stage-12, Stage-11, Stage-14
+  Stage-0 depends on stages: Stage-4
+  Stage-3 depends on stages: Stage-0
+  Stage-1 depends on stages: Stage-4
+  Stage-10 depends on stages: Stage-1
+  Stage-5
+  Stage-7
+  Stage-8 depends on stages: Stage-7
   Stage-15 depends on stages: Stage-2 , consists of Stage-12, Stage-11, Stage-13
   Stage-12
   Stage-11
@@ -1312,16 +1307,16 @@ STAGE PLANS:
                       serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                       name: default.src_multi2
 
-  Stage: Stage-8
+  Stage: Stage-9
     Conditional Operator
 
-  Stage: Stage-5
+  Stage: Stage-6
     Move Operator
       files:
           hdfs directory: true
 #### A masked pattern was here ####
 
-  Stage: Stage-9
+  Stage: Stage-4
     Dependency Collection
 
   Stage: Stage-0
@@ -1350,21 +1345,7 @@ STAGE PLANS:
   Stage: Stage-10
     Stats-Aggr Operator
 
-  Stage: Stage-4
-    Map Reduce
-      Alias -> Map Operator Tree:
-#### A masked pattern was here ####
-          TableScan
-            File Output Operator
-              compressed: false
-              GlobalTableId: 0
-              table:
-                  input format: org.apache.hadoop.mapred.TextInputFormat
-                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                  name: default.src_multi1
-
-  Stage: Stage-6
+  Stage: Stage-5
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
@@ -1379,6 +1360,20 @@ STAGE PLANS:
                   name: default.src_multi1
 
   Stage: Stage-7
+    Map Reduce
+      Alias -> Map Operator Tree:
+#### A masked pattern was here ####
+          TableScan
+            File Output Operator
+              compressed: false
+              GlobalTableId: 0
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.src_multi1
+
+  Stage: Stage-8
     Move Operator
       files:
           hdfs directory: true
@@ -1426,7 +1421,6 @@ STAGE PLANS:
       files:
           hdfs directory: true
 #### A masked pattern was here ####
-
 
 PREHOOK: query: from src
 insert overwrite table src_multi1 select * where key < 10 group by key, value
@@ -1674,7 +1668,6 @@ STAGE PLANS:
   Stage: Stage-5
     Stats-Aggr Operator
 
-
 PREHOOK: query: from src
 insert overwrite table src_multi1 select * where key < 10 group by key, value
 insert overwrite table src_multi2 select * where key > 10 and key < 20 group by key, value
@@ -1796,16 +1789,16 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-2 is a root stage
-  Stage-8 depends on stages: Stage-2 , consists of Stage-5, Stage-4, Stage-6
-  Stage-5
-  Stage-9 depends on stages: Stage-5, Stage-4, Stage-7, Stage-12, Stage-11, Stage-14
-  Stage-0 depends on stages: Stage-9
-  Stage-3 depends on stages: Stage-0
-  Stage-1 depends on stages: Stage-9
-  Stage-10 depends on stages: Stage-1
-  Stage-4
+  Stage-9 depends on stages: Stage-2 , consists of Stage-6, Stage-5, Stage-7
   Stage-6
-  Stage-7 depends on stages: Stage-6
+  Stage-4 depends on stages: Stage-6, Stage-5, Stage-8, Stage-12, Stage-11, Stage-14
+  Stage-0 depends on stages: Stage-4
+  Stage-3 depends on stages: Stage-0
+  Stage-1 depends on stages: Stage-4
+  Stage-10 depends on stages: Stage-1
+  Stage-5
+  Stage-7
+  Stage-8 depends on stages: Stage-7
   Stage-15 depends on stages: Stage-2 , consists of Stage-12, Stage-11, Stage-13
   Stage-12
   Stage-11
@@ -1902,16 +1895,16 @@ STAGE PLANS:
                       serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                       name: default.src_multi2
 
-  Stage: Stage-8
+  Stage: Stage-9
     Conditional Operator
 
-  Stage: Stage-5
+  Stage: Stage-6
     Move Operator
       files:
           hdfs directory: true
 #### A masked pattern was here ####
 
-  Stage: Stage-9
+  Stage: Stage-4
     Dependency Collection
 
   Stage: Stage-0
@@ -1940,21 +1933,7 @@ STAGE PLANS:
   Stage: Stage-10
     Stats-Aggr Operator
 
-  Stage: Stage-4
-    Map Reduce
-      Alias -> Map Operator Tree:
-#### A masked pattern was here ####
-          TableScan
-            File Output Operator
-              compressed: false
-              GlobalTableId: 0
-              table:
-                  input format: org.apache.hadoop.mapred.TextInputFormat
-                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                  name: default.src_multi1
-
-  Stage: Stage-6
+  Stage: Stage-5
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
@@ -1969,6 +1948,20 @@ STAGE PLANS:
                   name: default.src_multi1
 
   Stage: Stage-7
+    Map Reduce
+      Alias -> Map Operator Tree:
+#### A masked pattern was here ####
+          TableScan
+            File Output Operator
+              compressed: false
+              GlobalTableId: 0
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.src_multi1
+
+  Stage: Stage-8
     Move Operator
       files:
           hdfs directory: true
@@ -2016,7 +2009,6 @@ STAGE PLANS:
       files:
           hdfs directory: true
 #### A masked pattern was here ####
-
 
 PREHOOK: query: from src
 insert overwrite table src_multi1 select * where key < 10 group by key, value
@@ -2276,7 +2268,6 @@ STAGE PLANS:
 
   Stage: Stage-5
     Stats-Aggr Operator
-
 
 PREHOOK: query: from (select * from src  union all select * from src) s
 insert overwrite table src_multi1 select * where key < 10
@@ -2441,16 +2432,16 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-2 is a root stage
-  Stage-8 depends on stages: Stage-2 , consists of Stage-5, Stage-4, Stage-6
-  Stage-5
-  Stage-9 depends on stages: Stage-5, Stage-4, Stage-7, Stage-12, Stage-11, Stage-14
-  Stage-0 depends on stages: Stage-9
-  Stage-3 depends on stages: Stage-0
-  Stage-1 depends on stages: Stage-9
-  Stage-10 depends on stages: Stage-1
-  Stage-4
+  Stage-9 depends on stages: Stage-2 , consists of Stage-6, Stage-5, Stage-7
   Stage-6
-  Stage-7 depends on stages: Stage-6
+  Stage-4 depends on stages: Stage-6, Stage-5, Stage-8, Stage-12, Stage-11, Stage-14
+  Stage-0 depends on stages: Stage-4
+  Stage-3 depends on stages: Stage-0
+  Stage-1 depends on stages: Stage-4
+  Stage-10 depends on stages: Stage-1
+  Stage-5
+  Stage-7
+  Stage-8 depends on stages: Stage-7
   Stage-15 depends on stages: Stage-2 , consists of Stage-12, Stage-11, Stage-13
   Stage-12
   Stage-11
@@ -2560,16 +2551,16 @@ STAGE PLANS:
                           serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                           name: default.src_multi2
 
-  Stage: Stage-8
+  Stage: Stage-9
     Conditional Operator
 
-  Stage: Stage-5
+  Stage: Stage-6
     Move Operator
       files:
           hdfs directory: true
 #### A masked pattern was here ####
 
-  Stage: Stage-9
+  Stage: Stage-4
     Dependency Collection
 
   Stage: Stage-0
@@ -2598,21 +2589,7 @@ STAGE PLANS:
   Stage: Stage-10
     Stats-Aggr Operator
 
-  Stage: Stage-4
-    Map Reduce
-      Alias -> Map Operator Tree:
-#### A masked pattern was here ####
-          TableScan
-            File Output Operator
-              compressed: false
-              GlobalTableId: 0
-              table:
-                  input format: org.apache.hadoop.mapred.TextInputFormat
-                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                  name: default.src_multi1
-
-  Stage: Stage-6
+  Stage: Stage-5
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
@@ -2627,6 +2604,20 @@ STAGE PLANS:
                   name: default.src_multi1
 
   Stage: Stage-7
+    Map Reduce
+      Alias -> Map Operator Tree:
+#### A masked pattern was here ####
+          TableScan
+            File Output Operator
+              compressed: false
+              GlobalTableId: 0
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.src_multi1
+
+  Stage: Stage-8
     Move Operator
       files:
           hdfs directory: true
@@ -2674,7 +2665,6 @@ STAGE PLANS:
       files:
           hdfs directory: true
 #### A masked pattern was here ####
-
 
 PREHOOK: query: from (select * from src  union all select * from src) s
 insert overwrite table src_multi1 select * where key < 10
@@ -2993,7 +2983,6 @@ STAGE PLANS:
   Stage: Stage-5
     Stats-Aggr Operator
 
-
 PREHOOK: query: from (select * from src  union all select * from src) s
 insert overwrite table src_multi1 select * where key < 10
 insert overwrite table src_multi2 select * where key > 10 and key < 20
@@ -3189,16 +3178,16 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-2 is a root stage
-  Stage-8 depends on stages: Stage-2 , consists of Stage-5, Stage-4, Stage-6
-  Stage-5
-  Stage-9 depends on stages: Stage-5, Stage-4, Stage-7, Stage-12, Stage-11, Stage-14
-  Stage-0 depends on stages: Stage-9
-  Stage-3 depends on stages: Stage-0
-  Stage-1 depends on stages: Stage-9
-  Stage-10 depends on stages: Stage-1
-  Stage-4
+  Stage-9 depends on stages: Stage-2 , consists of Stage-6, Stage-5, Stage-7
   Stage-6
-  Stage-7 depends on stages: Stage-6
+  Stage-4 depends on stages: Stage-6, Stage-5, Stage-8, Stage-12, Stage-11, Stage-14
+  Stage-0 depends on stages: Stage-4
+  Stage-3 depends on stages: Stage-0
+  Stage-1 depends on stages: Stage-4
+  Stage-10 depends on stages: Stage-1
+  Stage-5
+  Stage-7
+  Stage-8 depends on stages: Stage-7
   Stage-15 depends on stages: Stage-2 , consists of Stage-12, Stage-11, Stage-13
   Stage-12
   Stage-11
@@ -3308,16 +3297,16 @@ STAGE PLANS:
                           serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
                           name: default.src_multi2
 
-  Stage: Stage-8
+  Stage: Stage-9
     Conditional Operator
 
-  Stage: Stage-5
+  Stage: Stage-6
     Move Operator
       files:
           hdfs directory: true
 #### A masked pattern was here ####
 
-  Stage: Stage-9
+  Stage: Stage-4
     Dependency Collection
 
   Stage: Stage-0
@@ -3346,21 +3335,7 @@ STAGE PLANS:
   Stage: Stage-10
     Stats-Aggr Operator
 
-  Stage: Stage-4
-    Map Reduce
-      Alias -> Map Operator Tree:
-#### A masked pattern was here ####
-          TableScan
-            File Output Operator
-              compressed: false
-              GlobalTableId: 0
-              table:
-                  input format: org.apache.hadoop.mapred.TextInputFormat
-                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                  name: default.src_multi1
-
-  Stage: Stage-6
+  Stage: Stage-5
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
@@ -3375,6 +3350,20 @@ STAGE PLANS:
                   name: default.src_multi1
 
   Stage: Stage-7
+    Map Reduce
+      Alias -> Map Operator Tree:
+#### A masked pattern was here ####
+          TableScan
+            File Output Operator
+              compressed: false
+              GlobalTableId: 0
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.src_multi1
+
+  Stage: Stage-8
     Move Operator
       files:
           hdfs directory: true
@@ -3422,7 +3411,6 @@ STAGE PLANS:
       files:
           hdfs directory: true
 #### A masked pattern was here ####
-
 
 PREHOOK: query: from (select * from src  union all select * from src) s
 insert overwrite table src_multi1 select * where key < 10
@@ -3721,7 +3709,6 @@ STAGE PLANS:
       files:
           hdfs directory: false
 #### A masked pattern was here ####
-
 
 PREHOOK: query: from src 
 #### A masked pattern was here ####
@@ -3900,7 +3887,6 @@ STAGE PLANS:
           hdfs directory: false
 #### A masked pattern was here ####
 
-
 PREHOOK: query: from src 
 #### A masked pattern was here ####
 PREHOOK: type: QUERY
@@ -4078,7 +4064,6 @@ STAGE PLANS:
           hdfs directory: false
 #### A masked pattern was here ####
 
-
 PREHOOK: query: from src 
 #### A masked pattern was here ####
 PREHOOK: type: QUERY
@@ -4255,7 +4240,6 @@ STAGE PLANS:
       files:
           hdfs directory: false
 #### A masked pattern was here ####
-
 
 PREHOOK: query: from src 
 #### A masked pattern was here ####
@@ -4512,7 +4496,6 @@ STAGE PLANS:
       files:
           hdfs directory: false
 #### A masked pattern was here ####
-
 
 PREHOOK: query: from src
 #### A masked pattern was here ####
@@ -4770,7 +4753,6 @@ STAGE PLANS:
           hdfs directory: false
 #### A masked pattern was here ####
 
-
 PREHOOK: query: from src
 #### A masked pattern was here ####
 PREHOOK: type: QUERY
@@ -5027,7 +5009,6 @@ STAGE PLANS:
           hdfs directory: false
 #### A masked pattern was here ####
 
-
 PREHOOK: query: from src
 #### A masked pattern was here ####
 PREHOOK: type: QUERY
@@ -5283,7 +5264,6 @@ STAGE PLANS:
       files:
           hdfs directory: false
 #### A masked pattern was here ####
-
 
 PREHOOK: query: from src
 #### A masked pattern was here ####
@@ -5613,7 +5593,6 @@ STAGE PLANS:
           hdfs directory: false
 #### A masked pattern was here ####
 
-
 PREHOOK: query: from src
 insert overwrite table src_multi1 select * where key < 10
 insert overwrite table src_multi2 select * where key > 10 and key < 20
@@ -6065,7 +6044,6 @@ STAGE PLANS:
           hdfs directory: false
 #### A masked pattern was here ####
 
-
 PREHOOK: query: from src
 insert overwrite table src_multi1 select * where key < 10
 insert overwrite table src_multi2 select * where key > 10 and key < 20
@@ -6298,16 +6276,16 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-4 is a root stage
-  Stage-10 depends on stages: Stage-4 , consists of Stage-7, Stage-6, Stage-8
-  Stage-7
-  Stage-11 depends on stages: Stage-7, Stage-6, Stage-9, Stage-14, Stage-13, Stage-16, Stage-18, Stage-19
-  Stage-0 depends on stages: Stage-11
-  Stage-5 depends on stages: Stage-0
-  Stage-1 depends on stages: Stage-11
-  Stage-12 depends on stages: Stage-1
-  Stage-6
+  Stage-11 depends on stages: Stage-4 , consists of Stage-8, Stage-7, Stage-9
   Stage-8
-  Stage-9 depends on stages: Stage-8
+  Stage-6 depends on stages: Stage-8, Stage-7, Stage-10, Stage-14, Stage-13, Stage-16, Stage-18, Stage-19
+  Stage-0 depends on stages: Stage-6
+  Stage-5 depends on stages: Stage-0
+  Stage-1 depends on stages: Stage-6
+  Stage-12 depends on stages: Stage-1
+  Stage-7
+  Stage-9
+  Stage-10 depends on stages: Stage-9
   Stage-17 depends on stages: Stage-4 , consists of Stage-14, Stage-13, Stage-15
   Stage-14
   Stage-13
@@ -6444,16 +6422,16 @@ STAGE PLANS:
                       output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
                       serde: org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
 
-  Stage: Stage-10
+  Stage: Stage-11
     Conditional Operator
 
-  Stage: Stage-7
+  Stage: Stage-8
     Move Operator
       files:
           hdfs directory: true
 #### A masked pattern was here ####
 
-  Stage: Stage-11
+  Stage: Stage-6
     Dependency Collection
 
   Stage: Stage-0
@@ -6482,21 +6460,7 @@ STAGE PLANS:
   Stage: Stage-12
     Stats-Aggr Operator
 
-  Stage: Stage-6
-    Map Reduce
-      Alias -> Map Operator Tree:
-#### A masked pattern was here ####
-          TableScan
-            File Output Operator
-              compressed: false
-              GlobalTableId: 0
-              table:
-                  input format: org.apache.hadoop.mapred.TextInputFormat
-                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                  name: default.src_multi1
-
-  Stage: Stage-8
+  Stage: Stage-7
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
@@ -6511,6 +6475,20 @@ STAGE PLANS:
                   name: default.src_multi1
 
   Stage: Stage-9
+    Map Reduce
+      Alias -> Map Operator Tree:
+#### A masked pattern was here ####
+          TableScan
+            File Output Operator
+              compressed: false
+              GlobalTableId: 0
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.src_multi1
+
+  Stage: Stage-10
     Move Operator
       files:
           hdfs directory: true
@@ -6628,7 +6606,6 @@ STAGE PLANS:
       files:
           hdfs directory: false
 #### A masked pattern was here ####
-
 
 PREHOOK: query: from src
 insert overwrite table src_multi1 select * where key < 10
@@ -6878,16 +6855,16 @@ ABSTRACT SYNTAX TREE:
 
 STAGE DEPENDENCIES:
   Stage-4 is a root stage
-  Stage-10 depends on stages: Stage-4 , consists of Stage-7, Stage-6, Stage-8
-  Stage-7
-  Stage-11 depends on stages: Stage-7, Stage-6, Stage-9, Stage-14, Stage-13, Stage-16, Stage-18, Stage-19
-  Stage-0 depends on stages: Stage-11
-  Stage-5 depends on stages: Stage-0
-  Stage-1 depends on stages: Stage-11
-  Stage-12 depends on stages: Stage-1
-  Stage-6
+  Stage-11 depends on stages: Stage-4 , consists of Stage-8, Stage-7, Stage-9
   Stage-8
-  Stage-9 depends on stages: Stage-8
+  Stage-6 depends on stages: Stage-8, Stage-7, Stage-10, Stage-14, Stage-13, Stage-16, Stage-18, Stage-19
+  Stage-0 depends on stages: Stage-6
+  Stage-5 depends on stages: Stage-0
+  Stage-1 depends on stages: Stage-6
+  Stage-12 depends on stages: Stage-1
+  Stage-7
+  Stage-9
+  Stage-10 depends on stages: Stage-9
   Stage-17 depends on stages: Stage-4 , consists of Stage-14, Stage-13, Stage-15
   Stage-14
   Stage-13
@@ -7024,16 +7001,16 @@ STAGE PLANS:
                       output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
                       serde: org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe
 
-  Stage: Stage-10
+  Stage: Stage-11
     Conditional Operator
 
-  Stage: Stage-7
+  Stage: Stage-8
     Move Operator
       files:
           hdfs directory: true
 #### A masked pattern was here ####
 
-  Stage: Stage-11
+  Stage: Stage-6
     Dependency Collection
 
   Stage: Stage-0
@@ -7062,21 +7039,7 @@ STAGE PLANS:
   Stage: Stage-12
     Stats-Aggr Operator
 
-  Stage: Stage-6
-    Map Reduce
-      Alias -> Map Operator Tree:
-#### A masked pattern was here ####
-          TableScan
-            File Output Operator
-              compressed: false
-              GlobalTableId: 0
-              table:
-                  input format: org.apache.hadoop.mapred.TextInputFormat
-                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
-                  name: default.src_multi1
-
-  Stage: Stage-8
+  Stage: Stage-7
     Map Reduce
       Alias -> Map Operator Tree:
 #### A masked pattern was here ####
@@ -7091,6 +7054,20 @@ STAGE PLANS:
                   name: default.src_multi1
 
   Stage: Stage-9
+    Map Reduce
+      Alias -> Map Operator Tree:
+#### A masked pattern was here ####
+          TableScan
+            File Output Operator
+              compressed: false
+              GlobalTableId: 0
+              table:
+                  input format: org.apache.hadoop.mapred.TextInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  name: default.src_multi1
+
+  Stage: Stage-10
     Move Operator
       files:
           hdfs directory: true
@@ -7208,7 +7185,6 @@ STAGE PLANS:
       files:
           hdfs directory: false
 #### A masked pattern was here ####
-
 
 PREHOOK: query: from src
 insert overwrite table src_multi1 select * where key < 10
