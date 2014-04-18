@@ -15,6 +15,7 @@ PREHOOK: query: -- INCLUDE_HADOOP_MAJOR_VERSIONS(0.23)
 -- fact_tz is a table used to prepare data and test directories	
 CREATE TABLE fact_daily(x int, y STRING, z STRING) PARTITIONED BY (ds STRING)
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: -- INCLUDE_HADOOP_MAJOR_VERSIONS(0.23)	
 
 -- List bucketing query logic test case. 
@@ -32,13 +33,18 @@ POSTHOOK: query: -- INCLUDE_HADOOP_MAJOR_VERSIONS(0.23)
 -- fact_tz is a table used to prepare data and test directories	
 CREATE TABLE fact_daily(x int, y STRING, z STRING) PARTITIONED BY (ds STRING)
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@fact_daily
 PREHOOK: query: CREATE TABLE fact_tz(x int, y STRING, z STRING) PARTITIONED BY (ds STRING, hr STRING)	
 #### A masked pattern was here ####
 PREHOOK: type: CREATETABLE
+#### A masked pattern was here ####
+PREHOOK: Output: database:default
 POSTHOOK: query: CREATE TABLE fact_tz(x int, y STRING, z STRING) PARTITIONED BY (ds STRING, hr STRING)	
 #### A masked pattern was here ####
 POSTHOOK: type: CREATETABLE
+#### A masked pattern was here ####
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@fact_tz
 PREHOOK: query: -- create /fact_tz/ds=1/hr=1 directory	
 INSERT OVERWRITE TABLE fact_tz PARTITION (ds='1', hr='1')	
@@ -134,11 +140,13 @@ POSTHOOK: Lineage: fact_tz PARTITION(ds=1,hr=3).z SIMPLE [(src)src.FieldSchema(n
 PREHOOK: query: ALTER TABLE fact_daily ADD PARTITION (ds='1')	
 #### A masked pattern was here ####
 PREHOOK: type: ALTERTABLE_ADDPARTS
-PREHOOK: Input: default@fact_daily
+#### A masked pattern was here ####
+PREHOOK: Output: default@fact_daily
 POSTHOOK: query: ALTER TABLE fact_daily ADD PARTITION (ds='1')	
 #### A masked pattern was here ####
 POSTHOOK: type: ALTERTABLE_ADDPARTS
-POSTHOOK: Input: default@fact_daily
+#### A masked pattern was here ####
+POSTHOOK: Output: default@fact_daily
 POSTHOOK: Output: default@fact_daily@ds=1
 POSTHOOK: Lineage: fact_tz PARTITION(ds=1,hr=1).x EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: fact_tz PARTITION(ds=1,hr=1).y SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
@@ -154,12 +162,14 @@ PREHOOK: query: -- set List Bucketing location map
 PREHOOK: type: ALTERTBLPART_SKEWED_LOCATION
 PREHOOK: Input: default@fact_daily
 PREHOOK: Output: default@fact_daily@ds=1
+#### A masked pattern was here ####
 POSTHOOK: query: -- set List Bucketing location map
 #### A masked pattern was here ####
 POSTHOOK: type: ALTERTBLPART_SKEWED_LOCATION
 POSTHOOK: Input: default@fact_daily
 POSTHOOK: Input: default@fact_daily@ds=1
 POSTHOOK: Output: default@fact_daily@ds=1
+#### A masked pattern was here ####
 POSTHOOK: Lineage: fact_tz PARTITION(ds=1,hr=1).x EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: fact_tz PARTITION(ds=1,hr=1).y SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: fact_tz PARTITION(ds=1,hr=1).z SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
@@ -171,8 +181,10 @@ POSTHOOK: Lineage: fact_tz PARTITION(ds=1,hr=3).y SIMPLE [(src)src.FieldSchema(n
 POSTHOOK: Lineage: fact_tz PARTITION(ds=1,hr=3).z SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: describe formatted fact_daily PARTITION (ds = '1')
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@fact_daily
 POSTHOOK: query: describe formatted fact_daily PARTITION (ds = '1')
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@fact_daily
 POSTHOOK: Lineage: fact_tz PARTITION(ds=1,hr=1).x EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: fact_tz PARTITION(ds=1,hr=1).y SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: fact_tz PARTITION(ds=1,hr=1).z SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
@@ -184,14 +196,14 @@ POSTHOOK: Lineage: fact_tz PARTITION(ds=1,hr=3).y SIMPLE [(src)src.FieldSchema(n
 POSTHOOK: Lineage: fact_tz PARTITION(ds=1,hr=3).z SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-x                   	int                 	None                
-y                   	string              	None                
-z                   	string              	None                
+x                   	int                 	                    
+y                   	string              	                    
+z                   	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-ds                  	string              	None                
+ds                  	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[1]                 	 
@@ -265,7 +277,36 @@ POSTHOOK: Lineage: fact_tz PARTITION(ds=1,hr=3).x EXPRESSION [(src)src.FieldSche
 POSTHOOK: Lineage: fact_tz PARTITION(ds=1,hr=3).y SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: fact_tz PARTITION(ds=1,hr=3).z SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 ABSTRACT SYNTAX TREE:
-  (TOK_QUERY (TOK_FROM (TOK_TABREF (TOK_TABNAME fact_daily))) (TOK_INSERT (TOK_DESTINATION (TOK_DIR TOK_TMP_FILE)) (TOK_SELECT (TOK_SELEXPR (TOK_TABLE_OR_COL x))) (TOK_WHERE (and (= (TOK_TABLE_OR_COL ds) '1') (not (= (TOK_TABLE_OR_COL x) 86)))) (TOK_ORDERBY (TOK_TABSORTCOLNAMEASC (TOK_TABLE_OR_COL x)))))
+  
+TOK_QUERY
+   TOK_FROM
+      TOK_TABREF
+         TOK_TABNAME
+            fact_daily
+   TOK_INSERT
+      TOK_DESTINATION
+         TOK_DIR
+            TOK_TMP_FILE
+      TOK_SELECT
+         TOK_SELEXPR
+            TOK_TABLE_OR_COL
+               x
+      TOK_WHERE
+         and
+            =
+               TOK_TABLE_OR_COL
+                  ds
+               '1'
+            not
+               =
+                  TOK_TABLE_OR_COL
+                     x
+                  86
+      TOK_ORDERBY
+         TOK_TABSORTCOLNAMEASC
+            TOK_TABLE_OR_COL
+               x
+
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
@@ -274,38 +315,25 @@ STAGE DEPENDENCIES:
 STAGE PLANS:
   Stage: Stage-1
     Map Reduce
-      Alias -> Map Operator Tree:
-        fact_daily 
+      Map Operator Tree:
           TableScan
             alias: fact_daily
-            Statistics:
-                numRows: 29 dataSize: 117 basicStatsState: COMPLETE colStatsState: NONE
+            Statistics: Num rows: 29 Data size: 117 Basic stats: COMPLETE Column stats: NONE
             GatherStats: false
             Filter Operator
               isSamplingPred: false
-              predicate:
-                  expr: (not (x = 86))
-                  type: boolean
-              Statistics:
-                  numRows: 15 dataSize: 60 basicStatsState: COMPLETE colStatsState: NONE
+              predicate: (not (x = 86)) (type: boolean)
+              Statistics: Num rows: 15 Data size: 60 Basic stats: COMPLETE Column stats: NONE
               Select Operator
-                expressions:
-                      expr: x
-                      type: int
+                expressions: x (type: int)
                 outputColumnNames: _col0
-                Statistics:
-                    numRows: 15 dataSize: 60 basicStatsState: COMPLETE colStatsState: NONE
+                Statistics: Num rows: 15 Data size: 60 Basic stats: COMPLETE Column stats: NONE
                 Reduce Output Operator
-                  key expressions:
-                        expr: _col0
-                        type: int
+                  key expressions: _col0 (type: int)
                   sort order: +
-                  Statistics:
-                      numRows: 15 dataSize: 60 basicStatsState: COMPLETE colStatsState: NONE
+                  Statistics: Num rows: 15 Data size: 60 Basic stats: COMPLETE Column stats: NONE
                   tag: -1
-                  value expressions:
-                        expr: _col0
-                        type: int
+                  value expressions: _col0 (type: int)
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -320,12 +348,14 @@ STAGE PLANS:
               COLUMN_STATS_ACCURATE false
               bucket_count -1
               columns x,y,z
+              columns.comments   
               columns.types int:string:string
 #### A masked pattern was here ####
               name default.fact_daily
               numFiles 3
               numRows -1
               partition_columns ds
+              partition_columns.types string
               rawDataSize -1
               serialization.ddl struct fact_daily { i32 x, string y, string z}
               serialization.format 1
@@ -340,10 +370,12 @@ STAGE PLANS:
                 EXTERNAL TRUE
                 bucket_count -1
                 columns x,y,z
+                columns.comments   
                 columns.types int:string:string
 #### A masked pattern was here ####
                 name default.fact_daily
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct fact_daily { i32 x, string y, string z}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -362,12 +394,14 @@ STAGE PLANS:
               COLUMN_STATS_ACCURATE false
               bucket_count -1
               columns x,y,z
+              columns.comments   
               columns.types int:string:string
 #### A masked pattern was here ####
               name default.fact_daily
               numFiles 3
               numRows -1
               partition_columns ds
+              partition_columns.types string
               rawDataSize -1
               serialization.ddl struct fact_daily { i32 x, string y, string z}
               serialization.format 1
@@ -382,10 +416,12 @@ STAGE PLANS:
                 EXTERNAL TRUE
                 bucket_count -1
                 columns x,y,z
+                columns.comments   
                 columns.types int:string:string
 #### A masked pattern was here ####
                 name default.fact_daily
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct fact_daily { i32 x, string y, string z}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -404,12 +440,14 @@ STAGE PLANS:
               COLUMN_STATS_ACCURATE false
               bucket_count -1
               columns x,y,z
+              columns.comments   
               columns.types int:string:string
 #### A masked pattern was here ####
               name default.fact_daily
               numFiles 3
               numRows -1
               partition_columns ds
+              partition_columns.types string
               rawDataSize -1
               serialization.ddl struct fact_daily { i32 x, string y, string z}
               serialization.format 1
@@ -424,10 +462,12 @@ STAGE PLANS:
                 EXTERNAL TRUE
                 bucket_count -1
                 columns x,y,z
+                columns.comments   
                 columns.types int:string:string
 #### A masked pattern was here ####
                 name default.fact_daily
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct fact_daily { i32 x, string y, string z}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -442,15 +482,13 @@ STAGE PLANS:
       Needs Tagging: false
       Reduce Operator Tree:
         Extract
-          Statistics:
-              numRows: 15 dataSize: 60 basicStatsState: COMPLETE colStatsState: NONE
+          Statistics: Num rows: 15 Data size: 60 Basic stats: COMPLETE Column stats: NONE
           File Output Operator
             compressed: false
             GlobalTableId: 0
 #### A masked pattern was here ####
             NumFilesPerFileSink: 1
-            Statistics:
-                numRows: 15 dataSize: 60 basicStatsState: COMPLETE colStatsState: NONE
+            Statistics: Num rows: 15 Data size: 60 Basic stats: COMPLETE Column stats: NONE
 #### A masked pattern was here ####
             table:
                 input format: org.apache.hadoop.mapred.TextInputFormat

@@ -1,3 +1,21 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.hadoop.hive.ql.io.orc;
 
 import static org.junit.Assert.assertEquals;
@@ -22,6 +40,7 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrLessThan;
 import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
+import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.InputFormat;
@@ -69,6 +88,8 @@ public class TestOrcSplitElimination {
     conf.set("columns", "userid,string1,subtype,decimal1,ts");
     conf.set("columns.types", "bigint,string,double,decimal,timestamp");
     // needed columns
+    conf.set(ColumnProjectionUtils.READ_ALL_COLUMNS, "false");
+    conf.set(ColumnProjectionUtils.READ_COLUMN_IDS_CONF_STR, "0,2");
     conf.set(ColumnProjectionUtils.READ_COLUMN_NAMES_CONF_STR, "userid,subtype");
     fs = FileSystem.getLocal(conf);
     testFilePath = new Path(workDir, "TestOrcFile." +
@@ -88,8 +109,8 @@ public class TestOrcSplitElimination {
         100000, CompressionKind.NONE, 10000, 10000);
     writeData(writer);
     writer.close();
-    conf.set("mapred.min.split.size", "1000");
-    conf.set("mapred.max.split.size", "5000");
+    conf.set(ShimLoader.getHadoopShims().getHadoopConfNames().get("MAPREDMINSPLITSIZE"), "1000");
+    conf.set(ShimLoader.getHadoopShims().getHadoopConfNames().get("MAPREDMAXSPLITSIZE"), "5000");
     InputFormat<?, ?> in = new OrcInputFormat();
     FileInputFormat.setInputPaths(conf, testFilePath.toString());
 
@@ -166,8 +187,8 @@ public class TestOrcSplitElimination {
         100000, CompressionKind.NONE, 10000, 10000);
     writeData(writer);
     writer.close();
-    conf.set("mapred.min.split.size", "1000");
-    conf.set("mapred.max.split.size", "150000");
+    conf.set(ShimLoader.getHadoopShims().getHadoopConfNames().get("MAPREDMINSPLITSIZE"), "1000");
+    conf.set(ShimLoader.getHadoopShims().getHadoopConfNames().get("MAPREDMAXSPLITSIZE"), "150000");
     InputFormat<?, ?> in = new OrcInputFormat();
     FileInputFormat.setInputPaths(conf, testFilePath.toString());
 
@@ -255,8 +276,8 @@ public class TestOrcSplitElimination {
         100000, CompressionKind.NONE, 10000, 10000);
     writeData(writer);
     writer.close();
-    conf.set("mapred.min.split.size", "1000");
-    conf.set("mapred.max.split.size", "150000");
+    conf.set(ShimLoader.getHadoopShims().getHadoopConfNames().get("MAPREDMINSPLITSIZE"), "1000");
+    conf.set(ShimLoader.getHadoopShims().getHadoopConfNames().get("MAPREDMAXSPLITSIZE"), "150000");
     InputFormat<?, ?> in = new OrcInputFormat();
     FileInputFormat.setInputPaths(conf, testFilePath.toString());
 

@@ -35,7 +35,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +42,10 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
 import java.util.Timer;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 
 import org.apache.commons.cli.OptionBuilder;
@@ -50,6 +53,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.common.FileUtils;
 import org.apache.hadoop.hive.common.LogUtils;
 import org.apache.hadoop.hive.common.LogUtils.LogInitializationException;
 import org.apache.hadoop.hive.common.classification.InterfaceAudience;
@@ -58,16 +62,33 @@ import org.apache.hadoop.hive.common.cli.CommonCliOptions;
 import org.apache.hadoop.hive.common.metrics.Metrics;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
+import org.apache.hadoop.hive.metastore.api.AbortTxnRequest;
 import org.apache.hadoop.hive.metastore.api.AddPartitionsRequest;
 import org.apache.hadoop.hive.metastore.api.AddPartitionsResult;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
+import org.apache.hadoop.hive.metastore.api.CheckLockRequest;
 import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsDesc;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsObj;
+import org.apache.hadoop.hive.metastore.api.CommitTxnRequest;
+import org.apache.hadoop.hive.metastore.api.CompactionRequest;
 import org.apache.hadoop.hive.metastore.api.ConfigValSecurityException;
 import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.hadoop.hive.metastore.api.DropPartitionsExpr;
+import org.apache.hadoop.hive.metastore.api.DropPartitionsRequest;
+import org.apache.hadoop.hive.metastore.api.DropPartitionsResult;
 import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.metastore.api.Function;
+import org.apache.hadoop.hive.metastore.api.GetOpenTxnsInfoResponse;
+import org.apache.hadoop.hive.metastore.api.GetOpenTxnsResponse;
+import org.apache.hadoop.hive.metastore.api.GetPrincipalsInRoleRequest;
+import org.apache.hadoop.hive.metastore.api.GetPrincipalsInRoleResponse;
+import org.apache.hadoop.hive.metastore.api.GetRoleGrantsForPrincipalRequest;
+import org.apache.hadoop.hive.metastore.api.GetRoleGrantsForPrincipalResponse;
+import org.apache.hadoop.hive.metastore.api.HeartbeatRequest;
+import org.apache.hadoop.hive.metastore.api.HeartbeatTxnRangeRequest;
+import org.apache.hadoop.hive.metastore.api.HeartbeatTxnRangeResponse;
 import org.apache.hadoop.hive.metastore.api.HiveObjectPrivilege;
 import org.apache.hadoop.hive.metastore.api.HiveObjectRef;
 import org.apache.hadoop.hive.metastore.api.HiveObjectType;
@@ -77,24 +98,43 @@ import org.apache.hadoop.hive.metastore.api.InvalidInputException;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
 import org.apache.hadoop.hive.metastore.api.InvalidPartitionException;
+import org.apache.hadoop.hive.metastore.api.LockRequest;
+import org.apache.hadoop.hive.metastore.api.LockResponse;
 import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.api.NoSuchLockException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
+import org.apache.hadoop.hive.metastore.api.NoSuchTxnException;
+import org.apache.hadoop.hive.metastore.api.OpenTxnRequest;
+import org.apache.hadoop.hive.metastore.api.OpenTxnsResponse;
 import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.PartitionEventType;
 import org.apache.hadoop.hive.metastore.api.PartitionsByExprRequest;
 import org.apache.hadoop.hive.metastore.api.PartitionsByExprResult;
+import org.apache.hadoop.hive.metastore.api.PartitionsStatsRequest;
+import org.apache.hadoop.hive.metastore.api.PartitionsStatsResult;
 import org.apache.hadoop.hive.metastore.api.PrincipalPrivilegeSet;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.hive.metastore.api.PrivilegeBag;
 import org.apache.hadoop.hive.metastore.api.PrivilegeGrantInfo;
+import org.apache.hadoop.hive.metastore.api.RequestPartsSpec;
 import org.apache.hadoop.hive.metastore.api.Role;
+import org.apache.hadoop.hive.metastore.api.RolePrincipalGrant;
+import org.apache.hadoop.hive.metastore.api.ShowCompactRequest;
+import org.apache.hadoop.hive.metastore.api.ShowCompactResponse;
+import org.apache.hadoop.hive.metastore.api.ShowLocksRequest;
+import org.apache.hadoop.hive.metastore.api.ShowLocksResponse;
 import org.apache.hadoop.hive.metastore.api.SkewedInfo;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.api.TableStatsRequest;
+import org.apache.hadoop.hive.metastore.api.TableStatsResult;
 import org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore;
+import org.apache.hadoop.hive.metastore.api.TxnAbortedException;
+import org.apache.hadoop.hive.metastore.api.TxnOpenException;
 import org.apache.hadoop.hive.metastore.api.Type;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
 import org.apache.hadoop.hive.metastore.api.UnknownPartitionException;
 import org.apache.hadoop.hive.metastore.api.UnknownTableException;
+import org.apache.hadoop.hive.metastore.api.UnlockRequest;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.hadoop.hive.metastore.events.AddPartitionEvent;
 import org.apache.hadoop.hive.metastore.events.AlterPartitionEvent;
@@ -124,9 +164,9 @@ import org.apache.hadoop.hive.metastore.model.MRole;
 import org.apache.hadoop.hive.metastore.model.MRoleMap;
 import org.apache.hadoop.hive.metastore.model.MTableColumnPrivilege;
 import org.apache.hadoop.hive.metastore.model.MTablePrivilege;
+import org.apache.hadoop.hive.metastore.txn.TxnHandler;
 import org.apache.hadoop.hive.serde2.Deserializer;
 import org.apache.hadoop.hive.serde2.SerDeException;
-import org.apache.hadoop.hive.serde2.SerDeUtils;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.hive.thrift.HadoopThriftAuthBridge;
 import org.apache.hadoop.hive.thrift.TUGIContainingTransport;
@@ -146,6 +186,8 @@ import org.apache.thrift.transport.TTransportFactory;
 
 import com.facebook.fb303.FacebookBase;
 import com.facebook.fb303.fb_status;
+import com.google.common.base.Splitter;
+import com.google.common.collect.Lists;
 
 /**
  * TODO:pc remove application logic to a separate interface.
@@ -164,6 +206,8 @@ public class HiveMetaStore extends ThriftHiveMetastore {
    * default port on which to start the Hive server
    */
   private static final int DEFAULT_HIVE_METASTORE_PORT = 9083;
+  public static final String ADMIN = "admin";
+  public static final String PUBLIC = "public";
 
   private static HadoopThriftAuthBridge.Server saslServer;
   private static boolean useSasl;
@@ -189,6 +233,8 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       IHMSHandler {
     public static final Log LOG = HiveMetaStore.LOG;
     private static boolean createDefaultDB = false;
+    private static boolean defaultRolesCreated = false;
+    private static boolean adminUsersAdded = false;
     private String rawStoreClassName;
     private final HiveConf hiveConf; // stores datastore (jpox) properties,
                                      // right now they come from jpox.properties
@@ -201,6 +247,13 @@ public class HiveMetaStore extends ThriftHiveMetastore {
             return null;
           }
         };
+
+    private final ThreadLocal<TxnHandler> threadLocalTxn = new ThreadLocal<TxnHandler>() {
+      @Override
+      protected synchronized TxnHandler initialValue() {
+        return null;
+      }
+    };
 
     // Thread local configuration is needed as many threads could make changes
     // to the conf using the connection hook
@@ -341,7 +394,11 @@ public class HiveMetaStore extends ThriftHiveMetastore {
           alterHandlerName), hiveConf);
       wh = new Warehouse(hiveConf);
 
-      createDefaultDB();
+      synchronized (HMSHandler.class) {
+        createDefaultDB();
+        createDefaultRoles();
+        addAdminUsers();
+      }
 
       if (hiveConf.getBoolean("hive.metastore.metrics.enabled", false)) {
         try {
@@ -383,6 +440,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       return threadLocalId.get() + ": " + s;
     }
 
+    @Override
     public void setConf(Configuration conf) {
       threadLocalConf.set(conf);
       RawStore ms = threadLocalMS.get();
@@ -391,7 +449,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       }
     }
 
-    private Configuration getConf() {
+    public Configuration getConf() {
       Configuration conf = threadLocalConf.get();
       if (conf == null) {
         conf = new Configuration(hiveConf);
@@ -423,21 +481,32 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       return ms;
     }
 
+    private TxnHandler getTxnHandler() {
+      TxnHandler txn = threadLocalTxn.get();
+      if (txn == null) {
+        txn = new TxnHandler(hiveConf);
+        threadLocalTxn.set(txn);
+      }
+      return txn;
+    }
+
     private RawStore newRawStore() throws MetaException {
       LOG.info(addPrefix("Opening raw store with implemenation class:"
           + rawStoreClassName));
       Configuration conf = getConf();
 
-      return RetryingRawStore.getProxy(hiveConf, conf, rawStoreClassName, threadLocalId.get());
+      return RawStoreProxy.getProxy(hiveConf, conf, rawStoreClassName, threadLocalId.get());
     }
 
     private void createDefaultDB_core(RawStore ms) throws MetaException, InvalidObjectException {
       try {
         ms.getDatabase(DEFAULT_DATABASE_NAME);
       } catch (NoSuchObjectException e) {
-        ms.createDatabase(
-            new Database(DEFAULT_DATABASE_NAME, DEFAULT_DATABASE_COMMENT,
-                wh.getDefaultDatabasePath(DEFAULT_DATABASE_NAME).toString(), null));
+        Database db = new Database(DEFAULT_DATABASE_NAME, DEFAULT_DATABASE_COMMENT,
+          wh.getDefaultDatabasePath(DEFAULT_DATABASE_NAME).toString(), null);
+        db.setOwnerName(PUBLIC);
+        db.setOwnerType(PrincipalType.ROLE);
+        ms.createDatabase(db);
       }
       HMSHandler.createDefaultDB = true;
     }
@@ -448,22 +517,104 @@ public class HiveMetaStore extends ThriftHiveMetastore {
      * @throws MetaException
      */
     private void createDefaultDB() throws MetaException {
-      synchronized (HMSHandler.class) {
-        if (HMSHandler.createDefaultDB || !checkForDefaultDb) {
-          return;
-        }
+      if (HMSHandler.createDefaultDB || !checkForDefaultDb) {
+        return;
+      }
+      try {
+        createDefaultDB_core(getMS());
+      } catch (InvalidObjectException e) {
+        throw new MetaException(e.getMessage());
+      } catch (MetaException e) {
+        throw e;
+      }
+    }
 
+
+    private void createDefaultRoles() throws MetaException {
+
+      if(defaultRolesCreated) {
+        LOG.debug("Admin role already created previously.");
+        return;
+      }
+
+      RawStore ms = getMS();
+      try {
+        ms.addRole(ADMIN, ADMIN);
+      } catch (InvalidObjectException e) {
+        LOG.debug(ADMIN +" role already exists",e);
+      } catch (NoSuchObjectException e) {
+        // This should never be thrown.
+        LOG.warn("Unexpected exception while adding " +ADMIN+" roles" , e);
+      }
+      LOG.info("Added "+ ADMIN+ " role in metastore");
+      try {
+        ms.addRole(PUBLIC, PUBLIC);
+      } catch (InvalidObjectException e) {
+        LOG.debug(PUBLIC + " role already exists",e);
+      } catch (NoSuchObjectException e) {
+        // This should never be thrown.
+        LOG.warn("Unexpected exception while adding "+PUBLIC +" roles" , e);
+      }
+      LOG.info("Added "+PUBLIC+ " role in metastore");
+      // now grant all privs to admin
+      PrivilegeBag privs = new PrivilegeBag();
+      privs.addToPrivileges(new HiveObjectPrivilege( new HiveObjectRef(HiveObjectType.GLOBAL, null,
+        null, null, null), ADMIN, PrincipalType.ROLE, new PrivilegeGrantInfo("All", 0, ADMIN,
+        PrincipalType.ROLE, true)));
+      try {
+        ms.grantPrivileges(privs);
+      } catch (InvalidObjectException e) {
+        // Surprisingly these privs are already granted.
+        LOG.debug("Failed while granting global privs to admin", e);
+      } catch (NoSuchObjectException e) {
+        // Unlikely to be thrown.
+        LOG.warn("Failed while granting global privs to admin", e);
+      }
+
+      defaultRolesCreated = true;
+    }
+
+    private void addAdminUsers() throws MetaException {
+
+      if(adminUsersAdded) {
+        LOG.debug("Admin users already added.");
+        return;
+      }
+      // now add pre-configured users to admin role
+      String userStr = HiveConf.getVar(hiveConf,ConfVars.USERS_IN_ADMIN_ROLE,"").trim();
+      if (userStr.isEmpty()) {
+        LOG.info("No user is added in admin role, since config is empty");
+        return;
+      }
+      // Since user names need to be valid unix user names, per IEEE Std 1003.1-2001 they cannot
+      // contain comma, so we can safely split above string on comma.
+
+     Iterator<String> users = Splitter.on(",").trimResults().omitEmptyStrings().split(userStr).iterator();
+      if (!users.hasNext()) {
+        LOG.info("No user is added in admin role, since config value "+ userStr +
+          " is in incorrect format. We accept comma seprated list of users.");
+        return;
+      }
+      Role adminRole;
+      RawStore ms = getMS();
+      try {
+        adminRole = ms.getRole(ADMIN);
+      } catch (NoSuchObjectException e) {
+        LOG.error("Failed to retrieve just added admin role",e);
+        return;
+      }
+      while (users.hasNext()) {
+        String userName = users.next();
         try {
-          createDefaultDB_core(getMS());
+          ms.grantRole(adminRole, userName, PrincipalType.USER, ADMIN, PrincipalType.ROLE, true);
+          LOG.info("Added " + userName + " to admin role");
+        } catch (NoSuchObjectException e) {
+          LOG.error("Failed to add "+ userName + " in admin role",e);
         } catch (InvalidObjectException e) {
-          throw new MetaException(e.getMessage());
-        } catch (MetaException e) {
-          throw e;
-        } catch (Exception e) {
-          assert (e instanceof RuntimeException);
-          throw (RuntimeException) e;
+          LOG.debug(userName + " already in admin role", e);
         }
       }
+      adminUsersAdded = true;
     }
 
     private void logInfo(String m) {
@@ -577,7 +728,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         firePreEvent(new PreCreateDatabaseEvent(db, this));
 
         if (!wh.isDir(dbPath)) {
-          if (!wh.mkdirs(dbPath)) {
+          if (!wh.mkdirs(dbPath, false)) {
             throw new MetaException("Unable to create database path " + dbPath +
                 ", failed to create database " + db.getName());
           }
@@ -600,6 +751,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       }
     }
 
+    @Override
     public void create_database(final Database db)
         throws AlreadyExistsException, InvalidObjectException, MetaException {
       startFunction("create_database", ": " + db.toString());
@@ -632,6 +784,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       }
     }
 
+    @Override
     public Database get_database(final String name) throws NoSuchObjectException,
         MetaException {
       startFunction("get_database", ": " + name);
@@ -655,6 +808,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       return db;
     }
 
+    @Override
     public void alter_database(final String dbName, final Database db)
         throws NoSuchObjectException, TException, MetaException {
       startFunction("alter_database" + dbName);
@@ -686,8 +840,17 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         firePreEvent(new PreDropDatabaseEvent(db, this));
 
         List<String> allTables = get_all_tables(db.getName());
-        if (!cascade && !allTables.isEmpty()) {
-          throw new InvalidOperationException("Database " + db.getName() + " is not empty");
+        List<String> allFunctions = get_functions(db.getName(), "*");
+
+        if (!cascade) {
+          if (!allTables.isEmpty()) {
+            throw new InvalidOperationException(
+                "Database " + db.getName() + " is not empty. One or more tables exist.");
+          }
+          if (!allFunctions.isEmpty()) {
+            throw new InvalidOperationException(
+                "Database " + db.getName() + " is not empty. One or more functions exist.");
+          }
         }
         Path path = new Path(db.getLocationUri()).getParent();
         if (!wh.isWritable(path)) {
@@ -698,7 +861,12 @@ public class HiveMetaStore extends ThriftHiveMetastore {
 
         Path databasePath = wh.getDnsPath(wh.getDatabasePath(db));
 
-        // first drop tables
+        // drop any functions before dropping db
+        for (String funcName : allFunctions) {
+          drop_function(name, funcName);
+        }
+
+        // drop tables before dropping db
         int tableBatchSize = HiveConf.getIntVar(hiveConf,
             ConfVars.METASTORE_BATCH_RETRIEVE_MAX);
 
@@ -791,6 +959,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
           parent.toString() : parent.toString() + Path.SEPARATOR);
     }
 
+    @Override
     public void drop_database(final String dbName, final boolean deleteData, final boolean cascade)
         throws NoSuchObjectException, InvalidOperationException, MetaException {
 
@@ -824,6 +993,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       }
     }
 
+    @Override
     public List<String> get_databases(final String pattern) throws MetaException {
       startFunction("get_databases", ": " + pattern);
 
@@ -844,6 +1014,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       return ret;
     }
 
+    @Override
     public List<String> get_all_databases() throws MetaException {
       startFunction("get_all_databases");
 
@@ -885,6 +1056,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       }
     }
 
+    @Override
     public boolean create_type(final Type type) throws AlreadyExistsException,
         MetaException, InvalidObjectException {
       startFunction("create_type", ": " + type.toString());
@@ -911,6 +1083,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       return success;
     }
 
+    @Override
     public Type get_type(final String name) throws MetaException, NoSuchObjectException {
       startFunction("get_type", ": " + name);
 
@@ -961,6 +1134,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       }
     }
 
+    @Override
     public boolean drop_type(final String name) throws MetaException, NoSuchObjectException {
       startFunction("drop_type", ": " + name);
 
@@ -984,6 +1158,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       return success;
     }
 
+    @Override
     public Map<String, Type> get_type_all(String name) throws MetaException {
       // TODO Auto-generated method stub
       startFunction("get_type_all", ": " + name);
@@ -1058,7 +1233,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
 
         if (tblPath != null) {
           if (!wh.isDir(tblPath)) {
-            if (!wh.mkdirs(tblPath)) {
+            if (!wh.mkdirs(tblPath, true)) {
               throw new MetaException(tblPath
                   + " is not a directory or unable to create one");
             }
@@ -1287,6 +1462,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         tableDnsPath = wh.getDnsPath(tablePath);
       }
       List<Path> partPaths = new ArrayList<Path>();
+      Table tbl = ms.getTable(dbName, tableName);
 
       // call dropPartition on each of the table's partitions to follow the
       // procedure for cleanly dropping partitions.
@@ -1295,6 +1471,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         if (partsToDelete == null || partsToDelete.isEmpty()) {
           break;
         }
+        List<String> partNames = new ArrayList<String>();
         for (Partition part : partsToDelete) {
           if (checkLocation && part.getSd() != null &&
               part.getSd().getLocation() != null) {
@@ -1311,8 +1488,9 @@ public class HiveMetaStore extends ThriftHiveMetastore {
               partPaths.add(partPath);
             }
           }
-          ms.dropPartition(dbName, tableName, part.getValues());
+          partNames.add(Warehouse.makePartName(tbl.getPartitionKeys(), part.getValues()));
         }
+        ms.dropPartitions(dbName, tableName, partNames);
       }
 
       return partPaths;
@@ -1368,6 +1546,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       return MetaStoreUtils.isIndexTable(table);
     }
 
+    @Override
     public Table get_table(final String dbname, final String name) throws MetaException,
         NoSuchObjectException {
       Table t = null;
@@ -1410,6 +1589,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
      * @throws InvalidOperationException
      * @throws UnknownDBException
      */
+    @Override
     public List<Table> get_table_objects_by_name(final String dbname, final List<String> names)
         throws MetaException, InvalidOperationException, UnknownDBException {
       List<Table> tables = null;
@@ -1495,9 +1675,6 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         part.setTableName(tableName);
         part.setValues(part_vals);
 
-        PreAddPartitionEvent event = new PreAddPartitionEvent(part, this);
-        firePreEvent(event);
-
         MetaStoreUtils.validatePartitionNameCharacters(part_vals, partitionValidationPattern);
 
         tbl = ms.getTable(part.getDbName(), part.getTableName());
@@ -1509,6 +1686,8 @@ public class HiveMetaStore extends ThriftHiveMetastore {
           throw new MetaException(
               "Cannot append a partition to a view");
         }
+
+        firePreEvent(new PreAddPartitionEvent(tbl, part, this));
 
         part.setSd(tbl.getSd());
         partLocation = new Path(tbl.getSd().getLocation(), Warehouse
@@ -1528,7 +1707,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         }
 
         if (!wh.isDir(partLocation)) {
-          if (!wh.mkdirs(partLocation)) {
+          if (!wh.mkdirs(partLocation, true)) {
             throw new MetaException(partLocation
                 + " is not a directory or unable to create one");
           }
@@ -1654,13 +1833,19 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       Map<PartValEqWrapper, Boolean> addedPartitions = new HashMap<PartValEqWrapper, Boolean>();
       List<Partition> result = new ArrayList<Partition>();
       List<Partition> existingParts = null;
+      Table tbl = null;
       try {
         ms.openTransaction();
-        Table tbl = ms.getTable(dbName, tblName);
+        tbl = ms.getTable(dbName, tblName);
         if (tbl == null) {
           throw new InvalidObjectException("Unable to add partitions because "
               + "database or table " + dbName + "." + tblName + " does not exist");
         }
+
+        if (!parts.isEmpty()) {
+          firePreEvent(new PreAddPartitionEvent(tbl, parts, this));
+        }
+
         for (Partition part : parts) {
           if (!part.getTableName().equals(tblName) || !part.getDbName().equals(dbName)) {
             throw new MetaException("Partition does not belong to target table "
@@ -1700,18 +1885,12 @@ public class HiveMetaStore extends ThriftHiveMetastore {
               // we just created this directory - it's not a case of pre-creation, so we nuke
             }
           }
-          for (Partition part : parts) {
-            fireMetaStoreAddPartitionEvent(ms, part, null, success);
-          }
+          fireMetaStoreAddPartitionEvent(tbl, parts, null, false);
         } else {
-          for (Partition part : result) {
-            fireMetaStoreAddPartitionEvent(ms, part, null, success);
-          }
+          fireMetaStoreAddPartitionEvent(tbl, result, null, true);
           if (existingParts != null) {
             // The request has succeeded but we failed to add these partitions.
-            for (Partition part : existingParts) {
-              fireMetaStoreAddPartitionEvent(ms, part, null, false);
-            }
+            fireMetaStoreAddPartitionEvent(tbl, existingParts, null, false);
           }
         }
       }
@@ -1739,6 +1918,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       return result;
     }
 
+    @Override
     public int add_partitions(final List<Partition> parts) throws MetaException,
         InvalidObjectException, AlreadyExistsException {
       startFunction("add_partition");
@@ -1773,7 +1953,6 @@ public class HiveMetaStore extends ThriftHiveMetastore {
 
     private boolean startAddPartition(
         RawStore ms, Partition part, boolean ifNotExists) throws MetaException, TException {
-      firePreEvent(new PreAddPartitionEvent(part, this));
       MetaStoreUtils.validatePartitionNameCharacters(part.getValues(),
           partitionValidationPattern);
       boolean doesExist = ms.doesPartitionExist(
@@ -1820,7 +1999,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         // mkdirs() because if the file system is read-only, mkdirs will
         // throw an exception even if the directory already exists.
         if (!wh.isDir(partLocation)) {
-          if (!wh.mkdirs(partLocation)) {
+          if (!wh.mkdirs(partLocation, true)) {
             throw new MetaException(partLocation
                 + " is not a directory or unable to create one");
           }
@@ -1867,16 +2046,19 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         final Partition part, final EnvironmentContext envContext)
         throws InvalidObjectException, AlreadyExistsException, MetaException, TException {
       boolean success = false;
-      Partition retPtn = null;
+      Table tbl = null;
       try {
         ms.openTransaction();
-        Table tbl = ms.getTable(part.getDbName(), part.getTableName());
+        tbl = ms.getTable(part.getDbName(), part.getTableName());
         if (tbl == null) {
           throw new InvalidObjectException(
               "Unable to add partition because table or database do not exist");
         }
+
+        firePreEvent(new PreAddPartitionEvent(tbl, part, this));
+
         boolean shouldAdd = startAddPartition(ms, part, false);
-        assert shouldAdd; // start would thrrow if it already existed here
+        assert shouldAdd; // start would throw if it already existed here
         boolean madeDir = createLocationForAddedPartition(tbl, part);
         try {
           initializeAddedPartition(tbl, part, madeDir);
@@ -1893,20 +2075,22 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         if (!success) {
           ms.rollbackTransaction();
         }
-        fireMetaStoreAddPartitionEvent(ms, part, envContext, success);
+        fireMetaStoreAddPartitionEvent(tbl, Arrays.asList(part), envContext, success);
       }
       return part;
     }
 
-    private void fireMetaStoreAddPartitionEvent(final RawStore ms,
-        final Partition part, final EnvironmentContext envContext, boolean success)
+    private void fireMetaStoreAddPartitionEvent(final Table tbl,
+        final List<Partition> parts, final EnvironmentContext envContext, boolean success)
           throws MetaException {
-      final Table tbl = ms.getTable(part.getDbName(), part.getTableName());
-      for (MetaStoreEventListener listener : listeners) {
+      if (tbl != null && parts != null && !parts.isEmpty()) {
         AddPartitionEvent addPartitionEvent =
-            new AddPartitionEvent(tbl, part, success, this);
+            new AddPartitionEvent(tbl, parts, success, this);
         addPartitionEvent.setEnvironmentContext(envContext);
-        listener.onAddPartition(addPartitionEvent);
+
+        for (MetaStoreEventListener listener : listeners) {
+          listener.onAddPartition(addPartitionEvent);
+        }
       }
     }
 
@@ -2036,11 +2220,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         isArchived = MetaStoreUtils.isArchived(part);
         if (isArchived) {
           archiveParentDir = MetaStoreUtils.getOriginalLocation(part);
-          if (!wh.isWritable(archiveParentDir.getParent())) {
-            throw new MetaException("Table partition not deleted since " +
-                archiveParentDir.getParent() + " is not writable by " +
-                hiveConf.getUser());
-          }
+          verifyIsWritablePath(archiveParentDir);
         }
         if (!ms.dropPartition(db_name, tbl_name, part_vals)) {
           throw new MetaException("Unable to drop partition");
@@ -2048,11 +2228,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         success = ms.commitTransaction();
         if ((part.getSd() != null) && (part.getSd().getLocation() != null)) {
           partPath = new Path(part.getSd().getLocation());
-          if (!wh.isWritable(partPath.getParent())) {
-            throw new MetaException("Table partition not deleted since " +
-                partPath.getParent() + " is not writable by " +
-                hiveConf.getUser());
-          }
+          verifyIsWritablePath(partPath);
         }
       } finally {
         if (!success) {
@@ -2097,6 +2273,162 @@ public class HiveMetaStore extends ThriftHiveMetastore {
           null);
     }
 
+    private static class PathAndPartValSize {
+      public PathAndPartValSize(Path path, int partValSize) {
+        this.path = path;
+        this.partValSize = partValSize;
+      }
+      public Path path;
+      public int partValSize;
+    }
+
+    @Override
+    public DropPartitionsResult drop_partitions_req(
+        DropPartitionsRequest request) throws MetaException, NoSuchObjectException, TException {
+      RawStore ms = getMS();
+      String dbName = request.getDbName(), tblName = request.getTblName();
+      boolean ifExists = request.isSetIfExists() && request.isIfExists();
+      boolean deleteData = request.isSetDeleteData() && request.isDeleteData();
+      boolean ignoreProtection = request.isSetIgnoreProtection() && request.isIgnoreProtection();
+      boolean needResult = !request.isSetNeedResult() || request.isNeedResult();
+      List<PathAndPartValSize> dirsToDelete = new ArrayList<PathAndPartValSize>();
+      List<Path> archToDelete = new ArrayList<Path>();
+      EnvironmentContext envContext = request.isSetEnvironmentContext()
+          ? request.getEnvironmentContext() : null;
+
+      boolean success = false;
+      ms.openTransaction();
+      Table tbl = null;
+      List<Partition> parts = null;
+      try {
+        // We need Partition-s for firing events and for result; DN needs MPartition-s to drop.
+        // Great... Maybe we could bypass fetching MPartitions by issuing direct SQL deletes.
+        tbl = get_table(dbName, tblName);
+        int minCount = 0;
+        RequestPartsSpec spec = request.getParts();
+        List<String> partNames = null;
+        if (spec.isSetExprs()) {
+          // Dropping by expressions.
+          parts = new ArrayList<Partition>(spec.getExprs().size());
+          for (DropPartitionsExpr expr : spec.getExprs()) {
+            ++minCount; // At least one partition per expression, if not ifExists
+            List<Partition> result = new ArrayList<Partition>();
+            boolean hasUnknown = ms.getPartitionsByExpr(
+                dbName, tblName, expr.getExpr(), null, (short)-1, result);
+            if (hasUnknown) {
+              // Expr is built by DDLSA, it should only contain part cols and simple ops
+              throw new MetaException("Unexpected unknown partitions to drop");
+            }
+            // this is to prevent dropping archived partition which is archived in a
+            // different level the drop command specified.
+            if (!ignoreProtection && expr.isSetPartArchiveLevel()) {
+              for (Partition part : parts) {
+                if (MetaStoreUtils.isArchived(part)
+                    && MetaStoreUtils.getArchivingLevel(part) < expr.getPartArchiveLevel()) {
+                  throw new MetaException("Cannot drop a subset of partitions "
+                      + " in an archive, partition " + part);
+                }
+              }
+            }
+            parts.addAll(result);
+          }
+        } else if (spec.isSetNames()) {
+          partNames = spec.getNames();
+          minCount = partNames.size();
+          parts = ms.getPartitionsByNames(dbName, tblName, partNames);
+        } else {
+          throw new MetaException("Partition spec is not set");
+        }
+
+        if ((parts.size() < minCount) && !ifExists) {
+          throw new NoSuchObjectException("Some partitions to drop are missing");
+        }
+
+        List<String> colNames = null;
+        if (partNames == null) {
+          partNames = new ArrayList<String>(parts.size());
+          colNames = new ArrayList<String>(tbl.getPartitionKeys().size());
+          for (FieldSchema col : tbl.getPartitionKeys()) {
+            colNames.add(col.getName());
+          }
+        }
+
+        for (Partition part : parts) {
+          if (!ignoreProtection && !MetaStoreUtils.canDropPartition(tbl, part)) {
+            throw new MetaException("Table " + tbl.getTableName()
+                + " Partition " + part + " is protected from being dropped");
+          }
+
+          firePreEvent(new PreDropPartitionEvent(tbl, part, deleteData, this));
+          if (colNames != null) {
+            partNames.add(FileUtils.makePartName(colNames, part.getValues()));
+          }
+          // Preserve the old behavior of failing when we cannot write, even w/o deleteData,
+          // and even if the table is external. That might not make any sense.
+          if (MetaStoreUtils.isArchived(part)) {
+            Path archiveParentDir = MetaStoreUtils.getOriginalLocation(part);
+            verifyIsWritablePath(archiveParentDir);
+            archToDelete.add(archiveParentDir);
+          }
+          if ((part.getSd() != null) && (part.getSd().getLocation() != null)) {
+            Path partPath = new Path(part.getSd().getLocation());
+            verifyIsWritablePath(partPath);
+            dirsToDelete.add(new PathAndPartValSize(partPath, part.getValues().size()));
+          }
+        }
+
+        ms.dropPartitions(dbName, tblName, partNames);
+        success = ms.commitTransaction();
+        DropPartitionsResult result = new DropPartitionsResult();
+        if (needResult) {
+          result.setPartitions(parts);
+        }
+        return result;
+      } finally {
+        if (!success) {
+          ms.rollbackTransaction();
+        } else if (deleteData && !isExternal(tbl)) {
+          // Archived partitions have har:/to_har_file as their location.
+          // The original directory was saved in params
+          for (Path path : archToDelete) {
+            wh.deleteDir(path, true);
+          }
+          for (PathAndPartValSize p : dirsToDelete) {
+            wh.deleteDir(p.path, true);
+            try {
+              deleteParentRecursive(p.path.getParent(), p.partValSize - 1);
+            } catch (IOException ex) {
+              LOG.warn("Error from deleteParentRecursive", ex);
+              throw new MetaException("Failed to delete parent: " + ex.getMessage());
+            }
+          }
+        }
+        if (parts != null) {
+          for (Partition part : parts) {
+            for (MetaStoreEventListener listener : listeners) {
+              DropPartitionEvent dropPartitionEvent =
+                new DropPartitionEvent(tbl, part, success, deleteData, this);
+              dropPartitionEvent.setEnvironmentContext(envContext);
+              listener.onDropPartition(dropPartitionEvent);
+            }
+          }
+        }
+      }
+    }
+
+    private void verifyIsWritablePath(Path dir) throws MetaException {
+      try {
+        if (!wh.isWritable(dir.getParent())) {
+          throw new MetaException("Table partition not deleted since " + dir.getParent()
+              + " is not writable by " + hiveConf.getUser());
+        }
+      } catch (IOException ex) {
+        LOG.warn("Error from isWritable", ex);
+        throw new MetaException("Table partition not deleted since " + dir.getParent()
+            + " access cannot be checked: " + ex.getMessage());
+      }
+    }
+
     @Override
     public boolean drop_partition_with_environment_context(final String db_name,
         final String tbl_name, final List<String> part_vals, final boolean deleteData,
@@ -2122,6 +2454,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
 
     }
 
+    @Override
     public Partition get_partition(final String db_name, final String tbl_name,
         final List<String> part_vals) throws MetaException, NoSuchObjectException {
       startPartitionFunction("get_partition", db_name, tbl_name, part_vals);
@@ -2170,6 +2503,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       return ret;
     }
 
+    @Override
     public List<Partition> get_partitions(final String db_name, final String tbl_name,
         final short max_parts) throws NoSuchObjectException, MetaException {
       startTableFunction("get_partitions", db_name, tbl_name);
@@ -2219,6 +2553,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
 
     }
 
+    @Override
     public List<String> get_partition_names(final String db_name, final String tbl_name,
         final short max_parts) throws MetaException {
       startTableFunction("get_partition_names", db_name, tbl_name);
@@ -2354,7 +2689,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         for (Partition tmpPart : new_parts) {
           Partition oldTmpPart = null;
           if (olditr.hasNext()) {
-            oldTmpPart = (Partition) olditr.next();
+            oldTmpPart = olditr.next();
           }
           else {
             throw new InvalidOperationException("failed to alterpartitions");
@@ -2395,6 +2730,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       throw new MetaException("Not yet implemented");
     }
 
+    @Override
     public void alter_index(final String dbname, final String base_table_name,
         final String index_name, final Index newIndex)
         throws InvalidOperationException, MetaException {
@@ -2426,6 +2762,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       return;
     }
 
+    @Override
     public String getVersion() throws TException {
       endFunction(startFunction("getVersion"), true, null);
       return "3.0";
@@ -2485,6 +2822,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       }
     }
 
+    @Override
     public List<String> get_tables(final String dbname, final String pattern)
         throws MetaException {
       startFunction("get_tables", ": db=" + dbname + " pat=" + pattern);
@@ -2506,6 +2844,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       return ret;
     }
 
+    @Override
     public List<String> get_all_tables(final String dbname) throws MetaException {
       startFunction("get_all_tables", ": db=" + dbname);
 
@@ -2526,6 +2865,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       return ret;
     }
 
+    @Override
     public List<FieldSchema> get_fields(String db, String tableName)
         throws MetaException, UnknownTableException, UnknownDBException {
       startFunction("get_fields", ": db=" + db + "tbl=" + tableName);
@@ -2541,9 +2881,9 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         } catch (NoSuchObjectException e) {
           throw new UnknownTableException(e.getMessage());
         }
-        boolean getColsFromSerDe = SerDeUtils.shouldGetColsFromSerDe(
-            tbl.getSd().getSerdeInfo().getSerializationLib());
-        if (!getColsFromSerDe) {
+        if (null == tbl.getSd().getSerdeInfo().getSerializationLib() ||
+          hiveConf.getStringCollection(ConfVars.SERDESUSINGMETASTOREFORSCHEMA.varname).contains
+          (tbl.getSd().getSerdeInfo().getSerializationLib())) {
           ret = tbl.getSd().getCols();
         } else {
           try {
@@ -2585,6 +2925,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
      * @throws UnknownTableException
      * @throws UnknownDBException
      */
+    @Override
     public List<FieldSchema> get_schema(String db, String tableName)
         throws MetaException, UnknownTableException, UnknownDBException {
       startFunction("get_schema", ": db=" + db + "tbl=" + tableName);
@@ -2631,6 +2972,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       }
     }
 
+    @Override
     public String getCpuProfile(int profileDurationInSec) throws TException {
       return "";
     }
@@ -2641,6 +2983,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
      * were an exception thrown while retrieving the variable, or if name is
      * null, defaultValue is returned.
      */
+    @Override
     public String get_config_value(String name, String defaultValue)
         throws TException, ConfigValSecurityException {
       startFunction("get_config_value", ": name=" + name + " defaultValue="
@@ -2728,6 +3071,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       return p;
     }
 
+    @Override
     public Partition get_partition_by_name(final String db_name, final String tbl_name,
         final String part_name) throws MetaException, NoSuchObjectException, TException {
 
@@ -3182,6 +3526,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       return convertedPartName;
     }
 
+    @Override
     public ColumnStatistics get_table_column_statistics(String dbName, String tableName,
       String colName) throws NoSuchObjectException, MetaException, TException,
       InvalidInputException, InvalidObjectException
@@ -3193,17 +3538,36 @@ public class HiveMetaStore extends ThriftHiveMetastore {
                     " column=" + colName);
       ColumnStatistics statsObj = null;
       try {
-        statsObj = getMS().getTableColumnStatistics(dbName, tableName, colName);
+        statsObj = getMS().getTableColumnStatistics(
+            dbName, tableName, Lists.newArrayList(colName));
+        assert statsObj.getStatsObjSize() <= 1;
+        return statsObj;
       } finally {
         endFunction("get_column_statistics_by_table: ", statsObj != null, null, tableName);
       }
-      return statsObj;
     }
 
+    @Override
+    public TableStatsResult get_table_statistics_req(TableStatsRequest request)
+        throws MetaException, NoSuchObjectException, TException {
+      String dbName = request.getDbName(), tblName = request.getTblName();
+      startFunction("get_table_statistics_req: db=" + dbName + " table=" + tblName);
+      TableStatsResult result = null;
+      try {
+        ColumnStatistics cs = getMS().getTableColumnStatistics(
+            dbName, tblName, request.getColNames());
+        result = new TableStatsResult(
+            cs == null ? Lists.<ColumnStatisticsObj>newArrayList() : cs.getStatsObj());
+      } finally {
+        endFunction("get_table_statistics_req: ", result == null, null, tblName);
+      }
+      return result;
+    }
+
+    @Override
     public ColumnStatistics get_partition_column_statistics(String dbName, String tableName,
       String partName, String colName) throws NoSuchObjectException, MetaException,
-      InvalidInputException, TException,InvalidObjectException
-    {
+      InvalidInputException, TException, InvalidObjectException {
       dbName = dbName.toLowerCase();
       tableName = tableName.toLowerCase();
       colName = colName.toLowerCase();
@@ -3213,15 +3577,42 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       ColumnStatistics statsObj = null;
 
       try {
-        List<String> partVals = getPartValsFromName(getMS(), dbName, tableName, partName);
-        statsObj = getMS().getPartitionColumnStatistics(dbName, tableName, convertedPartName,
-                                                            partVals, colName);
+        List<ColumnStatistics> list = getMS().getPartitionColumnStatistics(dbName, tableName,
+            Lists.newArrayList(convertedPartName), Lists.newArrayList(colName));
+        if (list.isEmpty()) return null;
+        if (list.size() != 1) {
+          throw new MetaException(list.size() + " statistics for single column and partition");
+        }
+        statsObj = list.get(0);
       } finally {
         endFunction("get_column_statistics_by_partition: ", statsObj != null, null, tableName);
       }
       return statsObj;
-   }
+    }
 
+    @Override
+    public PartitionsStatsResult get_partitions_statistics_req(PartitionsStatsRequest request)
+        throws MetaException, NoSuchObjectException, TException {
+      String dbName = request.getDbName(), tblName = request.getTblName();
+      startFunction("get_partitions_statistics_req: db=" + dbName + " table=" + tblName);
+
+      PartitionsStatsResult result = null;
+      try {
+        List<ColumnStatistics> stats = getMS().getPartitionColumnStatistics(
+            dbName, tblName, request.getPartNames(), request.getColNames());
+        Map<String, List<ColumnStatisticsObj>> map =
+            new HashMap<String, List<ColumnStatisticsObj>>();
+        for (ColumnStatistics stat : stats) {
+          map.put(stat.getStatsDesc().getPartName(), stat.getStatsObj());
+        }
+        result = new PartitionsStatsResult(map);
+      } finally {
+        endFunction("get_partitions_statistics_req: ", result == null, null, tblName);
+      }
+      return result;
+    }
+
+    @Override
     public boolean update_table_column_statistics(ColumnStatistics colStats)
       throws NoSuchObjectException,InvalidObjectException,MetaException,TException,
       InvalidInputException
@@ -3260,6 +3651,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       }
     }
 
+    @Override
     public boolean update_partition_column_statistics(ColumnStatistics colStats)
       throws NoSuchObjectException,InvalidObjectException,MetaException,TException,
       InvalidInputException
@@ -3306,6 +3698,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       }
     }
 
+    @Override
     public boolean delete_partition_column_statistics(String dbName, String tableName,
       String partName, String colName) throws NoSuchObjectException, MetaException,
       InvalidObjectException, TException, InvalidInputException
@@ -3330,6 +3723,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       return ret;
     }
 
+    @Override
     public boolean delete_table_column_statistics(String dbName, String tableName, String colName)
       throws NoSuchObjectException, MetaException, InvalidObjectException, TException,
       InvalidInputException
@@ -3538,16 +3932,27 @@ public class HiveMetaStore extends ThriftHiveMetastore {
 
     @Override
     public boolean grant_role(final String roleName,
-        final String userName, final PrincipalType principalType,
+        final String principalName, final PrincipalType principalType,
         final String grantor, final PrincipalType grantorType, final boolean grantOption)
         throws MetaException, TException {
       incrementCounter("add_role_member");
-
+      if (PUBLIC.equals(roleName)) {
+        throw new MetaException("No user can be added to " + PUBLIC +". Since all users implictly"
+        + " belong to " + PUBLIC + " role.");
+      }
       Boolean ret = null;
       try {
         RawStore ms = getMS();
         Role role = ms.getRole(roleName);
-        ret = ms.grantRole(role, userName, principalType, grantor, grantorType, grantOption);
+        if(principalType == PrincipalType.ROLE){
+          //check if this grant statement will end up creating a cycle
+          if(isNewRoleAParent(principalName, roleName)){
+            throw new MetaException("Cannot grant role " + principalName + " to " + roleName +
+                " as " + roleName + " already belongs to the role " + principalName +
+                ". (no cycles allowed)");
+          }
+        }
+        ret = ms.grantRole(role, principalName, principalType, grantor, grantorType, grantOption);
       } catch (MetaException e) {
         throw e;
       } catch (Exception e) {
@@ -3556,37 +3961,64 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       return ret;
     }
 
+
+
+    /**
+     * Check if newRole is in parent hierarchy of curRole
+     * @param newRole
+     * @param curRole
+     * @return true if newRole is curRole or present in its hierarchy
+     * @throws MetaException
+     */
+    private boolean isNewRoleAParent(String newRole, String curRole) throws MetaException {
+      if(newRole.equals(curRole)){
+        return true;
+      }
+      //do this check recursively on all the parent roles of curRole
+      List<MRoleMap> parentRoleMaps = getMS().listRoles(curRole, PrincipalType.ROLE);
+      for(MRoleMap parentRole : parentRoleMaps){
+        if(isNewRoleAParent(newRole, parentRole.getRole().getRoleName())){
+          return true;
+        }
+      }
+      return false;
+    }
+
+    @Override
     public List<Role> list_roles(final String principalName,
         final PrincipalType principalType) throws MetaException, TException {
       incrementCounter("list_roles");
 
-      List<Role> ret = null;
+      List<Role> result = new ArrayList<Role>();
       try {
-
-        List<Role> result = new ArrayList<Role>();
-        List<MRoleMap> roleMap = getMS().listRoles(principalName, principalType);
-        if (roleMap != null) {
-          for (MRoleMap role : roleMap) {
-            MRole r = role.getRole();
-            result.add(new Role(r.getRoleName(), r
-                .getCreateTime(), r.getOwnerName()));
+        List<MRoleMap> roleMaps = getMS().listRoles(principalName, principalType);
+        if (roleMaps != null) {
+          for (MRoleMap roleMap : roleMaps) {
+            MRole mrole = roleMap.getRole();
+            Role role = new Role(mrole.getRoleName(), mrole.getCreateTime(), mrole.getOwnerName());
+            result.add(role);
           }
         }
-        ret = result;
+        // all users by default belongs to public role
+        result.add(new Role(PUBLIC,0,PUBLIC));
+        return result;
       } catch (MetaException e) {
         throw e;
       } catch (Exception e) {
         throw new RuntimeException(e);
       }
-
-      return ret;
     }
+
+
 
     @Override
     public boolean create_role(final Role role)
         throws MetaException, TException {
       incrementCounter("create_role");
 
+      if (PUBLIC.equals(role.getRoleName())) {
+         throw new MetaException(PUBLIC + " role implictly exists. It can't be created.");
+      }
       Boolean ret = null;
       try {
         ret = getMS().addRole(role.getRoleName(), role.getOwnerName());
@@ -3602,7 +4034,9 @@ public class HiveMetaStore extends ThriftHiveMetastore {
     public boolean drop_role(final String roleName)
         throws MetaException, TException {
       incrementCounter("drop_role");
-
+      if (ADMIN.equals(roleName) || PUBLIC.equals(roleName)) {
+        throw new MetaException(PUBLIC + "/" + ADMIN +" role can't be dropped.");
+      }
       Boolean ret = null;
       try {
         ret = getMS().removeRole(roleName);
@@ -3621,19 +4055,18 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       List<String> ret = null;
       try {
         ret = getMS().listRoleNames();
+        return ret;
       } catch (MetaException e) {
         throw e;
       } catch (Exception e) {
         throw new RuntimeException(e);
       }
-      return ret;
     }
 
     @Override
     public boolean grant_privileges(final PrivilegeBag privileges) throws MetaException,
         TException {
       incrementCounter("grant_privileges");
-
       Boolean ret = null;
       try {
         ret = getMS().grantPrivileges(privileges);
@@ -3650,6 +4083,9 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         final PrincipalType principalType) throws MetaException, TException {
       incrementCounter("remove_role_member");
 
+      if (PUBLIC.equals(roleName)) {
+        throw new MetaException(PUBLIC + " role can't be revoked.");
+      }
       Boolean ret = null;
       try {
         RawStore ms = getMS();
@@ -3667,7 +4103,6 @@ public class HiveMetaStore extends ThriftHiveMetastore {
     public boolean revoke_privileges(final PrivilegeBag privileges)
         throws MetaException, TException {
       incrementCounter("revoke_privileges");
-
       Boolean ret = null;
       try {
         ret = getMS().revokePrivileges(privileges);
@@ -3702,94 +4137,129 @@ public class HiveMetaStore extends ThriftHiveMetastore {
     public List<HiveObjectPrivilege> list_privileges(String principalName,
         PrincipalType principalType, HiveObjectRef hiveObject)
         throws MetaException, TException {
+      if (hiveObject.getObjectType() == null) {
+        return getAllPrivileges(principalName, principalType);
+      }
       if (hiveObject.getObjectType() == HiveObjectType.GLOBAL) {
-        return this.list_global_privileges(principalName, principalType);
-      } else if (hiveObject.getObjectType() == HiveObjectType.DATABASE) {
-        return this.list_db_privileges(principalName, principalType, hiveObject
+        return list_global_privileges(principalName, principalType);
+      }
+      if (hiveObject.getObjectType() == HiveObjectType.DATABASE) {
+        return list_db_privileges(principalName, principalType, hiveObject
             .getDbName());
-      } else if (hiveObject.getObjectType() == HiveObjectType.TABLE) {
-        return this.list_table_privileges(principalName, principalType,
+      }
+      if (hiveObject.getObjectType() == HiveObjectType.TABLE) {
+        return list_table_privileges(principalName, principalType,
             hiveObject.getDbName(), hiveObject.getObjectName());
-      } else if (hiveObject.getObjectType() == HiveObjectType.PARTITION) {
-        return this.list_partition_privileges(principalName, principalType,
+      }
+      if (hiveObject.getObjectType() == HiveObjectType.PARTITION) {
+        return list_partition_privileges(principalName, principalType,
             hiveObject.getDbName(), hiveObject.getObjectName(), hiveObject
-                .getPartValues());
-      } else if (hiveObject.getObjectType() == HiveObjectType.COLUMN) {
-        return this.list_column_privileges(principalName, principalType,
+            .getPartValues());
+      }
+      if (hiveObject.getObjectType() == HiveObjectType.COLUMN) {
+        if (hiveObject.getPartValues() == null || hiveObject.getPartValues().isEmpty()) {
+          return list_table_column_privileges(principalName, principalType,
+              hiveObject.getDbName(), hiveObject.getObjectName(), hiveObject.getColumnName());
+        }
+        return list_partition_column_privileges(principalName, principalType,
             hiveObject.getDbName(), hiveObject.getObjectName(), hiveObject
-                .getPartValues(), hiveObject.getColumnName());
+            .getPartValues(), hiveObject.getColumnName());
       }
       return null;
     }
 
-    public List<HiveObjectPrivilege> list_column_privileges(
+    private List<HiveObjectPrivilege> getAllPrivileges(String principalName,
+        PrincipalType principalType) throws TException {
+      List<HiveObjectPrivilege> privs = new ArrayList<HiveObjectPrivilege>();
+      privs.addAll(list_global_privileges(principalName, principalType));
+      privs.addAll(list_db_privileges(principalName, principalType, null));
+      privs.addAll(list_table_privileges(principalName, principalType, null, null));
+      privs.addAll(list_partition_privileges(principalName, principalType, null, null, null));
+      privs.addAll(list_table_column_privileges(principalName, principalType, null, null, null));
+      privs.addAll(list_partition_column_privileges(principalName, principalType,
+          null, null, null, null));
+      return privs;
+    }
+
+    public List<HiveObjectPrivilege> list_table_column_privileges(
         final String principalName, final PrincipalType principalType,
-        final String dbName, final String tableName, final List<String> partValues,
-        final String columnName) throws MetaException, TException {
-      incrementCounter("list_security_column_grant");
+        final String dbName, final String tableName, final String columnName)
+        throws MetaException, TException {
+      incrementCounter("list_table_column_privileges");
 
-      List<HiveObjectPrivilege> ret = null;
       try {
-        RawStore ms = getMS();
-        String partName = null;
-        if (partValues != null && partValues.size() > 0) {
-          Table tbl = get_table(dbName, tableName);
-          partName = Warehouse.makePartName(tbl.getPartitionKeys(), partValues);
+        if (dbName == null) {
+          return getMS().listPrincipalTableColumnGrantsAll(principalName, principalType);
         }
-
-        List<HiveObjectPrivilege> result = Collections.<HiveObjectPrivilege> emptyList();
-
-        if (partName != null) {
-          Partition part = null;
-          part = get_partition_by_name(dbName, tableName, partName);
-          List<MPartitionColumnPrivilege> mPartitionCols = ms.listPrincipalPartitionColumnGrants(
-              principalName,
-              principalType, dbName, tableName, partName, columnName);
-          if (mPartitionCols.size() > 0) {
-            result = new ArrayList<HiveObjectPrivilege>();
-            for (int i = 0; i < mPartitionCols.size(); i++) {
-              MPartitionColumnPrivilege sCol = mPartitionCols.get(i);
-              HiveObjectRef objectRef = new HiveObjectRef(
-                  HiveObjectType.COLUMN, dbName, tableName,
-                  part == null ? null : part.getValues(), sCol
-                      .getColumnName());
-              HiveObjectPrivilege secObj = new HiveObjectPrivilege(objectRef,
-                  sCol.getPrincipalName(), principalType,
-                  new PrivilegeGrantInfo(sCol.getPrivilege(), sCol
-                      .getCreateTime(), sCol.getGrantor(), PrincipalType
-                      .valueOf(sCol.getGrantorType()), sCol.getGrantOption()));
-              result.add(secObj);
-            }
-          }
-        } else {
-          List<MTableColumnPrivilege> mTableCols = ms
-              .listPrincipalTableColumnGrants(principalName, principalType,
-                  dbName, tableName, columnName);
-          if (mTableCols.size() > 0) {
-            result = new ArrayList<HiveObjectPrivilege>();
-            for (int i = 0; i < mTableCols.size(); i++) {
-              MTableColumnPrivilege sCol = mTableCols.get(i);
-              HiveObjectRef objectRef = new HiveObjectRef(
-                  HiveObjectType.COLUMN, dbName, tableName, null, sCol
-                      .getColumnName());
-              HiveObjectPrivilege secObj = new HiveObjectPrivilege(
-                  objectRef, sCol.getPrincipalName(), principalType,
-                  new PrivilegeGrantInfo(sCol.getPrivilege(), sCol
-                      .getCreateTime(), sCol.getGrantor(), PrincipalType
-                      .valueOf(sCol.getGrantorType()), sCol
-                      .getGrantOption()));
-              result.add(secObj);
-            }
-          }
+        if (principalName == null) {
+          return getMS().listTableColumnGrantsAll(dbName, tableName, columnName);
         }
-
-        ret = result;
+        List<MTableColumnPrivilege> mTableCols = getMS()
+            .listPrincipalTableColumnGrants(principalName, principalType,
+                dbName, tableName, columnName);
+        if (mTableCols.isEmpty()) {
+          return Collections.emptyList();
+        }
+        List<HiveObjectPrivilege> result = new ArrayList<HiveObjectPrivilege>();
+        for (int i = 0; i < mTableCols.size(); i++) {
+          MTableColumnPrivilege sCol = mTableCols.get(i);
+          HiveObjectRef objectRef = new HiveObjectRef(
+              HiveObjectType.COLUMN, dbName, tableName, null, sCol.getColumnName());
+          HiveObjectPrivilege secObj = new HiveObjectPrivilege(
+              objectRef, sCol.getPrincipalName(), principalType,
+              new PrivilegeGrantInfo(sCol.getPrivilege(), sCol
+                  .getCreateTime(), sCol.getGrantor(), PrincipalType
+                  .valueOf(sCol.getGrantorType()), sCol
+                  .getGrantOption()));
+          result.add(secObj);
+        }
+        return result;
       } catch (MetaException e) {
         throw e;
       } catch (Exception e) {
         throw new RuntimeException(e);
       }
-      return ret;
+    }
+
+    public List<HiveObjectPrivilege> list_partition_column_privileges(
+        final String principalName, final PrincipalType principalType,
+        final String dbName, final String tableName, final List<String> partValues,
+        final String columnName) throws MetaException, TException {
+      incrementCounter("list_partition_column_privileges");
+
+      try {
+        if (dbName == null) {
+          return getMS().listPrincipalPartitionColumnGrantsAll(principalName, principalType);
+        }
+        Table tbl = get_table(dbName, tableName);
+        String partName = Warehouse.makePartName(tbl.getPartitionKeys(), partValues);
+        if (principalName == null) {
+          return getMS().listPartitionColumnGrantsAll(dbName, tableName, partName, columnName);
+        }
+        List<MPartitionColumnPrivilege> mPartitionCols = getMS().listPrincipalPartitionColumnGrants(
+            principalName,
+            principalType, dbName, tableName, partName, columnName);
+        if (mPartitionCols.isEmpty()) {
+          return Collections.emptyList();
+        }
+        List<HiveObjectPrivilege> result = new ArrayList<HiveObjectPrivilege>();
+        for (int i = 0; i < mPartitionCols.size(); i++) {
+          MPartitionColumnPrivilege sCol = mPartitionCols.get(i);
+          HiveObjectRef objectRef = new HiveObjectRef(
+              HiveObjectType.COLUMN, dbName, tableName, partValues, sCol.getColumnName());
+          HiveObjectPrivilege secObj = new HiveObjectPrivilege(objectRef,
+              sCol.getPrincipalName(), principalType,
+              new PrivilegeGrantInfo(sCol.getPrivilege(), sCol
+                  .getCreateTime(), sCol.getGrantor(), PrincipalType
+                  .valueOf(sCol.getGrantorType()), sCol.getGrantOption()));
+          result.add(secObj);
+        }
+        return result;
+      } catch (MetaException e) {
+        throw e;
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
     }
 
     public List<HiveObjectPrivilege> list_db_privileges(final String principalName,
@@ -3798,25 +4268,30 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       incrementCounter("list_security_db_grant");
 
       try {
-        RawStore ms = getMS();
-        List<MDBPrivilege> mDbs = ms.listPrincipalDBGrants(
-            principalName, principalType, dbName);
-        if (mDbs.size() > 0) {
-          List<HiveObjectPrivilege> result = new ArrayList<HiveObjectPrivilege>();
-          for (int i = 0; i < mDbs.size(); i++) {
-            MDBPrivilege sDB = mDbs.get(i);
-            HiveObjectRef objectRef = new HiveObjectRef(
-                HiveObjectType.DATABASE, dbName, null, null, null);
-            HiveObjectPrivilege secObj = new HiveObjectPrivilege(objectRef,
-                sDB.getPrincipalName(), principalType,
-                new PrivilegeGrantInfo(sDB.getPrivilege(), sDB
-                    .getCreateTime(), sDB.getGrantor(), PrincipalType
-                    .valueOf(sDB.getGrantorType()), sDB.getGrantOption()));
-            result.add(secObj);
-          }
-          return result;
+        if (dbName == null) {
+          return getMS().listPrincipalDBGrantsAll(principalName, principalType);
         }
-        return Collections.<HiveObjectPrivilege> emptyList();
+        if (principalName == null) {
+          return getMS().listDBGrantsAll(dbName);
+        }
+        List<MDBPrivilege> mDbs = getMS().listPrincipalDBGrants(
+            principalName, principalType, dbName);
+        if (mDbs.isEmpty()) {
+          return Collections.<HiveObjectPrivilege>emptyList();
+        }
+        List<HiveObjectPrivilege> result = new ArrayList<HiveObjectPrivilege>();
+        for (int i = 0; i < mDbs.size(); i++) {
+          MDBPrivilege sDB = mDbs.get(i);
+          HiveObjectRef objectRef = new HiveObjectRef(
+              HiveObjectType.DATABASE, dbName, null, null, null);
+          HiveObjectPrivilege secObj = new HiveObjectPrivilege(objectRef,
+              sDB.getPrincipalName(), principalType,
+              new PrivilegeGrantInfo(sDB.getPrivilege(), sDB
+                  .getCreateTime(), sDB.getGrantor(), PrincipalType
+                  .valueOf(sDB.getGrantorType()), sDB.getGrantOption()));
+          result.add(secObj);
+        }
+        return result;
       } catch (MetaException e) {
         throw e;
       } catch (Exception e) {
@@ -3831,30 +4306,34 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       incrementCounter("list_security_partition_grant");
 
       try {
-        RawStore ms = getMS();
+        if (dbName == null) {
+          return getMS().listPrincipalPartitionGrantsAll(principalName, principalType);
+        }
         Table tbl = get_table(dbName, tableName);
         String partName = Warehouse.makePartName(tbl.getPartitionKeys(), partValues);
-        List<MPartitionPrivilege> mParts = ms.listPrincipalPartitionGrants(
-            principalName, principalType, dbName, tableName, partName);
-        if (mParts.size() > 0) {
-          List<HiveObjectPrivilege> result = new ArrayList<HiveObjectPrivilege>();
-          for (int i = 0; i < mParts.size(); i++) {
-            MPartitionPrivilege sPart = mParts.get(i);
-            HiveObjectRef objectRef = new HiveObjectRef(
-                HiveObjectType.PARTITION, dbName, tableName, partValues,
-                null);
-            HiveObjectPrivilege secObj = new HiveObjectPrivilege(objectRef,
-                sPart.getPrincipalName(), principalType,
-                new PrivilegeGrantInfo(sPart.getPrivilege(), sPart
-                    .getCreateTime(), sPart.getGrantor(), PrincipalType
-                    .valueOf(sPart.getGrantorType()), sPart
-                    .getGrantOption()));
-
-            result.add(secObj);
-          }
-          return result;
+        if (principalName == null) {
+          return getMS().listPartitionGrantsAll(dbName, tableName, partName);
         }
-        return Collections.<HiveObjectPrivilege> emptyList();
+        List<MPartitionPrivilege> mParts = getMS().listPrincipalPartitionGrants(
+            principalName, principalType, dbName, tableName, partName);
+        if (mParts.isEmpty()) {
+          return Collections.<HiveObjectPrivilege> emptyList();
+        }
+        List<HiveObjectPrivilege> result = new ArrayList<HiveObjectPrivilege>();
+        for (int i = 0; i < mParts.size(); i++) {
+          MPartitionPrivilege sPart = mParts.get(i);
+          HiveObjectRef objectRef = new HiveObjectRef(
+              HiveObjectType.PARTITION, dbName, tableName, partValues, null);
+          HiveObjectPrivilege secObj = new HiveObjectPrivilege(objectRef,
+              sPart.getPrincipalName(), principalType,
+              new PrivilegeGrantInfo(sPart.getPrivilege(), sPart
+                  .getCreateTime(), sPart.getGrantor(), PrincipalType
+                  .valueOf(sPart.getGrantorType()), sPart
+                  .getGrantOption()));
+
+          result.add(secObj);
+        }
+        return result;
       } catch (MetaException e) {
         throw e;
       } catch (Exception e) {
@@ -3869,24 +4348,30 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       incrementCounter("list_security_table_grant");
 
       try {
+        if (dbName == null) {
+          return getMS().listPrincipalTableGrantsAll(principalName, principalType);
+        }
+        if (principalName == null) {
+          return getMS().listTableGrantsAll(dbName, tableName);
+        }
         List<MTablePrivilege> mTbls = getMS()
             .listAllTableGrants(principalName, principalType, dbName, tableName);
-        if (mTbls.size() > 0) {
-          List<HiveObjectPrivilege> result = new ArrayList<HiveObjectPrivilege>();
-          for (int i = 0; i < mTbls.size(); i++) {
-            MTablePrivilege sTbl = mTbls.get(i);
-            HiveObjectRef objectRef = new HiveObjectRef(
-                HiveObjectType.TABLE, dbName, tableName, null, null);
-            HiveObjectPrivilege secObj = new HiveObjectPrivilege(objectRef,
-                sTbl.getPrincipalName(), principalType,
-                new PrivilegeGrantInfo(sTbl.getPrivilege(), sTbl.getCreateTime(), sTbl
-                    .getGrantor(), PrincipalType.valueOf(sTbl
-                    .getGrantorType()), sTbl.getGrantOption()));
-            result.add(secObj);
-          }
-          return result;
+        if (mTbls.isEmpty()) {
+          return Collections.<HiveObjectPrivilege> emptyList();
         }
-        return Collections.<HiveObjectPrivilege> emptyList();
+        List<HiveObjectPrivilege> result = new ArrayList<HiveObjectPrivilege>();
+        for (int i = 0; i < mTbls.size(); i++) {
+          MTablePrivilege sTbl = mTbls.get(i);
+          HiveObjectRef objectRef = new HiveObjectRef(
+              HiveObjectType.TABLE, dbName, tableName, null, null);
+          HiveObjectPrivilege secObj = new HiveObjectPrivilege(objectRef,
+              sTbl.getPrincipalName(), principalType,
+              new PrivilegeGrantInfo(sTbl.getPrivilege(), sTbl.getCreateTime(), sTbl
+                  .getGrantor(), PrincipalType.valueOf(sTbl
+                  .getGrantorType()), sTbl.getGrantOption()));
+          result.add(secObj);
+        }
+        return result;
       } catch (MetaException e) {
         throw e;
       } catch (Exception e) {
@@ -3900,24 +4385,27 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       incrementCounter("list_security_user_grant");
 
       try {
+        if (principalName == null) {
+          return getMS().listGlobalGrantsAll();
+        }
         List<MGlobalPrivilege> mUsers = getMS().listPrincipalGlobalGrants(
             principalName, principalType);
-        if (mUsers.size() > 0) {
-          List<HiveObjectPrivilege> result = new ArrayList<HiveObjectPrivilege>();
-          for (int i = 0; i < mUsers.size(); i++) {
-            MGlobalPrivilege sUsr = mUsers.get(i);
-            HiveObjectRef objectRef = new HiveObjectRef(
-                HiveObjectType.GLOBAL, null, null, null, null);
-            HiveObjectPrivilege secUser = new HiveObjectPrivilege(
-                objectRef, sUsr.getPrincipalName(), principalType,
-                new PrivilegeGrantInfo(sUsr.getPrivilege(), sUsr
-                    .getCreateTime(), sUsr.getGrantor(), PrincipalType
-                    .valueOf(sUsr.getGrantorType()), sUsr.getGrantOption()));
-            result.add(secUser);
-          }
-          return result;
+        if (mUsers.isEmpty()) {
+          return Collections.<HiveObjectPrivilege> emptyList();
         }
-        return Collections.<HiveObjectPrivilege> emptyList();
+        List<HiveObjectPrivilege> result = new ArrayList<HiveObjectPrivilege>();
+        for (int i = 0; i < mUsers.size(); i++) {
+          MGlobalPrivilege sUsr = mUsers.get(i);
+          HiveObjectRef objectRef = new HiveObjectRef(
+              HiveObjectType.GLOBAL, null, null, null, null);
+          HiveObjectPrivilege secUser = new HiveObjectPrivilege(
+              objectRef, sUsr.getPrincipalName(), principalType,
+              new PrivilegeGrantInfo(sUsr.getPrivilege(), sUsr
+                  .getCreateTime(), sUsr.getGrantor(), PrincipalType
+                  .valueOf(sUsr.getGrantorType()), sUsr.getGrantOption()));
+          result.add(secUser);
+        }
+        return result;
       } catch (MetaException e) {
         throw e;
       } catch (Exception e) {
@@ -4126,6 +4614,331 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       me.initCause(e);
       return me;
     }
+
+    private void validateFunctionInfo(Function func) throws InvalidObjectException, MetaException {
+      if (!MetaStoreUtils.validateName(func.getFunctionName())) {
+        throw new InvalidObjectException(func.getFunctionName() + " is not a valid object name");
+      }
+      String className = func.getClassName();
+      if (className == null) {
+        throw new InvalidObjectException("Function class name cannot be null");
+      }
+    }
+
+    @Override
+    public void create_function(Function func) throws AlreadyExistsException,
+        InvalidObjectException, MetaException, NoSuchObjectException,
+        TException {
+      validateFunctionInfo(func);
+
+      boolean success = false;
+      RawStore ms = getMS();
+      try {
+        ms.openTransaction();
+
+        Database db = ms.getDatabase(func.getDbName());
+        if (db == null) {
+          throw new NoSuchObjectException("The database " + func.getDbName() + " does not exist");
+        }
+        Function existingFunc = ms.getFunction(func.getDbName(), func.getFunctionName());
+        if (existingFunc != null) {
+          throw new AlreadyExistsException(
+              "Function " + func.getFunctionName() + " already exists");
+        }
+
+        // set create time
+        long time = System.currentTimeMillis() / 1000;
+        func.setCreateTime((int) time);
+        ms.createFunction(func);
+        success = ms.commitTransaction();
+      } finally {
+        if (!success) {
+          ms.rollbackTransaction();
+        }
+      }
+    }
+
+    @Override
+    public void drop_function(String dbName, String funcName)
+        throws NoSuchObjectException, MetaException,
+        InvalidObjectException, InvalidInputException {
+      boolean success = false;
+      Function func = null;
+      RawStore ms = getMS();
+
+      try {
+        ms.openTransaction();
+
+        func = ms.getFunction(dbName, funcName);
+        if (func == null) {
+          throw new NoSuchObjectException("Function " + funcName + " does not exist");
+        }
+        ms.dropFunction(dbName, funcName);
+        success = ms.commitTransaction();
+      } finally {
+        if (!success) {
+          ms.rollbackTransaction();
+        }
+      }
+    }
+
+    @Override
+    public void alter_function(String dbName, String funcName, Function newFunc)
+        throws InvalidOperationException, MetaException, TException {
+      validateFunctionInfo(newFunc);
+      boolean success = false;
+      RawStore ms = getMS();
+      try {
+        ms.openTransaction();
+        ms.alterFunction(dbName, funcName, newFunc);
+        success = ms.commitTransaction();
+      } finally {
+        if (!success) {
+          ms.rollbackTransaction();
+        }
+      }
+    }
+
+    @Override
+    public List<String> get_functions(String dbName, String pattern)
+        throws MetaException {
+      startFunction("get_functions", ": db=" + dbName + " pat=" + pattern);
+
+      RawStore ms = getMS();
+      Exception ex = null;
+      List<String> funcNames = null;
+
+      try {
+        funcNames = ms.getFunctions(dbName, pattern);
+      } catch (Exception e) {
+        ex = e;
+        throw newMetaException(e);
+      } finally {
+        endFunction("get_functions", funcNames != null, ex);
+      }
+
+      return funcNames;
+    }
+
+    @Override
+    public Function get_function(String dbName, String funcName)
+        throws MetaException, NoSuchObjectException, TException {
+      startFunction("get_function", ": " + dbName + "." + funcName);
+
+      RawStore ms = getMS();
+      Function func = null;
+      Exception ex = null;
+
+      try {
+        func = ms.getFunction(dbName, funcName);
+        if (func == null) {
+          throw new NoSuchObjectException(
+              "Function " + dbName + "." + funcName + " does not exist");
+        }
+      } catch (Exception e) {
+        ex = e;
+        throw newMetaException(e);
+      } finally {
+        endFunction("get_database", func != null, ex);
+      }
+
+      return func;
+    }
+
+    // Transaction and locking methods
+    @Override
+    public GetOpenTxnsResponse get_open_txns() throws TException {
+      try {
+        return getTxnHandler().getOpenTxns();
+      } catch (MetaException e) {
+        throw new TException(e);
+      }
+    }
+
+    // Transaction and locking methods
+    @Override
+    public GetOpenTxnsInfoResponse get_open_txns_info() throws TException {
+      try {
+        return getTxnHandler().getOpenTxnsInfo();
+      } catch (MetaException e) {
+        throw new TException(e);
+      }
+    }
+
+    @Override
+    public OpenTxnsResponse open_txns(OpenTxnRequest rqst) throws TException {
+      try {
+        return getTxnHandler().openTxns(rqst);
+      } catch (MetaException e) {
+        throw new TException(e);
+      }
+    }
+
+    @Override
+    public void abort_txn(AbortTxnRequest rqst) throws NoSuchTxnException, TException {
+      try {
+        getTxnHandler().abortTxn(rqst);
+      } catch (MetaException e) {
+        throw new TException(e);
+      }
+    }
+
+    @Override
+    public void commit_txn(CommitTxnRequest rqst)
+        throws NoSuchTxnException, TxnAbortedException, TException {
+      try {
+        getTxnHandler().commitTxn(rqst);
+      } catch (MetaException e) {
+        throw new TException(e);
+      }
+    }
+
+    @Override
+    public LockResponse lock(LockRequest rqst)
+        throws NoSuchTxnException, TxnAbortedException, TException {
+      try {
+        return getTxnHandler().lock(rqst);
+      } catch (MetaException e) {
+        throw new TException(e);
+      }
+    }
+
+    @Override
+    public LockResponse check_lock(CheckLockRequest rqst)
+        throws NoSuchTxnException, TxnAbortedException, NoSuchLockException, TException {
+      try {
+        return getTxnHandler().checkLock(rqst);
+      } catch (MetaException e) {
+        throw new TException(e);
+      }
+    }
+
+    @Override
+    public void unlock(UnlockRequest rqst)
+        throws NoSuchLockException, TxnOpenException, TException {
+      try {
+        getTxnHandler().unlock(rqst);
+      } catch (MetaException e) {
+        throw new TException(e);
+      }
+    }
+
+    @Override
+    public ShowLocksResponse show_locks(ShowLocksRequest rqst) throws TException {
+      try {
+        return getTxnHandler().showLocks(rqst);
+      } catch (MetaException e) {
+        throw new TException(e);
+      }
+    }
+
+    @Override
+    public void heartbeat(HeartbeatRequest ids)
+        throws NoSuchLockException, NoSuchTxnException, TxnAbortedException, TException {
+      try {
+        getTxnHandler().heartbeat(ids);
+      } catch (MetaException e) {
+        throw new TException(e);
+      }
+    }
+
+    @Override
+    public HeartbeatTxnRangeResponse heartbeat_txn_range(HeartbeatTxnRangeRequest rqst)
+      throws TException {
+      try {
+        return getTxnHandler().heartbeatTxnRange(rqst);
+      } catch (MetaException e) {
+        throw new TException(e);
+      }
+    }
+
+    @Override
+    public void compact(CompactionRequest rqst) throws TException {
+      try {
+        getTxnHandler().compact(rqst);
+      } catch (MetaException e) {
+        throw new TException(e);
+      }
+    }
+
+    @Override
+    public ShowCompactResponse show_compact(ShowCompactRequest rqst) throws TException {
+      try {
+        return getTxnHandler().showCompact(rqst);
+      } catch (MetaException e) {
+        throw new TException(e);
+      }
+    }
+
+    @Override
+    public GetPrincipalsInRoleResponse get_principals_in_role(GetPrincipalsInRoleRequest request)
+        throws MetaException, TException {
+
+      incrementCounter("get_principals_in_role");
+      Exception ex = null;
+      List<MRoleMap> roleMaps = null;
+      try {
+        roleMaps = getMS().listRoleMembers(request.getRoleName());
+      } catch (MetaException e) {
+        throw e;
+      } catch (Exception e) {
+        ex = e;
+        rethrowException(e);
+      } finally {
+        endFunction("get_principals_in_role", ex == null, ex);
+      }
+      return new GetPrincipalsInRoleResponse(getRolePrincipalGrants(roleMaps));
+    }
+
+    @Override
+    public GetRoleGrantsForPrincipalResponse get_role_grants_for_principal(
+        GetRoleGrantsForPrincipalRequest request) throws MetaException, TException {
+
+      incrementCounter("get_role_grants_for_principal");
+      Exception ex = null;
+      List<MRoleMap> roleMaps = null;
+      try {
+        roleMaps = getMS().listRoles(request.getPrincipal_name(), request.getPrincipal_type());
+      } catch (MetaException e) {
+        throw e;
+      } catch (Exception e) {
+        ex = e;
+        rethrowException(e);
+      } finally {
+        endFunction("get_role_grants_for_principal", ex == null, ex);
+      }
+
+      List<RolePrincipalGrant> roleGrantsList = getRolePrincipalGrants(roleMaps);
+      // all users by default belongs to public role
+      roleGrantsList.add(new RolePrincipalGrant(PUBLIC, request.getPrincipal_name(), request
+          .getPrincipal_type(), false, 0, null, null));
+      return new GetRoleGrantsForPrincipalResponse(roleGrantsList);
+    }
+
+    /**
+     * Convert each MRoleMap object into a thrift RolePrincipalGrant object
+     * @param roleMaps
+     * @return
+     */
+    private List<RolePrincipalGrant> getRolePrincipalGrants(List<MRoleMap> roleMaps) {
+      List<RolePrincipalGrant> rolePrinGrantList = new ArrayList<RolePrincipalGrant>();
+      if (roleMaps != null) {
+        for (MRoleMap roleMap : roleMaps) {
+          RolePrincipalGrant rolePrinGrant = new RolePrincipalGrant(
+              roleMap.getRole().getRoleName(),
+              roleMap.getPrincipalName(),
+              PrincipalType.valueOf(roleMap.getPrincipalType()),
+              roleMap.getGrantOption(),
+              roleMap.getAddTime(),
+              roleMap.getGrantor(),
+              PrincipalType.valueOf(roleMap.getGrantorType())
+              );
+          rolePrinGrantList.add(rolePrinGrant);
+        }
+      }
+      return rolePrinGrantList;
+    }
+
   }
 
   public static IHMSHandler newHMSHandler(String name, HiveConf hiveConf) throws MetaException {
@@ -4265,7 +5078,12 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         }
       });
 
-      startMetaStore(cli.port, ShimLoader.getHadoopThriftAuthBridge(), conf);
+      Lock startLock = new ReentrantLock();
+      Condition startCondition = startLock.newCondition();
+      MetaStoreThread.BooleanPointer startedServing = new MetaStoreThread.BooleanPointer();
+      startMetaStoreThreads(conf, startLock, startCondition, startedServing);
+      startMetaStore(cli.port, ShimLoader.getHadoopThriftAuthBridge(), conf, startLock,
+          startCondition, startedServing);
     } catch (Throwable t) {
       // Catch the exception, log it and rethrow it.
       HMSHandler.LOG
@@ -4283,7 +5101,19 @@ public class HiveMetaStore extends ThriftHiveMetastore {
    */
   public static void startMetaStore(int port, HadoopThriftAuthBridge bridge)
       throws Throwable {
-    startMetaStore(port, bridge, new HiveConf(HMSHandler.class));
+    startMetaStore(port, bridge, new HiveConf(HMSHandler.class), null, null, null);
+  }
+
+  /**
+   * Start the metastore store.
+   * @param port
+   * @param bridge
+   * @param conf
+   * @throws Throwable
+   */
+  public static void startMetaStore(int port, HadoopThriftAuthBridge bridge,
+                                    HiveConf conf) throws Throwable {
+    startMetaStore(port, bridge, conf, null, null, null);
   }
 
   /**
@@ -4296,7 +5126,8 @@ public class HiveMetaStore extends ThriftHiveMetastore {
    * @throws Throwable
    */
   public static void startMetaStore(int port, HadoopThriftAuthBridge bridge,
-      HiveConf conf) throws Throwable {
+      HiveConf conf, Lock startLock, Condition startCondition,
+      MetaStoreThread.BooleanPointer startedServing) throws Throwable {
     try {
 
       // Server will create new threads up to max as necessary. After an idle
@@ -4364,11 +5195,130 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       HMSHandler.LOG.info("Options.maxWorkerThreads = "
           + maxWorkerThreads);
       HMSHandler.LOG.info("TCP keepalive = " + tcpKeepAlive);
+
+      if (startLock != null) {
+        signalOtherThreadsToStart(tServer, startLock, startCondition, startedServing);
+      }
       tServer.serve();
     } catch (Throwable x) {
       x.printStackTrace();
       HMSHandler.LOG.error(StringUtils.stringifyException(x));
       throw x;
     }
+  }
+
+  private static void signalOtherThreadsToStart(final TServer server, final Lock startLock,
+                                                final Condition startCondition,
+                                                final MetaStoreThread.BooleanPointer startedServing) {
+    // A simple thread to wait until the server has started and then signal the other threads to
+    // begin
+    Thread t = new Thread() {
+      @Override
+      public void run() {
+        do {
+          try {
+            Thread.sleep(1000);
+          } catch (InterruptedException e) {
+            LOG.warn("Signalling thread was interuppted: " + e.getMessage());
+          }
+        } while (!server.isServing());
+        startLock.lock();
+        try {
+          startedServing.boolVal = true;
+          startCondition.signalAll();
+        } finally {
+          startLock.unlock();
+        }
+      }
+    };
+    t.start();
+  }
+
+  /**
+   * Start threads outside of the thrift service, such as the compactor threads.
+   * @param conf Hive configuration object
+   */
+  private static void startMetaStoreThreads(final HiveConf conf, final Lock startLock,
+                                            final Condition startCondition, final
+                                            MetaStoreThread.BooleanPointer startedServing) {
+    // A thread is spun up to start these other threads.  That's because we can't start them
+    // until after the TServer has started, but once TServer.serve is called we aren't given back
+    // control.
+    Thread t = new Thread() {
+      @Override
+      public void run() {
+        // This is a massive hack.  The compactor threads have to access packages in ql (such as
+        // AcidInputFormat).  ql depends on metastore so we can't directly access those.  To deal
+        // with this the compactor thread classes have been put in ql and they are instantiated here
+        // dyanmically.  This is not ideal but it avoids a massive refactoring of Hive packages.
+        //
+        // Wrap the start of the threads in a catch Throwable loop so that any failures
+        // don't doom the rest of the metastore.
+        startLock.lock();
+        try {
+          // Per the javadocs on Condition, do not depend on the condition alone as a start gate
+          // since spurious wake ups are possible.
+          while (!startedServing.boolVal) startCondition.await();
+          startCompactorInitiator(conf);
+          startCompactorWorkers(conf);
+          startCompactorCleaner(conf);
+        } catch (Throwable e) {
+          LOG.error("Failure when starting the compactor, compactions may not happen, " +
+              StringUtils.stringifyException(e));
+        } finally {
+          startLock.unlock();
+        }
+      }
+    };
+
+    t.start();
+  }
+
+  private static void startCompactorInitiator(HiveConf conf) throws Exception {
+    if (HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_COMPACTOR_INITIATOR_ON)) {
+      MetaStoreThread initiator =
+          instantiateThread("org.apache.hadoop.hive.ql.txn.compactor.Initiator");
+      initializeAndStartThread(initiator, conf);
+    }
+  }
+
+  private static void startCompactorWorkers(HiveConf conf) throws Exception {
+    int numWorkers = HiveConf.getIntVar(conf, HiveConf.ConfVars.HIVE_COMPACTOR_WORKER_THREADS);
+    for (int i = 0; i < numWorkers; i++) {
+      MetaStoreThread worker =
+          instantiateThread("org.apache.hadoop.hive.ql.txn.compactor.Worker");
+      initializeAndStartThread(worker, conf);
+    }
+  }
+
+  private static void startCompactorCleaner(HiveConf conf) throws Exception {
+    if (HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_COMPACTOR_INITIATOR_ON)) {
+      MetaStoreThread cleaner =
+          instantiateThread("org.apache.hadoop.hive.ql.txn.compactor.Cleaner");
+      initializeAndStartThread(cleaner, conf);
+    }
+  }
+
+  private static MetaStoreThread instantiateThread(String classname) throws Exception {
+    Class c = Class.forName(classname);
+    Object o = c.newInstance();
+    if (MetaStoreThread.class.isAssignableFrom(o.getClass())) {
+      return (MetaStoreThread)o;
+    } else {
+      String s = classname + " is not an instance of MetaStoreThread.";
+      LOG.error(s);
+      throw new IOException(s);
+    }
+  }
+
+  private static int nextThreadId = 1000000;
+
+  private static void initializeAndStartThread(MetaStoreThread thread, HiveConf conf) throws
+      MetaException {
+    LOG.info("Starting metastore thread of type " + thread.getClass().getName());
+    thread.setHiveConf(conf);
+    thread.setThreadId(nextThreadId++);
+    thread.init(new MetaStoreThread.BooleanPointer());
+    thread.start();
   }
 }

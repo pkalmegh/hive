@@ -24,6 +24,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.hive.ql.metadata.HiveStorageHandler;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -60,13 +61,6 @@ import java.util.Map;
  */
 class FileOutputFormatContainer extends OutputFormatContainer {
 
-  private static final PathFilter hiddenFileFilter = new PathFilter() {
-    public boolean accept(Path p) {
-      String name = p.getName();
-      return !name.startsWith("_") && !name.startsWith(".");
-    }
-  };
-
   /**
    * @param of base OutputFormat to contain
    */
@@ -97,7 +91,7 @@ class FileOutputFormatContainer extends OutputFormatContainer {
       sd.getSerializedClass().getName());
 
     RecordWriter<WritableComparable<?>, HCatRecord> rw;
-    if (HCatBaseOutputFormat.getJobInfo(context).isDynamicPartitioningUsed()){
+    if (HCatBaseOutputFormat.getJobInfo(context.getConfiguration()).isDynamicPartitioningUsed()){
       // When Dynamic partitioning is used, the RecordWriter instance initialized here isn't used. Can use null.
       // (That's because records can't be written until the values of the dynamic partitions are deduced.
       // By that time, a new local instance of RecordWriter, with the correct output-path, will be constructed.)
@@ -119,7 +113,7 @@ class FileOutputFormatContainer extends OutputFormatContainer {
 
   @Override
   public void checkOutputSpecs(JobContext context) throws IOException, InterruptedException {
-    OutputJobInfo jobInfo = HCatOutputFormat.getJobInfo(context);
+    OutputJobInfo jobInfo = HCatOutputFormat.getJobInfo(context.getConfiguration());
     HiveMetaStoreClient client = null;
     try {
       HiveConf hiveConf = HCatUtil.getHiveConf(context.getConfiguration());
@@ -149,13 +143,16 @@ class FileOutputFormatContainer extends OutputFormatContainer {
     //this needs to be manually set, under normal circumstances MR Task does this
     setWorkOutputPath(context);
     return new FileOutputCommitterContainer(context,
-      HCatBaseOutputFormat.getJobInfo(context).isDynamicPartitioningUsed() ?
+      HCatBaseOutputFormat.getJobInfo(context.getConfiguration()).isDynamicPartitioningUsed() ?
         null :
         new JobConf(context.getConfiguration()).getOutputCommitter());
   }
 
   /**
-   * Handles duplicate publish of partition. Fails if partition already exists.
+   * Handles duplicate publish of partition or data into an unpartitioned table
+   * if the table is immutable
+   *
+   * For partitioned tables, fails if partition already exists.
    * For non partitioned tables, fails if files are present in table directory.
    * For dynamic partitioned publish, does nothing - check would need to be done at recordwriter time
    * @param context the job
@@ -167,17 +164,21 @@ class FileOutputFormatContainer extends OutputFormatContainer {
    * @throws org.apache.thrift.TException
    */
   private static void handleDuplicatePublish(JobContext context, OutputJobInfo outputInfo,
-                         HiveMetaStoreClient client, Table table) throws IOException, MetaException, TException, NoSuchObjectException {
+      HiveMetaStoreClient client, Table table)
+      throws IOException, MetaException, TException, NoSuchObjectException {
 
     /*
-    * For fully specified ptn, follow strict checks for existence of partitions in metadata
-    * For unpartitioned tables, follow filechecks
-    * For partially specified tables:
-    *    This would then need filechecks at the start of a ptn write,
-    *    Doing metadata checks can get potentially very expensive (fat conf) if
-    *    there are a large number of partitions that match the partial specifications
-    */
+     * For fully specified ptn, follow strict checks for existence of partitions in metadata
+     * For unpartitioned tables, follow filechecks
+     * For partially specified tables:
+     *    This would then need filechecks at the start of a ptn write,
+     *    Doing metadata checks can get potentially very expensive (fat conf) if
+     *    there are a large number of partitions that match the partial specifications
+     */
 
+    if (!table.isImmutable()){
+      return;
+    }
     if (table.getPartitionKeys().size() > 0) {
       if (!outputInfo.isDynamicPartitioningUsed()) {
         List<String> partitionValues = getPartitionValueList(
@@ -187,6 +188,9 @@ class FileOutputFormatContainer extends OutputFormatContainer {
           outputInfo.getTableName(), partitionValues, (short) 1);
 
         if (currentParts.size() > 0) {
+          // If a table is partitioned and immutable, then the presence
+          // of the partition alone is enough to throw an error - we do
+          // not need to check for emptiness to decide to throw an error
           throw new HCatException(ErrorType.ERROR_DUPLICATE_PARTITION);
         }
       }
@@ -198,13 +202,9 @@ class FileOutputFormatContainer extends OutputFormatContainer {
       Path tablePath = new Path(table.getTTable().getSd().getLocation());
       FileSystem fs = tablePath.getFileSystem(context.getConfiguration());
 
-      if (fs.exists(tablePath)) {
-        FileStatus[] status = fs.globStatus(new Path(tablePath, "*"), hiddenFileFilter);
-
-        if (status.length > 0) {
-          throw new HCatException(ErrorType.ERROR_NON_EMPTY_TABLE,
+      if (!MetaStoreUtils.isDirEmpty(fs,tablePath)){
+        throw new HCatException(ErrorType.ERROR_NON_EMPTY_TABLE,
             table.getDbName() + "." + table.getTableName());
-        }
       }
     }
   }

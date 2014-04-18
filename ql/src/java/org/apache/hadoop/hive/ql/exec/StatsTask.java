@@ -43,8 +43,8 @@ import org.apache.hadoop.hive.ql.plan.DynamicPartitionCtx;
 import org.apache.hadoop.hive.ql.plan.LoadTableDesc;
 import org.apache.hadoop.hive.ql.plan.StatsWork;
 import org.apache.hadoop.hive.ql.plan.api.StageType;
-import org.apache.hadoop.hive.ql.stats.CounterStatsAggregator;
 import org.apache.hadoop.hive.ql.stats.StatsAggregator;
+import org.apache.hadoop.hive.ql.stats.StatsCollectionTaskIndependent;
 import org.apache.hadoop.hive.ql.stats.StatsFactory;
 import org.apache.hadoop.hive.ql.stats.StatsPublisher;
 import org.apache.hadoop.util.StringUtils;
@@ -151,10 +151,11 @@ public class StatsTask extends Task<StatsWork> implements Serializable {
       boolean atomic = HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_STATS_ATOMIC);
 
       String tableFullName = table.getDbName() + "." + table.getTableName();
+
       int maxPrefixLength = StatsFactory.getMaxPrefixLength(conf);
 
-      // "counter" type does not need to collect stats per task
-      boolean counterStat = statsAggregator instanceof CounterStatsAggregator;
+      // "counter" or "fs" type does not need to collect stats per task
+      boolean taskIndependent = statsAggregator instanceof StatsCollectionTaskIndependent;
       if (partitions == null) {
         org.apache.hadoop.hive.metastore.api.Table tTable = table.getTTable();
         Map<String, String> parameters = tTable.getParameters();
@@ -170,10 +171,8 @@ public class StatsTask extends Task<StatsWork> implements Serializable {
         }
 
         if (statsAggregator != null) {
-          String prefix = getAggregationPrefix(counterStat, table, null);
-          String aggKey = Utilities.getHashedStatsPrefix(prefix, maxPrefixLength, 0);
-          updateStats(statsAggregator, parameters, aggKey, atomic);
-          statsAggregator.cleanUp(aggKey);
+          String prefix = getAggregationPrefix(taskIndependent, table, null);
+          updateStats(statsAggregator, parameters, prefix, maxPrefixLength, atomic);
         }
 
         updateQuickStats(wh, parameters, tTable.getSd());
@@ -206,10 +205,8 @@ public class StatsTask extends Task<StatsWork> implements Serializable {
           }
 
           if (statsAggregator != null) {
-            String prefix = getAggregationPrefix(counterStat, table, partn);
-            String aggKey = Utilities.getHashedStatsPrefix(prefix, maxPrefixLength, 0);
-            updateStats(statsAggregator, parameters, aggKey, atomic);
-            statsAggregator.cleanUp(aggKey);
+            String prefix = getAggregationPrefix(taskIndependent, table, partn);
+            updateStats(statsAggregator, parameters, prefix, maxPrefixLength, atomic);
           }
 
           updateQuickStats(wh, parameters, tPart.getSd());
@@ -296,7 +293,10 @@ public class StatsTask extends Task<StatsWork> implements Serializable {
   }
 
   private void updateStats(StatsAggregator statsAggregator,
-      Map<String, String> parameters, String aggKey, boolean atomic) throws HiveException {
+      Map<String, String> parameters, String prefix, int maxPrefixLength, boolean atomic)
+      throws HiveException {
+
+    String aggKey = Utilities.getHashedStatsPrefix(prefix, maxPrefixLength);
 
     for (String statType : StatsSetupConst.statsRequireCompute) {
       String value = statsAggregator.aggregateStats(aggKey, statType);
@@ -317,6 +317,7 @@ public class StatsTask extends Task<StatsWork> implements Serializable {
         }
       }
     }
+    statsAggregator.cleanUp(aggKey);
   }
 
   private void updateQuickStats(Warehouse wh, Map<String, String> parameters,

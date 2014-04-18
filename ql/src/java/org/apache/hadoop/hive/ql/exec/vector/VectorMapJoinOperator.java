@@ -30,6 +30,7 @@ import org.apache.hadoop.hive.ql.exec.ExprNodeEvaluator;
 import org.apache.hadoop.hive.ql.exec.MapJoinOperator;
 import org.apache.hadoop.hive.ql.exec.TableScanOperator;
 import org.apache.hadoop.hive.ql.exec.Utilities;
+import org.apache.hadoop.hive.ql.exec.persistence.MapJoinKeyObject;
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinKey;
 import org.apache.hadoop.hive.ql.exec.vector.expressions.VectorExpression;
 import org.apache.hadoop.hive.ql.exec.vector.expressions.VectorExpressionWriter;
@@ -39,6 +40,7 @@ import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc;
 import org.apache.hadoop.hive.ql.plan.OperatorDesc;
 import org.apache.hadoop.hive.ql.plan.api.OperatorType;
+import org.apache.hadoop.hive.serde2.ByteStream.Output;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 
@@ -63,8 +65,8 @@ public class VectorMapJoinOperator extends MapJoinOperator implements Vectorizat
   private int tagLen;
 
   private VectorExpression[] keyExpressions;
-  private VectorHashKeyWrapperBatch keyWrapperBatch;
-  private VectorExpressionWriter[] keyOutputWriters;
+  private transient VectorHashKeyWrapperBatch keyWrapperBatch;
+  private transient VectorExpressionWriter[] keyOutputWriters;
 
   private VectorExpression[] bigTableFilterExpressions;
   private VectorExpression[] bigTableValueExpressions;
@@ -88,7 +90,8 @@ public class VectorMapJoinOperator extends MapJoinOperator implements Vectorizat
   }
 
   private interface MapJoinKeyEvaluator {
-      MapJoinKey evaluate(VectorHashKeyWrapper kw) throws HiveException;
+      MapJoinKey evaluate(VectorHashKeyWrapper kw)
+          throws HiveException;
   }
 
   public VectorMapJoinOperator (VectorizationContext vContext, OperatorDesc conf)
@@ -111,7 +114,6 @@ public class VectorMapJoinOperator extends MapJoinOperator implements Vectorizat
 
     List<ExprNodeDesc> keyDesc = desc.getKeys().get(posBigTable);
     keyExpressions = vContext.getVectorExpressions(keyDesc);
-    keyOutputWriters = VectorExpressionWriterFactory.getExpressionWriters(keyDesc);
 
     // We're only going to evaluate the big table vectorized expressions,
     Map<Byte, List<ExprNodeDesc>> exprs = desc.getExprs();
@@ -135,6 +137,8 @@ public class VectorMapJoinOperator extends MapJoinOperator implements Vectorizat
   public void initializeOp(Configuration hconf) throws HiveException {
     super.initializeOp(hconf);
     
+    List<ExprNodeDesc> keyDesc = conf.getKeys().get(posBigTable);
+    keyOutputWriters = VectorExpressionWriterFactory.getExpressionWriters(keyDesc);
 
     vrbCtx = new VectorizedRowBatchCtx();
     vrbCtx.init(hconf, this.fileKey, (StructObjectInspector) this.outputObjInspector);
@@ -146,21 +150,20 @@ public class VectorMapJoinOperator extends MapJoinOperator implements Vectorizat
     // This key evaluator translates from the vectorized VectorHashKeyWrapper format
     // into the row-mode MapJoinKey
     keyEvaluator = new MapJoinKeyEvaluator() {
-      private MapJoinKey key;
+      private MapJoinKey key = null;
+      private final Output output = new Output();
 
       public MapJoinKeyEvaluator init() {
-        key = new MapJoinKey(new Object[keyExpressions.length]);
         return this;
       }
 
       @Override
       public MapJoinKey evaluate(VectorHashKeyWrapper kw) throws HiveException {
-        Object[] keyValues = key.getKey();
-        for(int i=0; i<keyExpressions.length; ++i) {
-          keyValues[i] = keyWrapperBatch.getWritableKeyValue(kw, i, keyOutputWriters[i]);
-        }
+        MapJoinKey refKey = getRefKey(key, alias);
+        key = MapJoinKey.readFromVector(
+            output, refKey, kw, keyOutputWriters, keyWrapperBatch, refKey == key);
         return key;
-      };
+      }
     }.init();
 
     Map<Byte, List<ExprNodeDesc>> valueExpressions = conf.getExprs();
@@ -256,7 +259,6 @@ public class VectorMapJoinOperator extends MapJoinOperator implements Vectorizat
 
   @Override
   protected MapJoinKey computeMapJoinKey(Object row, byte alias) throws HiveException {
-    VectorizedRowBatch inBatch = (VectorizedRowBatch) row;
     return keyEvaluator.evaluate(keyValues[batchIndex]);
   }
 

@@ -503,6 +503,14 @@
 </property>
 
 <property>
+  <name>hive.optimize.sort.dynamic.partition</name>
+  <value>true</value>
+  <description>When enabled dynamic partitioning column will be globally sorted.
+  This way we can keep only one record writer open for each partition value
+  in the reducer thereby reducing the memory pressure on reducers.</description>
+</property>
+
+<property>
   <name>hive.optimize.skewjoin.compiletime</name>
   <value>false</value>
   <description>Whether to create a separate plan for skewed keys for the tables in the join.
@@ -794,6 +802,12 @@
 </property>
 
 <property>
+  <name>hive.merge.tezfiles</name>
+  <value>false</value>
+  <description>Merge small files at the end of a Tez DAG</description>
+</property>
+
+<property>
   <name>hive.heartbeat.interval</name>
   <value>1000</value>
   <description>Send a heartbeat after this interval - used by mapjoin and filter operators</description>
@@ -862,6 +876,15 @@
   <description>If hive.auto.convert.join.noconditionaltask is off, this parameter does not take affect. However, if it
     is on, and the sum of size for n-1 of the tables/partitions for a n-way join is smaller than this size, the join is directly
     converted to a mapjoin(there is no conditional task). The default is 10MB
+  </description>
+</property>
+
+<property>
+  <name>hive.auto.convert.join.use.nonstaged</name>
+  <value>false</value>
+  <description>For conditional joins, if input stream from a small alias can be directly applied to join operator without
+    filtering or projection, the alias need not to be pre-staged in distributed cache via mapred local task.
+    Currently, this is not working with vectorization or tez execution engine.
   </description>
 </property>
 
@@ -948,6 +971,12 @@
   <name>hive.input.format</name>
   <value>org.apache.hadoop.hive.ql.io.CombineHiveInputFormat</value>
   <description>The default input format. Set this to HiveInputFormat if you encounter problems with CombineHiveInputFormat.</description>
+</property>
+
+<property>
+  <name>hive.tez.input.format</name>
+  <value>org.apache.hadoop.hive.ql.io.HiveInputFormat</value>
+  <description>The default input format for tez. Tez groups splits in the AM.</description>
 </property>
 
 <property>
@@ -1307,6 +1336,113 @@
     exceeds a certain length, a hash of the key is used instead.  If the value &lt; 0 then hashing
     is never used, if the value >= 0 then hashing is used only when the key prefixes length
     exceeds that value.  The key prefix is defined as everything preceding the task ID in the key.
+    For counter type stats, it's maxed by mapreduce.job.counters.group.name.max, which is by default 128.
+  </description>
+</property>
+
+<property>
+  <name>hive.stats.key.prefix.reserve.length</name>
+  <value>24</value>
+  <description>
+    Reserved length for postfix of stats key. Currently only meaningful for counter type which should
+    keep length of full stats key smaller than max length configured by hive.stats.key.prefix.max.length.
+    For counter type, it should be bigger than the length of LB spec if exists.
+  </description>
+</property>
+
+<property>
+  <name>hive.stats.max.variable.length</name>
+  <value>100</value>
+  <description>
+    To estimate the size of data flowing through operators in Hive/Tez(for reducer estimation etc.),
+    average row size is multiplied with the total number of rows coming out of each operator.
+    Average row size is computed from average column size of all columns in the row. In the absence
+    of column statistics, for variable length columns (like string, bytes etc.), this value will be
+    used. For fixed length columns their corresponding Java equivalent sizes are used
+    (float - 4 bytes, double - 8 bytes etc.).
+  </description>
+</property>
+
+<property>
+  <name>hive.stats.list.num.entries</name>
+  <value>10</value>
+  <description>
+    To estimate the size of data flowing through operators in Hive/Tez(for reducer estimation etc.),
+    average row size is multiplied with the total number of rows coming out of each operator.
+    Average row size is computed from average column size of all columns in the row. In the absence
+    of column statistics and for variable length complex columns like list, the average number of
+    entries/values can be specified using this config.
+  </description>
+</property>
+
+<property>
+  <name>hive.stats.map.num.entries</name>
+  <value>10</value>
+  <description>
+    To estimate the size of data flowing through operators in Hive/Tez(for reducer estimation etc.),
+    average row size is multiplied with the total number of rows coming out of each operator.
+    Average row size is computed from average column size of all columns in the row. In the absence
+    of column statistics and for variable length complex columns like map, the average number of
+    entries/values can be specified using this config.
+  </description>
+</property>
+
+<property>
+  <name>hive.stats.map.parallelism</name>
+  <value>1</value>
+  <description>
+    Hive/Tez optimizer estimates the data size flowing through each of the operators.
+    For GROUPBY operator, to accurately compute the data size map-side parallelism needs to
+    be known. By default, this value is set to 1 since optimizer is not aware of the number of
+    mappers during compile-time. This Hive config can be used to specify the number of mappers
+    to be used for data size computation of GROUPBY operator.
+  </description>
+</property>
+
+<property>
+  <name>hive.stats.fetch.column.stats</name>
+  <value>false</value>
+  <description>
+    Annotation of operator tree with statistics information requires column statisitcs.
+    Column statistics are fetched from metastore. Fetching column statistics for each needed column
+    can be expensive when the number of columns is high. This flag can be used to disable fetching
+    of column statistics from metastore.
+  </description>
+</property>
+
+<property>
+  <name>hive.stats.fetch.partition.stats</name>
+  <value>true</value>
+  <description>
+    Annotation of operator tree with statistics information requires partition level basic
+    statisitcs like number of rows, data size and file size. Partition statistics are fetched from
+    metastore. Fetching partition statistics for each needed partition can be expensive when the
+    number of partitions is high. This flag can be used to disable fetching of partition statistics
+    from metastore. When this flag is disabled, Hive will make calls to filesystem to get file sizes
+    and will estimate the number of rows from row schema.
+  </description>
+</property>
+
+<property>
+  <name>hive.stats.join.factor</name>
+  <value>1.1</value>
+  <description>
+    Hive/Tez optimizer estimates the data size flowing through each of the operators. JOIN operator
+    uses column statistics to estimate the number of rows flowing out of it and hence the data size.
+    In the absence of column statistics, this factor determines the amount of rows that flows out
+    of JOIN operator.
+  </description>
+</property>
+
+<property>
+  <name>hive.stats.deserialization.factor</name>
+  <value>1.0</value>
+  <description>
+    Hive/Tez optimizer estimates the data size flowing through each of the operators. In the absence
+    of basic statistics like number of rows and data size, file size is used to estimate the number
+    of rows and data size. Since files in tables/partitions are serialized (and optionally
+    compressed) the estimates of number of rows and data size cannot be reliably determined.
+    This factor is multiplied with the file size to account for serialization and compression.
   </description>
 </property>
 
@@ -1526,6 +1662,13 @@
 </property>
 
 <property>
+  <name>hive.users.in.admin.role</name>
+  <value></value>
+  <description>Comma separated list of users who are in admin role for bootstrapping.
+    More users can be added in ADMIN role later.</description>
+</property>
+
+<property>
   <name>hive.security.command.whitelist</name>
   <value>set,reset,dfs,add,delete</value>
   <description>Comma separated list of non-SQL Hive commands users are authorized to execute</description>
@@ -1533,7 +1676,7 @@
 
 <property>
   <name>hive.conf.restricted.list</name>
-  <value></value>
+  <value>hive.security.authenticator.manager,hive.security.authorization.manager</value>
   <description>Comma separated list of configuration options which are immutable at runtime</description>
 </property>
 
@@ -1741,6 +1884,17 @@
 </property>
 
 <property>
+  <name>hive.display.partition.cols.separately</name>
+  <value>true</value>
+  <description>
+    In older Hive version (0.10 and earlier) no distinction was made between
+    partition columns or non-partition columns while displaying columns in describe
+    table. From 0.12 onwards, they are displayed separately. This flag will let you
+    get old behavior, if desired. See, test-case in patch for HIVE-6689.
+  </description>
+</property>
+
+<property>
   <name>hive.transform.escape.input</name>
   <value>false</value>
   <description>
@@ -1761,11 +1915,59 @@
 </property>
 
 <property>
+  <name>hive.exec.orc.default.stripe.size</name>
+  <value>268435456</value>
+  <description>
+    Define the default ORC stripe size.
+  </description>
+</property>
+
+<property>
+  <name>hive.exec.orc.default.row.index.stride</name>
+  <value>10000</value>
+  <description>
+    Define the default ORC index stride in number of rows.
+  </description>
+</property>
+
+<property>
+  <name>hive.exec.orc.default.buffer.size</name>
+  <value>262144</value>
+  <description>
+    Define the default ORC buffer size in bytes.
+  </description>
+</property>
+
+<property>
+  <name>hive.exec.orc.default.block.padding</name>
+  <value>true</value>
+  <description>
+    Define the default block padding.
+  </description>
+</property>
+
+<property>
+  <name>hive.exec.orc.default.compress</name>
+  <value>ZLIB</value>
+  <description>
+    Define the default compression codec for ORC file.
+  </description>
+</property>
+
+<property>
   <name>hive.exec.orc.dictionary.key.size.threshold</name>
   <value>0.8</value>
   <description>
     If the number of keys in a dictionary is greater than this fraction of the total number of
     non-null rows, turn off dictionary encoding.  Use 1 to always use dictionary encoding.
+  </description>
+</property>
+
+<property>
+  <name>hive.exec.orc.skip.corrupt.data</name>
+  <value>false</value>
+  <description>If ORC reader encounters corrupt data, this value will be used to determine
+  whether to skip the corrupt data or throw exception. The default behavior is to throw exception.
   </description>
 </property>
 
@@ -1948,6 +2150,12 @@
 </property>
 
 <property>
+  <name>hive.server2.long.polling.timeout</name>
+  <value>5000L</value>
+  <description>Time in milliseconds that HiveServer2 will wait, before responding to asynchronous calls that use long polling</description>
+</property>
+
+<property>
   <name>hive.server2.async.exec.wait.queue.size</name>
   <value>100</value>
   <description>Size of the wait queue for async thread pool in HiveServer2.
@@ -1978,6 +2186,7 @@
        KERBEROS: Kerberos/GSSAPI authentication
        CUSTOM: Custom authentication provider
                (Use with property hive.server2.custom.authentication.class)
+       PAM: Pluggable authentication module.
   </description>
 </property>
 
@@ -2010,7 +2219,36 @@
     Kerberos keytab file for server principal
   </description>
 </property>
- 
+
+<property>
+  <name>hive.server2.authentication.spnego.principal</name>
+  <value></value>
+  <description>
+    SPNego service principal, optional,
+    typical value would look like HTTP/_HOST@EXAMPLE.COM
+    SPNego service principal would be used by hiveserver2 when kerberos security is enabled
+    and HTTP transport mode is used.
+    This needs to be set only if SPNEGO is to be used in authentication.
+  </description>
+</property>
+
+<property>
+  <name>hive.server2.authentication.spnego.keytab</name>
+  <value></value>
+  <description>
+    keytab file for SPNego principal, optional,
+    typical value would look like /etc/security/keytabs/spnego.service.keytab,
+    This keytab would be used by hiveserver2 when kerberos security is enabled
+    and HTTP transport mode is used.
+    This needs to be set only if SPNEGO is to be used in authentication.
+    SPNego authentication would be honored only if valid
+    hive.server2.authentication.spnego.principal
+    and
+    hive.server2.authentication.spnego.keytab
+    are specified
+  </description>
+</property>
+
 <property>
   <name>hive.server2.authentication.ldap.url</name>
   <value></value>
@@ -2041,6 +2279,22 @@
   <value>mr</value>
   <description>
     Chooses execution engine. Options are: mr (Map reduce, default) or tez (hadoop 2 only)
+  </description>
+</property>
+
+<property>
+  <name>hive.prewarm.enabled</name>
+  <value>false</value>
+  <description>
+    Enables container prewarm for tez (hadoop 2 only)
+  </description>
+</property>
+
+<property>
+  <name>hive.prewarm.numcontainers</name>
+  <value>10</value>
+  <description>
+    Controls the number of containers to prewarm for tez (hadoop 2 only)
   </description>
 </property>
 
@@ -2127,7 +2381,7 @@
 
 <property>
   <name>hive.metastore.integral.jdo.pushdown</name>
-  <value>false</false>
+  <value>false</value>
   <description>
    Allow JDO query pushdown for integral partition columns in metastore. Off by default. This
    improves metastore perf for integral columns, especially if there's a large number of partitions.
@@ -2163,11 +2417,29 @@
 </property>
 
 <property>
+  <name>hive.stats.gather.num.threads</name>
+  <value>10</value>
+  <description>
+    Number of threads used by partialscan/noscan analyze command for partitioned tables.
+    This is applicable only for file formats that implement StatsProvidingRecordReader (like ORC).
+  </description>
+</property>
+
+<property>
+  <name>hive.exec.orc.zerocopy</name>.
+  <value>false</value>
+  <description>
+    Use zerocopy reads with ORC.
+  </description>
+</property>
+
+<property>
   <name>hive.jar.directory</name>
-  <value>hdfs:///user/hive/</value>
+  <value></value>
   <description>
     This is the location hive in tez mode will look for to find a site wide 
-    installed hive instance.
+    installed hive instance. If not set, the directory under hive.user.install.directory 
+    corresponding to current user name will be used.
   </description>
 </property>
 
@@ -2176,9 +2448,289 @@
   <value>hdfs:///user/</value>
   <description>
     If hive (in tez mode only) cannot find a usable hive jar in "hive.jar.directory", 
-    it will upload the hive jar to &lthive.user.install.directory&gt/&ltuser name&gt 
+    it will upload the hive jar to &lt;hive.user.install.directory&gt;/&lt;user name&gt; 
     and use it to run queries.
   </description>
+</property>
+
+<property>
+  <name>hive.tez.container.size</name>
+  <value>-1</value>
+  <description>By default tez will spawn containers of the size of a mapper. This can be used to overwrite.</description>
+</property>
+
+<property>
+  <name>hive.tez.java.opts</name>
+  <value></value>
+  <description>By default tez will use the java opts from map tasks. This can be used to overwrite.</description>
+</property>
+
+<property>
+  <name>hive.tez.log.level</name>
+  <value>INFO</value>
+  <description>
+    The log level to use for tasks executing as part of the DAG.
+    Used only if hive.tez.java.opts is used to configure java opts.
+  </description>
+</property>
+
+<property>
+  <name>hive.server2.tez.default.queues</name>
+  <value></value>
+  <description>
+    A list of comma separated values corresponding to yarn queues of the same name.
+    When hive server 2 is launched in tez mode, this configuration needs to be set
+    for multiple tez sessions to run in parallel on the cluster.
+  </description>
+</property>
+
+<property>
+  <name>hive.server2.tez.sessions.per.default.queue</name>
+  <value>1</value>
+  <description>
+    A positive integer that determines the number of tez sessions that should be
+    launched on each of the queues specified by "hive.server2.tez.default.queues".
+    Determines the parallelism on each queue.
+  </description>
+</property>
+
+<property>
+  <name>hive.server2.tez.initialize.default.sessions</name>
+  <value>false</value>
+  <description>
+    This flag is used in hive server 2 to enable a user to use hive server 2 without
+    turning on tez for hive server 2. The user could potentially want to run queries
+    over tez without the pool of sessions.
+  </description>
+</property>
+
+<property>
+  <name>hive.lazysimple.extended_boolean_literal</name>
+  <value>false</value>
+  <description>
+    LazySiimpleSerde uses this properties to determine if it treats 'T', 't', 'F', 'f',
+    '1', and '0' as extened, legal boolean literal, in addition to 'TRUE' and 'FALSE'.
+    The default is false, which means only 'TRUE' and 'FALSE' are treated as legal
+    boolean literal.
+  </description>
+</property>
+
+<property>
+  <name>hive.server2.allow.user.substitution</name>
+  <value>true</value>
+  <description>
+    Allow alternate user to be specified as part of HiveServer2 open connection request
+  </description>
+</property>
+
+<property>
+  <name>hive.resultset.use.unique.column.names</name>
+  <value>true</value>
+  <description>
+    Make column names unique in the result set by qualifying column names with table alias if needed.
+    Table alias will be added to column names for queries of type "select *" or
+    if query explicitly uses table alias "select r1.x..".
+  </description>
+</property>
+
+<property>
+  <name>hive.compat</name>
+  <value>0.12</value>
+  <description>
+    Enable (configurable) deprecated behaviors by setting desired level of backward compatbility
+  </description>
+</property>
+
+<property>
+  <name>hive.metastore.try.direct.sql</name>
+  <value>true</value>
+  <description>
+  Whether Hive metastore should try to use direct SQL queries instead of DataNucleus for certain
+  read paths. Can improve metastore performance when fetching many partitions or column stats by
+  orders of magnitude; however, is not guaranteed to work on all RDBMS-es and all versions. In case
+  of SQL failures, metastore will fall back to DataNucleus, so it's safe even if SQL doesn't work
+  for all queries on your datastore. If all SQL queries fail (e.g. your metastore is backed by
+  MongoDB), you might want to disable this to save the try-and-fall-back cost.
+  </description>
+</property>
+
+<property>
+  <name>hive.metastore.try.direct.sql.ddl</name>
+  <value>true</value>
+  <description>
+  Same as hive.metastore.try.direct.sql, for read statements within a transaction that modifies
+  metastore data. Due to non-standard behavior in Postgres, if direct SQL select query has
+  incorrect syntax or something inside a transaction, entire transaction will fail and fall-back to
+  DataNucleus will not be possible. You should disable the usage of direct SQL inside transactions
+  if that happens in your case.
+  </description>
+</property>
+
+<property>
+  <name>hive.metastore.integral.jdo.pushdown</name>
+  <value>false</value>
+  <description>
+  Whether to enable JDO pushdown for integral types. Off by default. Irrelevant if
+  hive.metastore.try.direct.sql is enabled. Otherwise, filter pushdown in metastore can improve
+  performance, but for partition columns storing integers in non-canonical form, (e.g. '012'),
+  it can produce incorrect results.
+  </description>
+</property>
+
+
+<property>
+  <name>hive.mapjoin.optimized.keys</name>
+  <value>true</value>
+  <description>
+  Whether MapJoin hashtable should use optimized (size-wise), keys, allowing the table to take less
+  memory. Depending on key, the memory savings for entire table can be 5-15% or so.
+  </description>
+</property>
+
+<property>
+  <name>hive.mapjoin.lazy.hashtable</name>
+  <value>true</value>
+  <description>
+  Whether MapJoin hashtable should deserialize values on demand. Depending on how many values in
+  the table the join will actually touch, it can save a lot of memory by not creating objects for
+  rows that are not needed. If all rows are needed obviously there's no gain.
+  </description>
+</property>
+
+<property>
+  <name>hive.exec.check.crossproducts</name>
+  <value>true</value>
+  <description>
+    Check if a plan contains a Cross Product. If there is one, output a warning to the Session's console.
+  </description>
+</property>
+
+<property>
+  <name>hive.localize.resource.wait.interval</name>
+  <value>5000</value>
+  <description>
+    Time in milliseconds to wait for another thread to localize the same resource for hive-tez.
+  </description>
+</property>
+
+<property>
+  <name>hive.localize.resource.num.wait.attempts</name>
+  <value>5</value>
+  <description>
+    The number of attempts waiting for localizing a resource in hive-tez.
+  </description>
+</property>
+
+<property>
+  <name>hive.server2.use.SSL</name>
+  <value>false</value>
+  <description>Set this to true for using SSL encryption in HiveServer2</description>
+</property>
+
+<property>
+  <name>hive.server2.keystore.path</name>
+  <value></value>
+  <description>SSL certificate keystore location</description>
+</property>
+
+<property>
+  <name>hive.server2.keystore.password</name>
+  <value></value>
+  <description>SSL certificate keystore password.</description>
+</property>
+
+<property>
+  <name>hive.server2.authentication.pam.services</name>
+  <value></value>
+  <description>List of the underlying pam services that should be used when auth type is PAM.
+  A file with the same name must exist in /etc/pam.d</description>
+</property>
+
+<property>
+ <name>hive.convert.join.bucket.mapjoin.tez</name>
+ <value>false</value>
+ <description>Whether joins can be automatically converted to bucket map 
+ joins in hive when tez is used as the execution engine.
+ </description>
+</property>
+
+<property>
+  <name>hive.serdes.using.metastore.for.schema</name>
+  <value>org.apache.hadoop.hive.ql.io.orc.OrcSerde,org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe,org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe,org.apache.hadoop.hive.serde2.dynamic_type.DynamicSerDe,org.apache.hadoop.hive.serde2.MetadataTypedColumnsetSerDe,org.apache.hadoop.hive.serde2.columnar.LazyBinaryColumnarSerDe,org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe,org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe</value>
+  <description>This an internal parameter. Check with the hive dev. team</description>
+</property>
+
+<property>
+  <name>hive.limit.query.max.table.partition</name>
+  <value>-1</value>
+  <description>This controls how many partitions can be scanned for each partitioned table. The default value "-1" means no limit.</description>
+</property>
+
+<property>
+  <name>hive.txn.manager</name>
+  <value>org.apache.hadoop.hive.ql.lockmgr.DummyTxnManager</value>
+  <description></description>
+</property>
+
+<property>
+  <name>hive.txn.timeout</name>
+  <value>300</value>
+  <description>time after which transactions are declared aborted if the client has
+  not sent a heartbeat, in seconds.</description>
+</property>
+
+<property>
+  <name>hive.txn.max.open.batch</name>
+  <value>1000</value>
+  <description>Maximum number of transactions that can be fetched in one call to open_txns().
+  Increasing this will decrease the number of delta files created when
+  streaming data into Hive.  But it will also increase the number of
+  open transactions at any given time, possibly impacting read 
+  performance.
+  </description>
+</property>
+
+<property>
+  <name>hive.compactor.initiator.on</name>
+  <value>false</value>
+  <description>Whether to run the compactor's initiator thread in this metastore instance or not.</description>
+</property>
+
+<property>
+  <name>hive.compactor.worker.threads</name>
+  <value>0</value>
+  <description>Number of compactor worker threads to run on this metastore instance.</description>
+</property>
+
+<property>
+  <name>hive.compactor.worker.timeout</name>
+  <value>86400</value>
+  <description>Time, in seconds, before a given compaction in working state is declared a failure and returned to the initiated state.</description>
+</property>
+
+<property>
+  <name>hive.compactor.check.interval</name>
+  <value>300</value>
+  <description>Time in seconds between checks to see if any partitions need compacted.
+  This should be kept high because each check for compaction requires many calls against the NameNode.</description>
+</property>
+
+<property>
+  <name>hive.compactor.delta.num.threshold</name>
+  <value>10</value>
+  <description>Number of delta files that must exist in a directory before the compactor will attempt a minor compaction.</description>
+</property>
+
+<property>
+  <name>hive.compactor.delta.pct.threshold</name>
+  <value>0.1</value>
+  <description>Percentage (by size) of base that deltas can be before major compaction is initiated.</description>
+</property>
+
+<property>
+  <name>hive.compactor.abortedtxn.threshold</name>
+  <value>1000</value>
+  <description>Number of aborted transactions involving a particular table or partition before major compaction is initiated.</description>
 </property>
 
 </configuration>

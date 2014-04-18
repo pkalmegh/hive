@@ -4,12 +4,14 @@ PREHOOK: query: -- This tests inferring how data is bucketed/sorted from the ope
 
 CREATE TABLE test_table (key STRING, value STRING) PARTITIONED BY (part STRING)
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: -- This tests inferring how data is bucketed/sorted from the operators in the reducer
 -- and populating that information in partitions' metadata.  In particular, those cases
 -- where multi insert is used.
 
 CREATE TABLE test_table (key STRING, value STRING) PARTITIONED BY (part STRING)
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@test_table
 PREHOOK: query: -- Simple case, neither partition should be bucketed or sorted
 
@@ -35,21 +37,23 @@ POSTHOOK: Lineage: test_table PARTITION(part=2).key SIMPLE [(src)src.FieldSchema
 POSTHOOK: Lineage: test_table PARTITION(part=2).value SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 PREHOOK: query: DESCRIBE FORMATTED test_table PARTITION (part = '1')
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@test_table
 POSTHOOK: query: DESCRIBE FORMATTED test_table PARTITION (part = '1')
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@test_table
 POSTHOOK: Lineage: test_table PARTITION(part=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=2).key SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=2).value SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-part                	string              	None                
+part                	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[1]                 	 
@@ -78,21 +82,23 @@ Storage Desc Params:
 	serialization.format	1                   
 PREHOOK: query: DESCRIBE FORMATTED test_table PARTITION (part = '2')
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@test_table
 POSTHOOK: query: DESCRIBE FORMATTED test_table PARTITION (part = '2')
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@test_table
 POSTHOOK: Lineage: test_table PARTITION(part=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=2).key SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=2).value SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-part                	string              	None                
+part                	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[2]                 	 
@@ -147,8 +153,10 @@ POSTHOOK: Lineage: test_table PARTITION(part=2).key EXPRESSION [(src)src.null, ]
 POSTHOOK: Lineage: test_table PARTITION(part=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: DESCRIBE FORMATTED test_table PARTITION (part = '1')
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@test_table
 POSTHOOK: query: DESCRIBE FORMATTED test_table PARTITION (part = '1')
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@test_table
 POSTHOOK: Lineage: test_table PARTITION(part=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -159,13 +167,13 @@ POSTHOOK: Lineage: test_table PARTITION(part=2).key EXPRESSION [(src)src.null, ]
 POSTHOOK: Lineage: test_table PARTITION(part=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-part                	string              	None                
+part                	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[1]                 	 
@@ -194,8 +202,10 @@ Storage Desc Params:
 	serialization.format	1                   
 PREHOOK: query: DESCRIBE FORMATTED test_table PARTITION (part = '2')
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@test_table
 POSTHOOK: query: DESCRIBE FORMATTED test_table PARTITION (part = '2')
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@test_table
 POSTHOOK: Lineage: test_table PARTITION(part=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -206,13 +216,13 @@ POSTHOOK: Lineage: test_table PARTITION(part=2).key EXPRESSION [(src)src.null, ]
 POSTHOOK: Lineage: test_table PARTITION(part=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-part                	string              	None                
+part                	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[2]                 	 
@@ -271,8 +281,10 @@ POSTHOOK: Lineage: test_table PARTITION(part=2).key EXPRESSION [(src)src.null, ]
 POSTHOOK: Lineage: test_table PARTITION(part=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: DESCRIBE FORMATTED test_table PARTITION (part = '1')
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@test_table
 POSTHOOK: query: DESCRIBE FORMATTED test_table PARTITION (part = '1')
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@test_table
 POSTHOOK: Lineage: test_table PARTITION(part=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -287,13 +299,13 @@ POSTHOOK: Lineage: test_table PARTITION(part=2).key EXPRESSION [(src)src.null, ]
 POSTHOOK: Lineage: test_table PARTITION(part=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-part                	string              	None                
+part                	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[1]                 	 
@@ -322,8 +334,10 @@ Storage Desc Params:
 	serialization.format	1                   
 PREHOOK: query: DESCRIBE FORMATTED test_table PARTITION (part = '2')
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@test_table
 POSTHOOK: query: DESCRIBE FORMATTED test_table PARTITION (part = '2')
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@test_table
 POSTHOOK: Lineage: test_table PARTITION(part=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -338,13 +352,13 @@ POSTHOOK: Lineage: test_table PARTITION(part=2).key EXPRESSION [(src)src.null, ]
 POSTHOOK: Lineage: test_table PARTITION(part=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-part                	string              	None                
+part                	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[2]                 	 
@@ -407,8 +421,10 @@ POSTHOOK: Lineage: test_table PARTITION(part=2).key EXPRESSION [(src)src.null, ]
 POSTHOOK: Lineage: test_table PARTITION(part=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: DESCRIBE FORMATTED test_table PARTITION (part = '1')
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@test_table
 POSTHOOK: query: DESCRIBE FORMATTED test_table PARTITION (part = '1')
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@test_table
 POSTHOOK: Lineage: test_table PARTITION(part=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -427,13 +443,13 @@ POSTHOOK: Lineage: test_table PARTITION(part=2).key EXPRESSION [(src)src.null, ]
 POSTHOOK: Lineage: test_table PARTITION(part=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-part                	string              	None                
+part                	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[1]                 	 
@@ -462,8 +478,10 @@ Storage Desc Params:
 	serialization.format	1                   
 PREHOOK: query: DESCRIBE FORMATTED test_table PARTITION (part = '2')
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@test_table
 POSTHOOK: query: DESCRIBE FORMATTED test_table PARTITION (part = '2')
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@test_table
 POSTHOOK: Lineage: test_table PARTITION(part=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: test_table PARTITION(part=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
@@ -482,13 +500,13 @@ POSTHOOK: Lineage: test_table PARTITION(part=2).key EXPRESSION [(src)src.null, ]
 POSTHOOK: Lineage: test_table PARTITION(part=2).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-part                	string              	None                
+part                	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[2]                 	 

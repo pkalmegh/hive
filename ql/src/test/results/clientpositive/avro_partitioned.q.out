@@ -28,6 +28,7 @@ TBLPROPERTIES ('avro.schema.literal'='{
   ]
 }')
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: -- verify that new joins bring in correct schemas (including evolved schemas)
 CREATE TABLE episodes
 ROW FORMAT
@@ -58,12 +59,15 @@ TBLPROPERTIES ('avro.schema.literal'='{
   ]
 }')
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@episodes
 PREHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/episodes.avro' INTO TABLE episodes
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@episodes
 POSTHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/episodes.avro' INTO TABLE episodes
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@episodes
 PREHOOK: query: CREATE TABLE episodes_partitioned
 PARTITIONED BY (doctor_pt INT)
@@ -95,6 +99,7 @@ TBLPROPERTIES ('avro.schema.literal'='{
   ]
 }')
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: CREATE TABLE episodes_partitioned
 PARTITIONED BY (doctor_pt INT)
 ROW FORMAT
@@ -125,6 +130,7 @@ TBLPROPERTIES ('avro.schema.literal'='{
   ]
 }')
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@episodes_partitioned
 PREHOOK: query: INSERT OVERWRITE TABLE episodes_partitioned PARTITION (doctor_pt) SELECT title, air_date, doctor, doctor as doctor_pt FROM episodes
 PREHOOK: type: QUERY
@@ -198,7 +204,7 @@ The Doctor's Wife	14 May 2011	11	11
 Rose	26 March 2005	9	9
 The Eleventh Hour	3 April 2010	11	11
 PREHOOK: query: -- Verify that Fetch works in addition to Map
-SELECT * FROM episodes_partitioned LIMIT 5
+SELECT * FROM episodes_partitioned ORDER BY air_date LIMIT 5
 PREHOOK: type: QUERY
 PREHOOK: Input: default@episodes_partitioned
 PREHOOK: Input: default@episodes_partitioned@doctor_pt=1
@@ -210,7 +216,7 @@ PREHOOK: Input: default@episodes_partitioned@doctor_pt=6
 PREHOOK: Input: default@episodes_partitioned@doctor_pt=9
 #### A masked pattern was here ####
 POSTHOOK: query: -- Verify that Fetch works in addition to Map
-SELECT * FROM episodes_partitioned LIMIT 5
+SELECT * FROM episodes_partitioned ORDER BY air_date LIMIT 5
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@episodes_partitioned
 POSTHOOK: Input: default@episodes_partitioned@doctor_pt=1
@@ -242,10 +248,10 @@ POSTHOOK: Lineage: episodes_partitioned PARTITION(doctor_pt=6).title SIMPLE [(ep
 POSTHOOK: Lineage: episodes_partitioned PARTITION(doctor_pt=9).air_date SIMPLE [(episodes)episodes.FieldSchema(name:air_date, type:string, comment:from deserializer), ]
 POSTHOOK: Lineage: episodes_partitioned PARTITION(doctor_pt=9).doctor SIMPLE [(episodes)episodes.FieldSchema(name:doctor, type:int, comment:from deserializer), ]
 POSTHOOK: Lineage: episodes_partitioned PARTITION(doctor_pt=9).title SIMPLE [(episodes)episodes.FieldSchema(name:title, type:string, comment:from deserializer), ]
-An Unearthly Child	23 November 1963	1	1
-The Eleventh Hour	3 April 2010	11	11
 The Doctor's Wife	14 May 2011	11	11
-The Power of the Daleks	5 November 1966	2	2
+An Unearthly Child	23 November 1963	1	1
+Rose	26 March 2005	9	9
+The Eleventh Hour	3 April 2010	11	11
 Horror of Fang Rock	3 September 1977	4	4
 PREHOOK: query: -- Fetch w/filter to specific partition
 SELECT * FROM episodes_partitioned WHERE doctor_pt = 6

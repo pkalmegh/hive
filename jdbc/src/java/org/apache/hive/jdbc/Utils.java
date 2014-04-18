@@ -145,7 +145,7 @@ public class Utils {
     JdbcConnectionParams connParams = new JdbcConnectionParams();
 
     if (!uri.startsWith(URL_PREFIX)) {
-      throw new IllegalArgumentException("Bad URL format");
+      throw new IllegalArgumentException("Bad URL format: Missing prefix " + URL_PREFIX);
     }
 
     // For URLs with no other configuration
@@ -197,7 +197,9 @@ public class Utils {
         if (sessVars != null) {
           Matcher sessMatcher = pattern.matcher(sessVars);
           while (sessMatcher.find()) {
-            connParams.getSessionVars().put(sessMatcher.group(1), sessMatcher.group(2));
+            if (connParams.getSessionVars().put(sessMatcher.group(1), sessMatcher.group(2)) != null) {
+              throw new IllegalArgumentException("Bad URL format: Multiple values for property " + sessMatcher.group(1));
+            }
           }
         }
       }
@@ -234,8 +236,8 @@ public class Utils {
    * @param fullVersion
    *          version string.
    * @param tokenPosition
-   *          position of version string to get starting at 1. eg, for a X.x.xxx
-   *          string, 1 will return the major version, 2 will return minor
+   *          position of version string to get starting at 0. eg, for a X.x.xxx
+   *          string, 0 will return the major version, 1 will return minor
    *          version.
    * @return version part, or -1 if version string was malformed.
    */

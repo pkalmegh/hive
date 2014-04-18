@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hive.service.cli.CLIServiceClient;
 import org.apache.hive.service.cli.OperationHandle;
 import org.apache.hive.service.cli.RowSet;
@@ -41,18 +42,19 @@ public class TestHiveServer2 {
   private Map<String, String> confOverlay;
 
   @BeforeClass
-  public static void beforeTest() throws IOException {
+  public static void beforeTest() throws Exception {
     miniHS2 = new MiniHS2(new HiveConf());
   }
 
   @Before
   public void setUp() throws Exception {
-    miniHS2.start();
     confOverlay = new HashMap<String, String>();
+    confOverlay.put(ConfVars.HIVE_SUPPORT_CONCURRENCY.varname, "false");
+    miniHS2.start(confOverlay);
   }
 
   @After
-  public void tearDown() {
+  public void tearDown() throws Exception {
     miniHS2.stop();
   }
 

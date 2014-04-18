@@ -547,4 +547,11 @@ public class TestUnsignedInt128 {
     BigInteger ans = bigInteger1.divide(bigInteger2);
     assertEquals(ans, complicated1.toBigIntegerSlow());
   }
+
+  @Test
+  public void testBigIntConversion() {
+    BigInteger bigInteger = BigInteger.valueOf(0x1ABCDEF0123456L);
+    UnsignedInt128 uInt128 = new UnsignedInt128(bigInteger);
+    assertEquals(bigInteger, uInt128.toBigIntegerSlow());
+  }
 }

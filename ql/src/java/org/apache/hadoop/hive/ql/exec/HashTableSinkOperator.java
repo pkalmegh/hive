@@ -18,6 +18,7 @@
 package org.apache.hadoop.hive.ql.exec;
 
 import java.io.BufferedOutputStream;
+import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -26,13 +27,16 @@ import java.util.List;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.mapjoin.MapJoinMemoryExhaustionHandler;
 import org.apache.hadoop.hive.ql.exec.persistence.HashMapWrapper;
+import org.apache.hadoop.hive.ql.exec.persistence.MapJoinKeyObject;
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinKey;
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinObjectSerDeContext;
+import org.apache.hadoop.hive.ql.exec.persistence.MapJoinEagerRowContainer;
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinRowContainer;
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinTableContainer;
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinTableContainerSerDe;
@@ -49,11 +53,10 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils.Object
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.util.ReflectionUtils;
 
-
 public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> implements
     Serializable {
   private static final long serialVersionUID = 1L;
-  private static final Log LOG = LogFactory.getLog(HashTableSinkOperator.class.getName());
+  protected static final Log LOG = LogFactory.getLog(HashTableSinkOperator.class.getName());
 
   /**
    * The expressions for join inputs's join keys.
@@ -88,19 +91,16 @@ public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> i
 
   private transient Byte[] order; // order in which the results should
   private Configuration hconf;
-  private transient Byte alias;
 
   private transient MapJoinTableContainer[] mapJoinTables;
-  private transient MapJoinTableContainerSerDe[] mapJoinTableSerdes;  
+  private transient MapJoinTableContainerSerDe[] mapJoinTableSerdes;
 
   private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
-  private static final MapJoinRowContainer EMPTY_ROW_CONTAINER = new MapJoinRowContainer();
+  private static final MapJoinEagerRowContainer EMPTY_ROW_CONTAINER = new MapJoinEagerRowContainer();
   static {
-    EMPTY_ROW_CONTAINER.add(EMPTY_OBJECT_ARRAY);
+    EMPTY_ROW_CONTAINER.addRow(EMPTY_OBJECT_ARRAY);
   }
   
-  private transient boolean noOuterJoin;
-
   private long rowNumber = 0;
   private transient LogHelper console;
   private long hashTableScale;
@@ -129,7 +129,6 @@ public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> i
     // initialize some variables, which used to be initialized in CommonJoinOperator
     this.hconf = hconf;
 
-    noOuterJoin = conf.isNoOuterJoin();
     filterMaps = conf.getFilterMap();
 
     int tagLen = conf.getTagLength();
@@ -152,10 +151,9 @@ public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> i
     joinFilterObjectInspectors = JoinUtil.getObjectInspectorsFromEvaluators(joinFilters,
         inputObjInspectors, posBigTableAlias, tagLen);
 
-    if (!noOuterJoin) {
-      List<ObjectInspector>[] rowContainerObjectInspectors = new List[tagLen];
+    if (!conf.isNoOuterJoin()) {
       for (Byte alias : order) {
-        if (alias == posBigTableAlias) {
+        if (alias == posBigTableAlias || joinValues[alias] == null) {
           continue;
         }
         List<ObjectInspector> rcOIs = joinValuesObjectInspectors[alias];
@@ -164,7 +162,6 @@ public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> i
           rcOIs = new ArrayList<ObjectInspector>(rcOIs);
           rcOIs.add(PrimitiveObjectInspectorFactory.writableShortObjectInspector);
         }
-        rowContainerObjectInspectors[alias] = rcOIs;
       }
     }
     mapJoinTables = new MapJoinTableContainer[tagLen];
@@ -186,7 +183,7 @@ public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> i
         if (pos == posBigTableAlias) {
           continue;
         }
-        mapJoinTables[pos] = new HashMapWrapper(hashTableThreshold, hashTableLoadFactor);        
+        mapJoinTables[pos] = new HashMapWrapper(hashTableThreshold, hashTableLoadFactor);
         TableDesc valueTableDesc = conf.getValueTblFilteredDescs().get(pos);
         SerDe valueSerDe = (SerDe) ReflectionUtils.newInstance(valueTableDesc.getDeserializerClass(), null);
         valueSerDe.initialize(null, valueTableDesc.getProperties());
@@ -198,7 +195,9 @@ public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> i
     }
   }
 
-
+  public MapJoinTableContainer[] getMapJoinTables() {
+    return mapJoinTables;
+  }
 
   private static List<ObjectInspector>[] getStandardObjectInspectors(
       List<ObjectInspector>[] aliasToObjectInspectors, int maxTag) {
@@ -225,10 +224,10 @@ public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> i
    */
   @Override
   public void processOp(Object row, int tag) throws HiveException {
-    alias = (byte)tag;
-    // compute keys and values as StandardObjects
-    MapJoinKey key = JoinUtil.computeMapJoinKeys(null, row, joinKeys[alias],
-        joinKeysObjectInspectors[alias]);
+    byte alias = (byte)tag;
+    // compute keys and values as StandardObjects. Use non-optimized key (MR).
+    MapJoinKey key = MapJoinKey.readFromRow(null, new MapJoinKeyObject(),
+        row, joinKeys[alias], joinKeysObjectInspectors[alias], true);
     Object[] value = EMPTY_OBJECT_ARRAY;
     if((hasFilter(alias) && filterMaps[alias].length > 0) || joinValues[alias].size() > 0) {
       value = JoinUtil.computeMapJoinValues(row, joinValues[alias],
@@ -239,8 +238,8 @@ public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> i
     MapJoinRowContainer rowContainer = tableContainer.get(key);
     if (rowContainer == null) {
       if(value.length != 0) {
-        rowContainer = new MapJoinRowContainer();
-        rowContainer.add(value);
+        rowContainer = new MapJoinEagerRowContainer();
+        rowContainer.addRow(value);
       } else {
         rowContainer = EMPTY_ROW_CONTAINER;
       }
@@ -251,10 +250,10 @@ public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> i
       tableContainer.put(key, rowContainer);
     } else if (rowContainer == EMPTY_ROW_CONTAINER) {
       rowContainer = rowContainer.copy();
-      rowContainer.add(value);
+      rowContainer.addRow(value);
       tableContainer.put(key, rowContainer);
     } else {
-      rowContainer.add(value);
+      rowContainer.addRow(value);
     }
   }
   private boolean hasFilter(int alias) {
@@ -264,38 +263,46 @@ public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> i
   @Override
   public void closeOp(boolean abort) throws HiveException {
     try {
-      if (mapJoinTables != null) {
-        // get tmp path
-        Path tmpPath = this.getExecContext().getLocalWork().getTmpPath();
-        LOG.info("Temp URI for side table: " + tmpPath);
-        for (byte tag = 0; tag < mapJoinTables.length; tag++) {
-          // get the key and value
-          MapJoinTableContainer tableContainer = mapJoinTables[tag];
-          if (tableContainer == null) {
-            continue;
-          }
-          // get current input file name
-          String bigBucketFileName = getExecContext().getCurrentBigBucketFile();
-          String fileName = getExecContext().getLocalWork().getBucketFileName(bigBucketFileName);
-          // get the tmp URI path; it will be a hdfs path if not local mode
-          String dumpFilePrefix = conf.getDumpFilePrefix();
-          Path path = Utilities.generatePath(tmpPath, dumpFilePrefix, tag, fileName);
-          console.printInfo(Utilities.now() + "\tDump the side-table into file: " + path);
-          // get the hashtable file and path
-          FileSystem fs = path.getFileSystem(hconf);
-          ObjectOutputStream out = new ObjectOutputStream(new BufferedOutputStream(fs.create(path), 4096));
-          try {
-            mapJoinTableSerdes[tag].persist(out, tableContainer);
-          } finally {
-            out.close();
-          }
-          tableContainer.clear();
-          console.printInfo(Utilities.now() + "\tUpload 1 File to: " + path);
-        }
+      if (mapJoinTables == null) {
+        LOG.debug("mapJoinTables is null");
+      } else {
+        flushToFile();
       }
       super.closeOp(abort);
     } catch (Exception e) {
       LOG.error("Error generating side-table", e);
+    }
+  }
+
+  protected void flushToFile() throws IOException, HiveException {
+    // get tmp file URI
+    Path tmpURI = getExecContext().getLocalWork().getTmpPath();
+    LOG.info("Temp URI for side table: " + tmpURI);
+    for (byte tag = 0; tag < mapJoinTables.length; tag++) {
+      // get the key and value
+      MapJoinTableContainer tableContainer = mapJoinTables[tag];
+      if (tableContainer == null) {
+        continue;
+      }
+      // get current input file name
+      String bigBucketFileName = getExecContext().getCurrentBigBucketFile();
+      String fileName = getExecContext().getLocalWork().getBucketFileName(bigBucketFileName);
+      // get the tmp URI path; it will be a hdfs path if not local mode
+      String dumpFilePrefix = conf.getDumpFilePrefix();
+      Path path = Utilities.generatePath(tmpURI, dumpFilePrefix, tag, fileName);
+      console.printInfo(Utilities.now() + "\tDump the side-table into file: " + path);
+      // get the hashtable file and path
+      FileSystem fs = path.getFileSystem(hconf);
+      ObjectOutputStream out = new ObjectOutputStream(new BufferedOutputStream(fs.create(path), 4096));
+      try {
+        mapJoinTableSerdes[tag].persist(out, tableContainer);
+      } finally {
+        out.close();
+      }
+      tableContainer.clear();
+      FileStatus status = fs.getFileStatus(path);
+      console.printInfo(Utilities.now() + "\tUploaded 1 File to: " + path +
+          " (" + status.getLen() + " bytes)");
     }
   }
 

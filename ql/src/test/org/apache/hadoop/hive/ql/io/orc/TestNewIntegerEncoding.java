@@ -20,13 +20,7 @@ package org.apache.hadoop.hive.ql.io.orc;
 import static junit.framework.Assert.assertEquals;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
-import java.nio.charset.Charset;
 import java.sql.Timestamp;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
@@ -65,37 +59,12 @@ public class TestNewIntegerEncoding {
     }
   }
 
-  public List<Long> fetchData(String path) throws IOException {
-    List<Long> input = new ArrayList<Long>();
-    FileInputStream stream = new FileInputStream(new File(path));
-    try {
-      FileChannel fc = stream.getChannel();
-      MappedByteBuffer bb = fc.map(FileChannel.MapMode.READ_ONLY, 0, fc.size());
-      /* Instead of using default, pass in a decoder. */
-      String[] lines = Charset.defaultCharset().decode(bb).toString()
-          .split("\n");
-      for(String line : lines) {
-        long val = 0;
-        try {
-          val = Long.parseLong(line);
-        } catch (NumberFormatException e) {
-          // for now lets ignore (assign 0)
-        }
-        input.add(val);
-      }
-    } finally {
-      stream.close();
-    }
-    return input;
-  }
-
   Path workDir = new Path(System.getProperty("test.tmp.dir", "target"
       + File.separator + "test" + File.separator + "tmp"));
 
   Configuration conf;
   FileSystem fs;
   Path testFilePath;
-  String resDir = "ql/src/test/resources";
 
   @Rule
   public TestName testCaseName = new TestName();
@@ -128,8 +97,9 @@ public class TestNewIntegerEncoding {
     writer.addRow(new Row(111, 1111L));
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     while (rows.hasNext()) {
       Object row = rows.next(null);
       assertEquals(new IntWritable(111), ((OrcStruct) row).getFieldValue(0));
@@ -162,8 +132,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -197,8 +168,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -228,8 +200,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -259,8 +232,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -290,8 +264,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -321,8 +296,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -351,8 +327,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -382,8 +359,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -413,8 +391,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -444,8 +423,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -478,8 +458,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -512,8 +493,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -554,8 +536,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -596,8 +579,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -638,8 +622,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -671,8 +656,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -706,8 +692,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -741,8 +728,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -775,8 +763,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -809,8 +798,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -843,8 +833,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -877,8 +868,172 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
+    int idx = 0;
+    while (rows.hasNext()) {
+      Object row = rows.next(null);
+      assertEquals(input.get(idx++).longValue(), ((LongWritable) row).get());
+    }
+  }
+
+  @Test
+  public void testPatchedBaseMax1() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector(Long.class,
+          ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+
+    List<Long> input = Lists.newArrayList();
+    Random rand = new Random();
+    for (int i = 0; i < 5120; i++) {
+      input.add((long) rand.nextInt(60));
+    }
+    input.set(511, Long.MAX_VALUE);
+
+    Writer writer = OrcFile.createWriter(testFilePath,
+        OrcFile.writerOptions(conf).inspector(inspector).stripeSize(100000).bufferSize(10000));
+    for (Long l : input) {
+      writer.addRow(l);
+    }
+    writer.close();
+
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
+    int idx = 0;
+    while (rows.hasNext()) {
+      Object row = rows.next(null);
+      assertEquals(input.get(idx++).longValue(), ((LongWritable) row).get());
+    }
+  }
+
+  @Test
+  public void testPatchedBaseMax2() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector(Long.class,
+          ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+
+    List<Long> input = Lists.newArrayList();
+    Random rand = new Random();
+    for (int i = 0; i < 5120; i++) {
+      input.add((long) rand.nextInt(60));
+    }
+    input.set(128, Long.MAX_VALUE);
+    input.set(256, Long.MAX_VALUE);
+    input.set(511, Long.MAX_VALUE);
+
+    Writer writer = OrcFile.createWriter(testFilePath,
+        OrcFile.writerOptions(conf).inspector(inspector).stripeSize(100000).bufferSize(10000));
+    for (Long l : input) {
+      writer.addRow(l);
+    }
+    writer.close();
+
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
+    int idx = 0;
+    while (rows.hasNext()) {
+      Object row = rows.next(null);
+      assertEquals(input.get(idx++).longValue(), ((LongWritable) row).get());
+    }
+  }
+
+  @Test
+  public void testPatchedBaseMax3() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector(Long.class,
+          ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+
+    List<Long> input = Lists.newArrayList();
+    input.add(371946367L);
+    input.add(11963367L);
+    input.add(68639400007L);
+    input.add(100233367L);
+    input.add(6367L);
+    input.add(10026367L);
+    input.add(3670000L);
+    input.add(3602367L);
+    input.add(4719226367L);
+    input.add(7196367L);
+    input.add(444442L);
+    input.add(210267L);
+    input.add(21033L);
+    input.add(160267L);
+    input.add(400267L);
+    input.add(23634347L);
+    input.add(16027L);
+    input.add(46026367L);
+    input.add(Long.MAX_VALUE);
+    input.add(33333L);
+
+    Writer writer = OrcFile.createWriter(testFilePath,
+        OrcFile.writerOptions(conf).inspector(inspector).stripeSize(100000).bufferSize(10000));
+    for (Long l : input) {
+      writer.addRow(l);
+    }
+    writer.close();
+
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
+    int idx = 0;
+    while (rows.hasNext()) {
+      Object row = rows.next(null);
+      assertEquals(input.get(idx++).longValue(), ((LongWritable) row).get());
+    }
+  }
+
+  @Test
+  public void testPatchedBaseMax4() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector(Long.class,
+          ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+
+    List<Long> input = Lists.newArrayList();
+    for (int i = 0; i < 25; i++) {
+      input.add(371292224226367L);
+      input.add(119622332222267L);
+      input.add(686329400222007L);
+      input.add(100233333222367L);
+      input.add(636272333322222L);
+      input.add(10202633223267L);
+      input.add(36700222022230L);
+      input.add(36023226224227L);
+      input.add(47192226364427L);
+      input.add(71963622222447L);
+      input.add(22244444222222L);
+      input.add(21220263327442L);
+      input.add(21032233332232L);
+      input.add(16026322232227L);
+      input.add(40022262272212L);
+      input.add(23634342227222L);
+      input.add(16022222222227L);
+      input.add(46026362222227L);
+      input.add(46026362222227L);
+      input.add(33322222222323L);
+    }
+    input.add(Long.MAX_VALUE);
+
+    Writer writer = OrcFile.createWriter(testFilePath,
+        OrcFile.writerOptions(conf).inspector(inspector).stripeSize(100000).bufferSize(10000));
+    for (Long l : input) {
+      writer.addRow(l);
+    }
+    writer.close();
+
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -938,8 +1093,9 @@ public class TestNewIntegerEncoding {
 
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 0;
     while (rows.hasNext()) {
       Object row = rows.next(null);
@@ -966,8 +1122,9 @@ public class TestNewIntegerEncoding {
     writer.addRow(-5535739865598783616L);
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     Object row = rows.next(null);
     assertEquals(-7486502418706614742L, ((LongWritable) row).get());
     row = rows.next(row);
@@ -1005,8 +1162,9 @@ public class TestNewIntegerEncoding {
     }
     writer.close();
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
-    RecordReader rows = reader.rows(null);
+    Reader reader = OrcFile.createReader(testFilePath,
+        OrcFile.readerOptions(conf).filesystem(fs));
+    RecordReader rows = reader.rows();
     int idx = 55555;
     rows.seekToRow(idx);
     while (rows.hasNext()) {

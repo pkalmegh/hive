@@ -39,6 +39,7 @@ import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.hadoop.hive.ql.io.RCFileInputFormat;
 import org.apache.hadoop.hive.ql.io.RCFileOutputFormat;
 import org.apache.hadoop.hive.serde2.columnar.ColumnarSerDe;
@@ -84,12 +85,17 @@ public abstract class HCatMapReduceTest extends HCatBaseTest {
   protected abstract List<FieldSchema> getTableColumns();
 
   private static FileSystem fs;
+  private String externalTableLocation = null;
 
   protected Boolean isTableExternal() {
     return false;
   }
 
-  protected String inputFormat() { 
+  protected boolean isTableImmutable() {
+    return true;
+  }
+
+  protected String inputFormat() {
     return RCFileInputFormat.class.getName();
   }
 
@@ -123,6 +129,12 @@ public abstract class HCatMapReduceTest extends HCatBaseTest {
       String databaseName = (dbName == null) ? MetaStoreUtils.DEFAULT_DATABASE_NAME : dbName;
 
       client.dropTable(databaseName, tableName);
+      // in case of external table, drop the table contents as well
+      if (isTableExternal() && (externalTableLocation != null)) {
+        if (fs.exists(new Path(externalTableLocation))) {
+          fs.delete(new Path(externalTableLocation), true);
+        }
+      }
     } catch (Exception e) {
       e.printStackTrace();
       throw e;
@@ -167,6 +179,12 @@ public abstract class HCatMapReduceTest extends HCatBaseTest {
     sd.setOutputFormat(outputFormat());
 
     Map<String, String> tableParams = new HashMap<String, String>();
+    if (isTableExternal()) {
+      tableParams.put("EXTERNAL", "TRUE");
+    }
+    if (isTableImmutable()){
+      tableParams.put(hive_metastoreConstants.IS_IMMUTABLE,"true");
+    }
     tbl.setParameters(tableParams);
 
     client.createTable(tbl);
@@ -234,7 +252,8 @@ public abstract class HCatMapReduceTest extends HCatBaseTest {
   Job runMRCreate(Map<String, String> partitionValues,
           List<HCatFieldSchema> partitionColumns, List<HCatRecord> records,
           int writeCount, boolean assertWrite) throws Exception {
-    return runMRCreate(partitionValues, partitionColumns, records, writeCount, assertWrite, true);
+    return runMRCreate(partitionValues, partitionColumns, records, writeCount, assertWrite,
+        true, null);
   }
 
   /**
@@ -250,7 +269,8 @@ public abstract class HCatMapReduceTest extends HCatBaseTest {
    */
   Job runMRCreate(Map<String, String> partitionValues,
           List<HCatFieldSchema> partitionColumns, List<HCatRecord> records,
-          int writeCount, boolean assertWrite, boolean asSingleMapTask) throws Exception {
+          int writeCount, boolean assertWrite, boolean asSingleMapTask,
+          String customDynamicPathPattern) throws Exception {
 
     writeRecords = records;
     MapCreate.writeCount = 0;
@@ -283,6 +303,9 @@ public abstract class HCatMapReduceTest extends HCatBaseTest {
     job.setOutputFormatClass(HCatOutputFormat.class);
 
     OutputJobInfo outputJobInfo = OutputJobInfo.create(dbName, tableName, partitionValues);
+    if (customDynamicPathPattern != null) {
+      job.getConfiguration().set(HCatConstants.HCAT_DYNAMIC_CUSTOM_PATTERN, customDynamicPathPattern);
+    }
     HCatOutputFormat.setOutput(job, outputJobInfo);
 
     job.setMapOutputKeyClass(BytesWritable.class);
@@ -311,6 +334,10 @@ public abstract class HCatMapReduceTest extends HCatBaseTest {
     if (assertWrite) {
       // we assert only if we expected to assert with this call.
       Assert.assertEquals(writeCount, MapCreate.writeCount);
+    }
+
+    if (isTableExternal()) {
+      externalTableLocation = outputJobInfo.getTableInfo().getTableLocation();
     }
 
     return job;
@@ -374,7 +401,7 @@ public abstract class HCatMapReduceTest extends HCatBaseTest {
 
     HCatInputFormat.setInput(job, dbName, tableName);
 
-    return HCatInputFormat.getTableSchema(job);
+    return HCatInputFormat.getTableSchema(job.getConfiguration());
   }
 
 }

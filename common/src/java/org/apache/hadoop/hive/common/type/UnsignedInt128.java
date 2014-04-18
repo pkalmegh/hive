@@ -15,10 +15,13 @@
  */
 package org.apache.hadoop.hive.common.type;
 
+import java.io.Serializable;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.Arrays;
-import org.apache.hadoop.hive.common.type.SqlMathUtil;
+
+import org.apache.hive.common.util.Decimal128FastBuffer;
 
 /**
  * This code was originally written for Microsoft PolyBase.
@@ -33,7 +36,7 @@ import org.apache.hadoop.hive.common.type.SqlMathUtil;
  * SQL (e.g., exact POWER/SQRT).</li>
  * </ul>
  */
-public final class UnsignedInt128 implements Comparable<UnsignedInt128> {
+public final class UnsignedInt128 implements Comparable<UnsignedInt128>, Serializable {
 
   /** Number of ints to store this object. */
   public static final int INT_COUNT = 4;
@@ -59,7 +62,7 @@ public final class UnsignedInt128 implements Comparable<UnsignedInt128> {
    * Int32 elements as little-endian (v[0] is least significant) unsigned
    * integers.
    */
-  private final int[] v = new int[INT_COUNT];
+  private int[] v = new int[INT_COUNT];
 
   /**
    * Number of leading non-zero elements in {@link #v}. For example, if the
@@ -68,7 +71,7 @@ public final class UnsignedInt128 implements Comparable<UnsignedInt128> {
    *
    * @see #updateCount()
    */
-  private transient byte count;
+  private byte count;
 
   /**
    * Determines the number of ints to store one value.
@@ -117,11 +120,7 @@ public final class UnsignedInt128 implements Comparable<UnsignedInt128> {
    *          v3
    */
   public UnsignedInt128(int v0, int v1, int v2, int v3) {
-    this.v[0] = v0;
-    this.v[1] = v1;
-    this.v[2] = v2;
-    this.v[3] = v3;
-    updateCount();
+    update(v0, v1, v2, v3);
   }
 
   /**
@@ -156,6 +155,32 @@ public final class UnsignedInt128 implements Comparable<UnsignedInt128> {
    */
   public UnsignedInt128(char[] str, int offset, int length) {
     update(str, offset, length);
+  }
+
+  /**
+   * Constructs from the given BigInteger
+   *
+   * @param bigInt
+   *          java BigInteger
+   */
+  public UnsignedInt128(BigInteger bigInt) {
+    update(bigInt);
+  }
+
+  /**
+   * Updates the value of this object from the given {@link BigInteger}.
+   * Only positive BigIntegers are expected and behavior is undefined for
+   * negative BigIntegers.
+   *
+   * @param bigInt
+   *          java BigInteger
+   */
+  public void update(BigInteger bigInt) {
+    int v0 = bigInt.intValue();
+    int v1 = bigInt.shiftRight(32).intValue();
+    int v2 = bigInt.shiftRight(64).intValue();
+    int v3 = bigInt.shiftRight(96).intValue();
+    update(v0, v1, v2, v3);
   }
 
   /** @return v[0] */
@@ -957,6 +982,63 @@ public final class UnsignedInt128 implements Comparable<UnsignedInt128> {
     }
   }
 
+  /**
+   * Similar to {@link #toFormalString()} but returns an array of digits
+   * instead of string. The length of the array and the count of trailing
+   * zeros are returned in the array passed at first and second positions
+   * respectively.
+   * @param meta Array of size two that is populated with length of the returned array
+   *             and the count of trailing zeros.
+   * @return Digits of the this value
+   * @throws NullPointerException if meta is null.
+   * @throws ArrayIndexOutOfBoundsException if meta is less than size two.
+   */
+  public char [] getDigitsArray(int [] meta) {
+    char[] buf = new char[MAX_DIGITS + 1];
+    int bufCount = 0;
+    int nonZeroBufCount = 0;
+    int trailingZeros = 0;
+
+    final int tenScale = SqlMathUtil.MAX_POWER_TEN_INT31;
+    final int tenPower = SqlMathUtil.POWER_TENS_INT31[tenScale];
+    UnsignedInt128 tmp = new UnsignedInt128(this);
+
+    while (!tmp.isZero()) {
+      int remainder = tmp.divideDestructive(tenPower);
+      for (int i = 0; i < tenScale && bufCount < buf.length; ++i) {
+        int digit = remainder % 10;
+        remainder /= 10;
+        buf[bufCount] = (char) (digit + '0');
+        ++bufCount;
+        if (digit != 0) {
+          nonZeroBufCount = bufCount;
+        }
+        if (nonZeroBufCount == 0) {
+
+          // Count zeros until first non-zero digit is encountered.
+          trailingZeros++;
+        }
+      }
+    }
+
+    if (bufCount == 0) {
+      meta[0] = 1;
+      meta[1] = 1;
+      buf[0] = '0';
+      return buf;
+    } else {
+      // Reverse in place
+      for (int i = 0, j = nonZeroBufCount - 1; i < j; i++, j--) {
+        char t = buf[i];
+        buf[i] = buf[j];
+        buf[j] = t;
+      }
+      meta[0] = nonZeroBufCount;
+      meta[1] = trailingZeros;
+      return buf;
+    }
+  }
+
   @Override
   public String toString() {
     StringBuilder str = new StringBuilder();
@@ -1349,6 +1431,30 @@ public final class UnsignedInt128 implements Comparable<UnsignedInt128> {
     }
     updateCount();
     return (int) remainder;
+  }
+
+  /**
+   * Divides this value with the given value. This version is destructive,
+   * meaning it modifies this object.
+   *
+   * @param right
+   *          the value to divide
+   * @return remainder
+   */
+  public long divideDestructive(long right) {
+    assert (right >= 0);
+
+    long quotient;
+    long remainder = 0;
+
+    for (int i = INT_COUNT - 1; i >= 0; --i) {
+      remainder = ((this.v[i] & SqlMathUtil.LONG_MASK) + (remainder << 32));
+      quotient = remainder / right;
+      remainder %= right;
+      this.v[i] = (int) quotient;
+    }
+    updateCount();
+    return remainder;
   }
 
   /**
@@ -1953,6 +2059,8 @@ public final class UnsignedInt128 implements Comparable<UnsignedInt128> {
       SqlMathUtil.throwOverflowException();
     }
 
+    result.updateCount();
+
     return cmp > 0 ? (byte) 1 : (byte) -1;
   }
 
@@ -2370,7 +2478,7 @@ public final class UnsignedInt128 implements Comparable<UnsignedInt128> {
     }
   }
 
-  /** Updates the value of {@link #cnt} by checking {@link #v}. */
+  /** Updates the value of {@link #count} by checking {@link #v}. */
   private void updateCount() {
     if (v[3] != 0) {
       this.count = (byte) 4;
@@ -2383,5 +2491,233 @@ public final class UnsignedInt128 implements Comparable<UnsignedInt128> {
     } else {
       this.count = (byte) 0;
     }
+  }
+  
+   /*(non-Javadoc)
+   * Serializes one int part into the given @{link #ByteBuffer} 
+   *  considering two's complement for negatives.
+   */
+    private static void fastSerializeIntPartForHiveDecimal(ByteBuffer buf, 
+        int pos, int value, byte signum, boolean isFirstNonZero) {
+      if (signum == -1 && value != 0) {
+        value = (isFirstNonZero ? -value : ~value);
+      }
+      buf.putInt(pos, value);
+    }
+
+    /* (non-Javadoc)
+     * Serializes this value into the format used by @{link #java.math.BigInteger}
+     * This is used for fast assignment of a Decimal128 to a HiveDecimalWritable internal storage.
+     * See OpenJDK BigInteger.toByteArray for a reference implementation. 
+     * @param scratch
+     * @param signum
+     * @return
+     */
+  public int fastSerializeForHiveDecimal(Decimal128FastBuffer scratch, byte signum) {
+    int bufferUsed = this.count;
+    ByteBuffer buf = scratch.getByteBuffer(bufferUsed);
+    buf.put(0, (byte) (signum == 1 ? 0 : signum));
+    int pos = 1;
+    int firstNonZero = 0;
+    while(firstNonZero < this.count && v[firstNonZero] == 0) {
+        ++firstNonZero;
+    }
+    switch(this.count) {
+    case 4:
+      fastSerializeIntPartForHiveDecimal(buf, pos, v[3], signum, firstNonZero == 3);
+      pos+=4;
+      // intentional fall through
+    case 3:
+      fastSerializeIntPartForHiveDecimal(buf, pos, v[2], signum, firstNonZero == 2);
+      pos+=4;
+      // intentional fall through
+    case 2:
+      fastSerializeIntPartForHiveDecimal(buf, pos, v[1], signum, firstNonZero == 1);
+      pos+=4;
+      // intentional fall through
+    case 1:
+      fastSerializeIntPartForHiveDecimal(buf, pos, v[0], signum, true);
+    }
+    return bufferUsed;
+  }
+
+  /**
+   * Updates this value from a serialized unscaled {@link java.math.BigInteger} representation.
+   * This is used for fast update of a Decimal128 from a HiveDecimalWritable internal storage.
+   * @param internalStorage
+   * @return
+   */
+    public byte fastUpdateFromInternalStorage(byte[] internalStorage) {
+        byte signum = 0;
+        int skip = 0;
+        this.count = 0;
+        // Skip over any leading 0s or 0xFFs
+        byte firstByte = internalStorage[0];
+        if (firstByte == 0 || firstByte == -1) {
+            while((skip < internalStorage.length) &&
+              (internalStorage[skip] == firstByte)) {
+                ++skip;
+            }
+        }
+        if (skip == internalStorage.length) {
+          // The entire storage is 0x00s or 0xFFs
+          // 0x00s means is 0
+          // 0xFFs means is -1
+          assert (firstByte == 0 || firstByte == -1);
+          if (firstByte == -1) {
+             signum = -1;
+             this.count = 1;
+             this.v[0] = 1;
+          }
+          else {
+            signum = 0;
+          }
+        }
+        else {
+            // We skipped over leading 0x00s and 0xFFs
+            // Important, signum is given by the firstByte, not by byte[keep]!
+            signum = (firstByte < 0) ? (byte) -1 : (byte) 1;
+
+            // Now we read the big-endian compacted two's complement int parts
+            // Compacted means they are stripped of leading 0x00s and 0xFFs
+            // This is why we do the intLength/pos tricks bellow
+            // 'length' is all the bytes we have to read, after we skip 'skip'
+            // 'pos' is where to start reading the current int
+            // 'intLength' is how many bytes we read for the current int
+
+            int length = internalStorage.length - skip;
+            int pos = skip;
+            int intLength = 0;
+            switch(length) {
+            case 16: ++intLength; //intentional fall through
+            case 15: ++intLength;
+            case 14: ++intLength;
+            case 13: ++intLength;
+                v[3] = fastUpdateIntFromInternalStorage(internalStorage, signum, pos, intLength);
+                ++this.count;
+                pos += intLength;
+                intLength = 0;
+                //intentional fall through
+            case 12: ++intLength; //intentional fall through
+            case 11: ++intLength;
+            case 10: ++intLength;
+            case 9: ++intLength;
+                v[2] = fastUpdateIntFromInternalStorage(internalStorage, signum, pos, intLength);
+                ++this.count;
+                pos += intLength;
+                intLength = 0;
+                //intentional fall through
+            case 8: ++intLength; //intentional fall through
+            case 7: ++intLength;
+            case 6: ++intLength;
+            case 5: ++intLength;
+                v[1] = fastUpdateIntFromInternalStorage(internalStorage, signum, pos, intLength);
+                ++this.count;
+                pos += intLength;
+                intLength = 0;
+                //intentional fall through
+            case 4: ++intLength; //intentional fall through
+            case 3: ++intLength;
+            case 2: ++intLength;
+            case 1: ++intLength;
+                v[0] = fastUpdateIntFromInternalStorage(internalStorage, signum, pos, intLength);
+                ++this.count;
+                break;
+            default:
+                // This should not happen
+                throw new RuntimeException("Impossible HiveDecimal internal storage length!");
+            }
+            if (signum == -1) {
+                // So far we've read the one's complement
+                // add 1 to turn it into two's complement
+                for(int i = 0; i < this.count; ++i) {
+                    if (v[i] != 0) {
+                        v[i] = (int)((v[i] & 0xFFFFFFFFL) + 1);
+                        if (v[i] != 0) {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        return signum;
+    }
+
+    /**
+     * reads one int part from the two's complement Big-Endian compacted representation,
+     * starting from index pos
+     * @param internalStorage {@link java.math.BigInteger} serialized representation
+     * @param pos
+     * @return
+     */
+    private int fastUpdateIntFromInternalStorage(byte[] internalStorage,
+            byte signum, int pos, int length) {
+      // due to the way we use the allocation-free cast from HiveDecimalWriter to decimal128,
+      // we do not have the luxury of a ByteBuffer...
+      byte b0, b1, b2, b3;
+      if (signum == -1) {
+          b1=b2=b3 = (byte)-1;
+      }
+      else {
+          b1=b2=b3=0;
+      }
+      switch(length) {
+      case 4:
+          b3 = internalStorage[pos];
+          ++pos;
+          //intentional fall through
+      case 3:
+          b2 = internalStorage[pos];
+          ++pos;
+          //intentional fall through
+      case 2:
+          b1 = internalStorage[pos];
+          ++pos;
+          //intentional fall through
+      case 1:
+          b0 = internalStorage[pos];
+          break;
+      default:
+          // this should never happen
+          throw new RuntimeException("Impossible HiveDecimal internal storage position!");
+      }
+
+      int value = ((int)b0        & 0x000000FF) |
+              (((int)b1 <<  8) & 0x0000FF00) |
+              (((int)b2 << 16) & 0x00FF0000) |
+              (((int)b3 << 24) & 0xFF000000);
+
+      if (signum == -1 && value != 0) {
+          // Make one's complement, masked only for the bytes read
+          int mask = -1 >>> (8*(4-length));
+          value = ~value & mask;
+      }
+      return value;
+    }
+
+  public int[] getV() {
+    return v;
+  }
+
+  /**
+   * This setter is only for de-serialization, should not be used otherwise.
+   */
+  public void setV(int [] v) {
+    this.v[0] = v[0];
+    this.v[1] = v[1];
+    this.v[2] = v[2];
+    this.v[3] = v[3];
+    updateCount();
+  }
+
+  public byte getCount() {
+    return count;
+  }
+
+  /**
+   * This setter is only for de-serialization, should not be used otherwise.
+   */
+  public void setCount(byte count) {
+    this.count = count;
   }
 }

@@ -16,6 +16,7 @@ partitioned by (ds String, hr String)
 skewed by (key, value) on (('484','val_484'),('238','val_238')) 
 stored as DIRECTORIES
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: -- INCLUDE_HADOOP_MAJOR_VERSIONS(0.23)	
 
 -- List bucketing query logic test case. We simulate the directory structure by DML here.
@@ -34,6 +35,7 @@ partitioned by (ds String, hr String)
 skewed by (key, value) on (('484','val_484'),('238','val_238')) 
 stored as DIRECTORIES
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@fact_daily
 PREHOOK: query: insert overwrite table fact_daily partition (ds = '1', hr = '4')
 select key, value from src
@@ -49,20 +51,22 @@ POSTHOOK: Lineage: fact_daily PARTITION(ds=1,hr=4).key SIMPLE [(src)src.FieldSch
 POSTHOOK: Lineage: fact_daily PARTITION(ds=1,hr=4).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: describe formatted fact_daily PARTITION (ds = '1', hr='4')
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@fact_daily
 POSTHOOK: query: describe formatted fact_daily PARTITION (ds = '1', hr='4')
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@fact_daily
 POSTHOOK: Lineage: fact_daily PARTITION(ds=1,hr=4).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: fact_daily PARTITION(ds=1,hr=4).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-ds                  	string              	None                
-hr                  	string              	None                
+ds                  	string              	                    
+hr                  	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[1, 4]              	 
@@ -118,7 +122,46 @@ POSTHOOK: type: QUERY
 POSTHOOK: Lineage: fact_daily PARTITION(ds=1,hr=4).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: fact_daily PARTITION(ds=1,hr=4).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 ABSTRACT SYNTAX TREE:
-  (TOK_QUERY (TOK_FROM (TOK_TABREF (TOK_TABNAME fact_daily))) (TOK_INSERT (TOK_DESTINATION (TOK_DIR TOK_TMP_FILE)) (TOK_SELECT (TOK_SELEXPR (TOK_TABLE_OR_COL key)) (TOK_SELEXPR (TOK_TABLE_OR_COL value))) (TOK_WHERE (and (and (= (TOK_TABLE_OR_COL ds) '1') (= (TOK_TABLE_OR_COL hr) '4')) (= (TOK_TABLE_OR_COL value) 'val_484'))) (TOK_ORDERBY (TOK_TABSORTCOLNAMEASC (TOK_TABLE_OR_COL key)) (TOK_TABSORTCOLNAMEASC (TOK_TABLE_OR_COL value)))))
+  
+TOK_QUERY
+   TOK_FROM
+      TOK_TABREF
+         TOK_TABNAME
+            fact_daily
+   TOK_INSERT
+      TOK_DESTINATION
+         TOK_DIR
+            TOK_TMP_FILE
+      TOK_SELECT
+         TOK_SELEXPR
+            TOK_TABLE_OR_COL
+               key
+         TOK_SELEXPR
+            TOK_TABLE_OR_COL
+               value
+      TOK_WHERE
+         and
+            and
+               =
+                  TOK_TABLE_OR_COL
+                     ds
+                  '1'
+               =
+                  TOK_TABLE_OR_COL
+                     hr
+                  '4'
+            =
+               TOK_TABLE_OR_COL
+                  value
+               'val_484'
+      TOK_ORDERBY
+         TOK_TABSORTCOLNAMEASC
+            TOK_TABLE_OR_COL
+               key
+         TOK_TABSORTCOLNAMEASC
+            TOK_TABLE_OR_COL
+               value
+
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
@@ -127,44 +170,25 @@ STAGE DEPENDENCIES:
 STAGE PLANS:
   Stage: Stage-1
     Map Reduce
-      Alias -> Map Operator Tree:
-        fact_daily 
+      Map Operator Tree:
           TableScan
             alias: fact_daily
-            Statistics:
-                numRows: 500 dataSize: 5312 basicStatsState: COMPLETE colStatsState: NONE
+            Statistics: Num rows: 500 Data size: 5312 Basic stats: COMPLETE Column stats: NONE
             GatherStats: false
             Filter Operator
               isSamplingPred: false
-              predicate:
-                  expr: (value = 'val_484')
-                  type: boolean
-              Statistics:
-                  numRows: 250 dataSize: 2656 basicStatsState: COMPLETE colStatsState: NONE
+              predicate: (value = 'val_484') (type: boolean)
+              Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
               Select Operator
-                expressions:
-                      expr: key
-                      type: string
-                      expr: value
-                      type: string
+                expressions: key (type: string), value (type: string)
                 outputColumnNames: _col0, _col1
-                Statistics:
-                    numRows: 250 dataSize: 2656 basicStatsState: COMPLETE colStatsState: NONE
+                Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
                 Reduce Output Operator
-                  key expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: string
+                  key expressions: _col0 (type: string), _col1 (type: string)
                   sort order: ++
-                  Statistics:
-                      numRows: 250 dataSize: 2656 basicStatsState: COMPLETE colStatsState: NONE
+                  Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
                   tag: -1
-                  value expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: string
+                  value expressions: _col0 (type: string), _col1 (type: string)
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -180,12 +204,14 @@ STAGE PLANS:
               COLUMN_STATS_ACCURATE true
               bucket_count -1
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.fact_daily
               numFiles 3
               numRows 500
               partition_columns ds/hr
+              partition_columns.types string:string
               rawDataSize 5312
               serialization.ddl struct fact_daily { string key, string value}
               serialization.format 1
@@ -199,10 +225,12 @@ STAGE PLANS:
               properties:
                 bucket_count -1
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.fact_daily
                 partition_columns ds/hr
+                partition_columns.types string:string
                 serialization.ddl struct fact_daily { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -222,12 +250,14 @@ STAGE PLANS:
               COLUMN_STATS_ACCURATE true
               bucket_count -1
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.fact_daily
               numFiles 3
               numRows 500
               partition_columns ds/hr
+              partition_columns.types string:string
               rawDataSize 5312
               serialization.ddl struct fact_daily { string key, string value}
               serialization.format 1
@@ -241,10 +271,12 @@ STAGE PLANS:
               properties:
                 bucket_count -1
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.fact_daily
                 partition_columns ds/hr
+                partition_columns.types string:string
                 serialization.ddl struct fact_daily { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -258,15 +290,13 @@ STAGE PLANS:
       Needs Tagging: false
       Reduce Operator Tree:
         Extract
-          Statistics:
-              numRows: 250 dataSize: 2656 basicStatsState: COMPLETE colStatsState: NONE
+          Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
           File Output Operator
             compressed: false
             GlobalTableId: 0
 #### A masked pattern was here ####
             NumFilesPerFileSink: 1
-            Statistics:
-                numRows: 250 dataSize: 2656 basicStatsState: COMPLETE colStatsState: NONE
+            Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
 #### A masked pattern was here ####
             table:
                 input format: org.apache.hadoop.mapred.TextInputFormat
@@ -313,7 +343,40 @@ POSTHOOK: type: QUERY
 POSTHOOK: Lineage: fact_daily PARTITION(ds=1,hr=4).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: fact_daily PARTITION(ds=1,hr=4).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 ABSTRACT SYNTAX TREE:
-  (TOK_QUERY (TOK_FROM (TOK_TABREF (TOK_TABNAME fact_daily))) (TOK_INSERT (TOK_DESTINATION (TOK_DIR TOK_TMP_FILE)) (TOK_SELECT (TOK_SELEXPR (TOK_TABLE_OR_COL key))) (TOK_WHERE (and (and (= (TOK_TABLE_OR_COL ds) '1') (= (TOK_TABLE_OR_COL hr) '4')) (= (TOK_TABLE_OR_COL key) '406'))) (TOK_ORDERBY (TOK_TABSORTCOLNAMEASC (TOK_TABLE_OR_COL key)))))
+  
+TOK_QUERY
+   TOK_FROM
+      TOK_TABREF
+         TOK_TABNAME
+            fact_daily
+   TOK_INSERT
+      TOK_DESTINATION
+         TOK_DIR
+            TOK_TMP_FILE
+      TOK_SELECT
+         TOK_SELEXPR
+            TOK_TABLE_OR_COL
+               key
+      TOK_WHERE
+         and
+            and
+               =
+                  TOK_TABLE_OR_COL
+                     ds
+                  '1'
+               =
+                  TOK_TABLE_OR_COL
+                     hr
+                  '4'
+            =
+               TOK_TABLE_OR_COL
+                  key
+               '406'
+      TOK_ORDERBY
+         TOK_TABSORTCOLNAMEASC
+            TOK_TABLE_OR_COL
+               key
+
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
@@ -322,38 +385,25 @@ STAGE DEPENDENCIES:
 STAGE PLANS:
   Stage: Stage-1
     Map Reduce
-      Alias -> Map Operator Tree:
-        fact_daily 
+      Map Operator Tree:
           TableScan
             alias: fact_daily
-            Statistics:
-                numRows: 500 dataSize: 5312 basicStatsState: COMPLETE colStatsState: NONE
+            Statistics: Num rows: 500 Data size: 5312 Basic stats: COMPLETE Column stats: NONE
             GatherStats: false
             Filter Operator
               isSamplingPred: false
-              predicate:
-                  expr: (key = '406')
-                  type: boolean
-              Statistics:
-                  numRows: 250 dataSize: 2656 basicStatsState: COMPLETE colStatsState: NONE
+              predicate: (key = '406') (type: boolean)
+              Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
               Select Operator
-                expressions:
-                      expr: key
-                      type: string
+                expressions: key (type: string)
                 outputColumnNames: _col0
-                Statistics:
-                    numRows: 250 dataSize: 2656 basicStatsState: COMPLETE colStatsState: NONE
+                Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
                 Reduce Output Operator
-                  key expressions:
-                        expr: _col0
-                        type: string
+                  key expressions: _col0 (type: string)
                   sort order: +
-                  Statistics:
-                      numRows: 250 dataSize: 2656 basicStatsState: COMPLETE colStatsState: NONE
+                  Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
                   tag: -1
-                  value expressions:
-                        expr: _col0
-                        type: string
+                  value expressions: _col0 (type: string)
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -369,12 +419,14 @@ STAGE PLANS:
               COLUMN_STATS_ACCURATE true
               bucket_count -1
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.fact_daily
               numFiles 3
               numRows 500
               partition_columns ds/hr
+              partition_columns.types string:string
               rawDataSize 5312
               serialization.ddl struct fact_daily { string key, string value}
               serialization.format 1
@@ -388,10 +440,12 @@ STAGE PLANS:
               properties:
                 bucket_count -1
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.fact_daily
                 partition_columns ds/hr
+                partition_columns.types string:string
                 serialization.ddl struct fact_daily { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -404,15 +458,13 @@ STAGE PLANS:
       Needs Tagging: false
       Reduce Operator Tree:
         Extract
-          Statistics:
-              numRows: 250 dataSize: 2656 basicStatsState: COMPLETE colStatsState: NONE
+          Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
           File Output Operator
             compressed: false
             GlobalTableId: 0
 #### A masked pattern was here ####
             NumFilesPerFileSink: 1
-            Statistics:
-                numRows: 250 dataSize: 2656 basicStatsState: COMPLETE colStatsState: NONE
+            Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
 #### A masked pattern was here ####
             table:
                 input format: org.apache.hadoop.mapred.TextInputFormat
@@ -462,7 +514,61 @@ POSTHOOK: type: QUERY
 POSTHOOK: Lineage: fact_daily PARTITION(ds=1,hr=4).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: fact_daily PARTITION(ds=1,hr=4).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 ABSTRACT SYNTAX TREE:
-  (TOK_QUERY (TOK_FROM (TOK_TABREF (TOK_TABNAME fact_daily))) (TOK_INSERT (TOK_DESTINATION (TOK_DIR TOK_TMP_FILE)) (TOK_SELECT (TOK_SELEXPR (TOK_TABLE_OR_COL key)) (TOK_SELEXPR (TOK_TABLE_OR_COL value))) (TOK_WHERE (and (and (= (TOK_TABLE_OR_COL ds) '1') (= (TOK_TABLE_OR_COL hr) '4')) (or (and (= (TOK_TABLE_OR_COL key) '484') (= (TOK_TABLE_OR_COL value) 'val_484')) (and (= (TOK_TABLE_OR_COL key) '238') (= (TOK_TABLE_OR_COL value) 'val_238'))))) (TOK_ORDERBY (TOK_TABSORTCOLNAMEASC (TOK_TABLE_OR_COL key)) (TOK_TABSORTCOLNAMEASC (TOK_TABLE_OR_COL value)))))
+  
+TOK_QUERY
+   TOK_FROM
+      TOK_TABREF
+         TOK_TABNAME
+            fact_daily
+   TOK_INSERT
+      TOK_DESTINATION
+         TOK_DIR
+            TOK_TMP_FILE
+      TOK_SELECT
+         TOK_SELEXPR
+            TOK_TABLE_OR_COL
+               key
+         TOK_SELEXPR
+            TOK_TABLE_OR_COL
+               value
+      TOK_WHERE
+         and
+            and
+               =
+                  TOK_TABLE_OR_COL
+                     ds
+                  '1'
+               =
+                  TOK_TABLE_OR_COL
+                     hr
+                  '4'
+            or
+               and
+                  =
+                     TOK_TABLE_OR_COL
+                        key
+                     '484'
+                  =
+                     TOK_TABLE_OR_COL
+                        value
+                     'val_484'
+               and
+                  =
+                     TOK_TABLE_OR_COL
+                        key
+                     '238'
+                  =
+                     TOK_TABLE_OR_COL
+                        value
+                     'val_238'
+      TOK_ORDERBY
+         TOK_TABSORTCOLNAMEASC
+            TOK_TABLE_OR_COL
+               key
+         TOK_TABSORTCOLNAMEASC
+            TOK_TABLE_OR_COL
+               value
+
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
@@ -471,44 +577,25 @@ STAGE DEPENDENCIES:
 STAGE PLANS:
   Stage: Stage-1
     Map Reduce
-      Alias -> Map Operator Tree:
-        fact_daily 
+      Map Operator Tree:
           TableScan
             alias: fact_daily
-            Statistics:
-                numRows: 500 dataSize: 5312 basicStatsState: COMPLETE colStatsState: NONE
+            Statistics: Num rows: 500 Data size: 5312 Basic stats: COMPLETE Column stats: NONE
             GatherStats: false
             Filter Operator
               isSamplingPred: false
-              predicate:
-                  expr: (((key = '484') and (value = 'val_484')) or ((key = '238') and (value = 'val_238')))
-                  type: boolean
-              Statistics:
-                  numRows: 250 dataSize: 2656 basicStatsState: COMPLETE colStatsState: NONE
+              predicate: (((key = '484') and (value = 'val_484')) or ((key = '238') and (value = 'val_238'))) (type: boolean)
+              Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
               Select Operator
-                expressions:
-                      expr: key
-                      type: string
-                      expr: value
-                      type: string
+                expressions: key (type: string), value (type: string)
                 outputColumnNames: _col0, _col1
-                Statistics:
-                    numRows: 250 dataSize: 2656 basicStatsState: COMPLETE colStatsState: NONE
+                Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
                 Reduce Output Operator
-                  key expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: string
+                  key expressions: _col0 (type: string), _col1 (type: string)
                   sort order: ++
-                  Statistics:
-                      numRows: 250 dataSize: 2656 basicStatsState: COMPLETE colStatsState: NONE
+                  Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
                   tag: -1
-                  value expressions:
-                        expr: _col0
-                        type: string
-                        expr: _col1
-                        type: string
+                  value expressions: _col0 (type: string), _col1 (type: string)
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -524,12 +611,14 @@ STAGE PLANS:
               COLUMN_STATS_ACCURATE true
               bucket_count -1
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.fact_daily
               numFiles 3
               numRows 500
               partition_columns ds/hr
+              partition_columns.types string:string
               rawDataSize 5312
               serialization.ddl struct fact_daily { string key, string value}
               serialization.format 1
@@ -543,10 +632,12 @@ STAGE PLANS:
               properties:
                 bucket_count -1
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.fact_daily
                 partition_columns ds/hr
+                partition_columns.types string:string
                 serialization.ddl struct fact_daily { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -566,12 +657,14 @@ STAGE PLANS:
               COLUMN_STATS_ACCURATE true
               bucket_count -1
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.fact_daily
               numFiles 3
               numRows 500
               partition_columns ds/hr
+              partition_columns.types string:string
               rawDataSize 5312
               serialization.ddl struct fact_daily { string key, string value}
               serialization.format 1
@@ -585,10 +678,12 @@ STAGE PLANS:
               properties:
                 bucket_count -1
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.fact_daily
                 partition_columns ds/hr
+                partition_columns.types string:string
                 serialization.ddl struct fact_daily { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -602,15 +697,13 @@ STAGE PLANS:
       Needs Tagging: false
       Reduce Operator Tree:
         Extract
-          Statistics:
-              numRows: 250 dataSize: 2656 basicStatsState: COMPLETE colStatsState: NONE
+          Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
           File Output Operator
             compressed: false
             GlobalTableId: 0
 #### A masked pattern was here ####
             NumFilesPerFileSink: 1
-            Statistics:
-                numRows: 250 dataSize: 2656 basicStatsState: COMPLETE colStatsState: NONE
+            Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
 #### A masked pattern was here ####
             table:
                 input format: org.apache.hadoop.mapred.TextInputFormat

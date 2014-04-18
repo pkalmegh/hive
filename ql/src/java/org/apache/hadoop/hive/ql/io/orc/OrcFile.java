@@ -24,7 +24,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.ql.io.orc.Reader.FileMetaInfo;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 
 /**
@@ -96,21 +95,40 @@ public final class OrcFile {
     }
   }
 
-  // the table properties that control ORC files
-  public static final String COMPRESSION = "orc.compress";
-  public static final String COMPRESSION_BLOCK_SIZE = "orc.compress.size";
-  public static final String STRIPE_SIZE = "orc.stripe.size";
-  public static final String ROW_INDEX_STRIDE = "orc.row.index.stride";
-  public static final String ENABLE_INDEXES = "orc.create.index";
-  public static final String BLOCK_PADDING = "orc.block.padding";
 
-  static final long DEFAULT_STRIPE_SIZE =
-      HiveConf.ConfVars.HIVE_ORC_DEFAULT_STRIPE_SIZE.defaultLongVal;
-  static final CompressionKind DEFAULT_COMPRESSION_KIND =
-    CompressionKind.ZLIB;
-  static final int DEFAULT_BUFFER_SIZE = 256 * 1024;
-  static final int DEFAULT_ROW_INDEX_STRIDE = 10000;
-  static final boolean DEFAULT_BLOCK_PADDING = true;
+  // Note : these string definitions for table properties are deprecated,
+  // and retained only for backward compatibility, please do not add to
+  // them, add to OrcTableProperties below instead
+  @Deprecated public static final String COMPRESSION = "orc.compress";
+  @Deprecated public static final String COMPRESSION_BLOCK_SIZE = "orc.compress.size";
+  @Deprecated public static final String STRIPE_SIZE = "orc.stripe.size";
+  @Deprecated public static final String ROW_INDEX_STRIDE = "orc.row.index.stride";
+  @Deprecated public static final String ENABLE_INDEXES = "orc.create.index";
+  @Deprecated public static final String BLOCK_PADDING = "orc.block.padding";
+
+  /**
+   * Enum container for all orc table properties.
+   * If introducing a new orc-specific table property,
+   * add it here.
+   */
+  public static enum OrcTableProperties {
+    COMPRESSION("orc.compress"),
+    COMPRESSION_BLOCK_SIZE("orc.compress.size"),
+    STRIPE_SIZE("orc.stripe.size"),
+    ROW_INDEX_STRIDE("orc.row.index.stride"),
+    ENABLE_INDEXES("orc.create.index"),
+    BLOCK_PADDING("orc.block.padding");
+
+    private final String propName;
+
+    OrcTableProperties(String propName) {
+      this.propName = propName;
+    }
+
+    public String getPropName(){
+      return this.propName;
+    }
+  }
 
   // unused
   private OrcFile() {}
@@ -123,13 +141,69 @@ public final class OrcFile {
    * @throws IOException
    */
   public static Reader createReader(FileSystem fs, Path path
-                                    ) throws IOException {
-    return new ReaderImpl(fs, path);
+  ) throws IOException {
+    ReaderOptions opts = new ReaderOptions(new Configuration());
+    opts.filesystem(fs);
+    return new ReaderImpl(path, opts);
   }
 
-  public static Reader createReader(FileSystem fs, Path path, FileMetaInfo fileMetaInfo)
-      throws IOException {
-    return new ReaderImpl(fs, path, fileMetaInfo);
+  public static class ReaderOptions {
+    private final Configuration conf;
+    private FileSystem filesystem;
+    private ReaderImpl.FileMetaInfo fileMetaInfo;
+    private long maxLength = Long.MAX_VALUE;
+
+    ReaderOptions(Configuration conf) {
+      this.conf = conf;
+    }
+    ReaderOptions fileMetaInfo(ReaderImpl.FileMetaInfo info) {
+      fileMetaInfo = info;
+      return this;
+    }
+
+    public ReaderOptions filesystem(FileSystem fs) {
+      this.filesystem = fs;
+      return this;
+    }
+
+    public ReaderOptions maxLength(long val) {
+      maxLength = val;
+      return this;
+    }
+
+    Configuration getConfiguration() {
+      return conf;
+    }
+
+    FileSystem getFilesystem() {
+      return filesystem;
+    }
+
+    ReaderImpl.FileMetaInfo getFileMetaInfo() {
+      return fileMetaInfo;
+    }
+
+    long getMaxLength() {
+      return maxLength;
+    }
+  }
+
+  public static ReaderOptions readerOptions(Configuration conf) {
+    return new ReaderOptions(conf);
+  }
+
+  public static Reader createReader(Path path,
+                                    ReaderOptions options) throws IOException {
+    return new ReaderImpl(path, options);
+  }
+
+  public static interface WriterContext {
+    Writer getWriter();
+  }
+
+  public static interface WriterCallback {
+    public void preStripeWrite(WriterContext context) throws IOException;
+    public void preFooterWrite(WriterContext context) throws IOException;
   }
 
   /**
@@ -140,19 +214,35 @@ public final class OrcFile {
     private FileSystem fileSystemValue = null;
     private ObjectInspector inspectorValue = null;
     private long stripeSizeValue;
-    private int rowIndexStrideValue = DEFAULT_ROW_INDEX_STRIDE;
-    private int bufferSizeValue = DEFAULT_BUFFER_SIZE;
-    private boolean blockPaddingValue = DEFAULT_BLOCK_PADDING;
-    private CompressionKind compressValue = DEFAULT_COMPRESSION_KIND;
+    private int rowIndexStrideValue;
+    private int bufferSizeValue;
+    private boolean blockPaddingValue;
+    private CompressionKind compressValue;
     private MemoryManager memoryManagerValue;
     private Version versionValue;
+    private WriterCallback callback;
 
     WriterOptions(Configuration conf) {
       configuration = conf;
       memoryManagerValue = getMemoryManager(conf);
       stripeSizeValue =
           conf.getLong(HiveConf.ConfVars.HIVE_ORC_DEFAULT_STRIPE_SIZE.varname,
-             DEFAULT_STRIPE_SIZE);
+              HiveConf.ConfVars.HIVE_ORC_DEFAULT_STRIPE_SIZE.defaultLongVal);
+      rowIndexStrideValue =
+          conf.getInt(HiveConf.ConfVars.HIVE_ORC_DEFAULT_ROW_INDEX_STRIDE
+              .varname, HiveConf.ConfVars.HIVE_ORC_DEFAULT_ROW_INDEX_STRIDE.defaultIntVal);
+      bufferSizeValue =
+          conf.getInt(HiveConf.ConfVars.HIVE_ORC_DEFAULT_BUFFER_SIZE.varname,
+              HiveConf.ConfVars.HIVE_ORC_DEFAULT_BUFFER_SIZE.defaultIntVal);
+      blockPaddingValue =
+          conf.getBoolean(HiveConf.ConfVars.HIVE_ORC_DEFAULT_BLOCK_PADDING
+              .varname, HiveConf.ConfVars.HIVE_ORC_DEFAULT_BLOCK_PADDING
+              .defaultBoolVal);
+      compressValue = 
+          CompressionKind.valueOf(conf.get(HiveConf.ConfVars
+              .HIVE_ORC_DEFAULT_COMPRESS.varname,
+              HiveConf.ConfVars
+              .HIVE_ORC_DEFAULT_COMPRESS.defaultVal));
       String versionName =
         conf.get(HiveConf.ConfVars.HIVE_ORC_WRITE_FORMAT.varname);
       if (versionName == null) {
@@ -236,12 +326,23 @@ public final class OrcFile {
     }
 
     /**
+     * Add a listener for when the stripe and file are about to be closed.
+     * @param callback the object to be called when the stripe is closed
+     * @return
+     */
+    public WriterOptions callback(WriterCallback callback) {
+      this.callback = callback;
+      return this;
+    }
+
+    /**
      * A package local option to set the memory manager.
      */
     WriterOptions memory(MemoryManager value) {
       memoryManagerValue = value;
       return this;
     }
+
   }
 
   /**
@@ -255,7 +356,7 @@ public final class OrcFile {
    * Create an ORC file writer. This is the public interface for creating
    * writers going forward and new options will only be added to this method.
    * @param path filename to write to
-   * @param options the options
+   * @param opts the options
    * @return a new ORC file writer
    * @throws IOException
    */
@@ -269,7 +370,7 @@ public final class OrcFile {
                           opts.stripeSizeValue, opts.compressValue,
                           opts.bufferSizeValue, opts.rowIndexStrideValue,
                           opts.memoryManagerValue, opts.blockPaddingValue,
-                          opts.versionValue);
+                          opts.versionValue, opts.callback);
   }
 
   /**

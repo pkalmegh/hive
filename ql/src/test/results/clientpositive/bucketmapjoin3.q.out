@@ -1,82 +1,110 @@
 PREHOOK: query: CREATE TABLE srcbucket_mapjoin(key int, value string) CLUSTERED BY (key) INTO 2 BUCKETS STORED AS TEXTFILE
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: CREATE TABLE srcbucket_mapjoin(key int, value string) CLUSTERED BY (key) INTO 2 BUCKETS STORED AS TEXTFILE
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@srcbucket_mapjoin
 PREHOOK: query: load data local inpath '../../data/files/srcbucket20.txt' INTO TABLE srcbucket_mapjoin
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@srcbucket_mapjoin
 POSTHOOK: query: load data local inpath '../../data/files/srcbucket20.txt' INTO TABLE srcbucket_mapjoin
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@srcbucket_mapjoin
 PREHOOK: query: load data local inpath '../../data/files/srcbucket21.txt' INTO TABLE srcbucket_mapjoin
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@srcbucket_mapjoin
 POSTHOOK: query: load data local inpath '../../data/files/srcbucket21.txt' INTO TABLE srcbucket_mapjoin
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@srcbucket_mapjoin
 PREHOOK: query: CREATE TABLE srcbucket_mapjoin_part (key int, value string) partitioned by (ds string) CLUSTERED BY (key) INTO 4 BUCKETS STORED AS TEXTFILE
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: CREATE TABLE srcbucket_mapjoin_part (key int, value string) partitioned by (ds string) CLUSTERED BY (key) INTO 4 BUCKETS STORED AS TEXTFILE
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@srcbucket_mapjoin_part
 PREHOOK: query: load data local inpath '../../data/files/srcbucket20.txt' INTO TABLE srcbucket_mapjoin_part partition(ds='2008-04-08')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@srcbucket_mapjoin_part
 POSTHOOK: query: load data local inpath '../../data/files/srcbucket20.txt' INTO TABLE srcbucket_mapjoin_part partition(ds='2008-04-08')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@srcbucket_mapjoin_part
 POSTHOOK: Output: default@srcbucket_mapjoin_part@ds=2008-04-08
 PREHOOK: query: load data local inpath '../../data/files/srcbucket21.txt' INTO TABLE srcbucket_mapjoin_part partition(ds='2008-04-08')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@srcbucket_mapjoin_part@ds=2008-04-08
 POSTHOOK: query: load data local inpath '../../data/files/srcbucket21.txt' INTO TABLE srcbucket_mapjoin_part partition(ds='2008-04-08')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@srcbucket_mapjoin_part@ds=2008-04-08
 PREHOOK: query: load data local inpath '../../data/files/srcbucket22.txt' INTO TABLE srcbucket_mapjoin_part partition(ds='2008-04-08')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@srcbucket_mapjoin_part@ds=2008-04-08
 POSTHOOK: query: load data local inpath '../../data/files/srcbucket22.txt' INTO TABLE srcbucket_mapjoin_part partition(ds='2008-04-08')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@srcbucket_mapjoin_part@ds=2008-04-08
 PREHOOK: query: load data local inpath '../../data/files/srcbucket23.txt' INTO TABLE srcbucket_mapjoin_part partition(ds='2008-04-08')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@srcbucket_mapjoin_part@ds=2008-04-08
 POSTHOOK: query: load data local inpath '../../data/files/srcbucket23.txt' INTO TABLE srcbucket_mapjoin_part partition(ds='2008-04-08')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@srcbucket_mapjoin_part@ds=2008-04-08
 PREHOOK: query: CREATE TABLE srcbucket_mapjoin_part_2 (key int, value string) partitioned by (ds string) CLUSTERED BY (key) INTO 2 BUCKETS STORED AS TEXTFILE
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: CREATE TABLE srcbucket_mapjoin_part_2 (key int, value string) partitioned by (ds string) CLUSTERED BY (key) INTO 2 BUCKETS STORED AS TEXTFILE
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@srcbucket_mapjoin_part_2
 PREHOOK: query: load data local inpath '../../data/files/srcbucket22.txt' INTO TABLE srcbucket_mapjoin_part_2 partition(ds='2008-04-08')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@srcbucket_mapjoin_part_2
 POSTHOOK: query: load data local inpath '../../data/files/srcbucket22.txt' INTO TABLE srcbucket_mapjoin_part_2 partition(ds='2008-04-08')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@srcbucket_mapjoin_part_2
 POSTHOOK: Output: default@srcbucket_mapjoin_part_2@ds=2008-04-08
 PREHOOK: query: load data local inpath '../../data/files/srcbucket23.txt' INTO TABLE srcbucket_mapjoin_part_2 partition(ds='2008-04-08')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@srcbucket_mapjoin_part_2@ds=2008-04-08
 POSTHOOK: query: load data local inpath '../../data/files/srcbucket23.txt' INTO TABLE srcbucket_mapjoin_part_2 partition(ds='2008-04-08')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@srcbucket_mapjoin_part_2@ds=2008-04-08
 PREHOOK: query: create table bucketmapjoin_hash_result_1 (key bigint , value1 bigint, value2 bigint)
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: create table bucketmapjoin_hash_result_1 (key bigint , value1 bigint, value2 bigint)
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@bucketmapjoin_hash_result_1
 PREHOOK: query: create table bucketmapjoin_hash_result_2 (key bigint , value1 bigint, value2 bigint)
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: create table bucketmapjoin_hash_result_2 (key bigint , value1 bigint, value2 bigint)
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@bucketmapjoin_hash_result_2
 PREHOOK: query: create table bucketmapjoin_tmp_result (key string , value1 string, value2 string)
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: create table bucketmapjoin_tmp_result (key string , value1 string, value2 string)
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@bucketmapjoin_tmp_result
 PREHOOK: query: explain extended
 insert overwrite table bucketmapjoin_tmp_result 
@@ -91,7 +119,68 @@ from srcbucket_mapjoin_part_2 a join srcbucket_mapjoin_part b
 on a.key=b.key and b.ds="2008-04-08" and a.ds="2008-04-08"
 POSTHOOK: type: QUERY
 ABSTRACT SYNTAX TREE:
-  (TOK_QUERY (TOK_FROM (TOK_JOIN (TOK_TABREF (TOK_TABNAME srcbucket_mapjoin_part_2) a) (TOK_TABREF (TOK_TABNAME srcbucket_mapjoin_part) b) (and (and (= (. (TOK_TABLE_OR_COL a) key) (. (TOK_TABLE_OR_COL b) key)) (= (. (TOK_TABLE_OR_COL b) ds) "2008-04-08")) (= (. (TOK_TABLE_OR_COL a) ds) "2008-04-08")))) (TOK_INSERT (TOK_DESTINATION (TOK_TAB (TOK_TABNAME bucketmapjoin_tmp_result))) (TOK_SELECT (TOK_HINTLIST (TOK_HINT TOK_MAPJOIN (TOK_HINTARGLIST b))) (TOK_SELEXPR (. (TOK_TABLE_OR_COL a) key)) (TOK_SELEXPR (. (TOK_TABLE_OR_COL a) value)) (TOK_SELEXPR (. (TOK_TABLE_OR_COL b) value)))))
+  
+TOK_QUERY
+   TOK_FROM
+      TOK_JOIN
+         TOK_TABREF
+            TOK_TABNAME
+               srcbucket_mapjoin_part_2
+            a
+         TOK_TABREF
+            TOK_TABNAME
+               srcbucket_mapjoin_part
+            b
+         and
+            and
+               =
+                  .
+                     TOK_TABLE_OR_COL
+                        a
+                     key
+                  .
+                     TOK_TABLE_OR_COL
+                        b
+                     key
+               =
+                  .
+                     TOK_TABLE_OR_COL
+                        b
+                     ds
+                  "2008-04-08"
+            =
+               .
+                  TOK_TABLE_OR_COL
+                     a
+                  ds
+               "2008-04-08"
+   TOK_INSERT
+      TOK_DESTINATION
+         TOK_TAB
+            TOK_TABNAME
+               bucketmapjoin_tmp_result
+      TOK_SELECT
+         TOK_HINTLIST
+            TOK_HINT
+               TOK_MAPJOIN
+               TOK_HINTARGLIST
+                  b
+         TOK_SELEXPR
+            .
+               TOK_TABLE_OR_COL
+                  a
+               key
+         TOK_SELEXPR
+            .
+               TOK_TABLE_OR_COL
+                  a
+               value
+         TOK_SELEXPR
+            .
+               TOK_TABLE_OR_COL
+                  b
+               value
+
 
 STAGE DEPENDENCIES:
   Stage-9 is a root stage
@@ -122,12 +211,14 @@ STAGE PLANS:
                     bucket_count 4
                     bucket_field_name key
                     columns key,value
+                    columns.comments  
                     columns.types int:string
 #### A masked pattern was here ####
                     name default.srcbucket_mapjoin_part
                     numFiles 4
                     numRows 0
                     partition_columns ds
+                    partition_columns.types string
                     rawDataSize 0
                     serialization.ddl struct srcbucket_mapjoin_part { i32 key, string value}
                     serialization.format 1
@@ -142,10 +233,12 @@ STAGE PLANS:
                       bucket_count 4
                       bucket_field_name key
                       columns key,value
+                      columns.comments  
                       columns.types int:string
 #### A masked pattern was here ####
                       name default.srcbucket_mapjoin_part
                       partition_columns ds
+                      partition_columns.types string
                       serialization.ddl struct srcbucket_mapjoin_part { i32 key, string value}
                       serialization.format 1
                       serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -157,17 +250,15 @@ STAGE PLANS:
         b 
           TableScan
             alias: b
-            Statistics:
-                numRows: 55 dataSize: 5812 basicStatsState: COMPLETE colStatsState: NONE
+            Statistics: Num rows: 55 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
             GatherStats: false
             HashTable Sink Operator
               condition expressions:
                 0 {key} {value}
                 1 {value}
-              handleSkewJoin: false
               keys:
-                0 [Column[key]]
-                1 [Column[key]]
+                0 key (type: int)
+                1 key (type: int)
               Position of Big Table: 0
       Bucket Mapjoin Context:
           Alias Bucket Base File Name Mapping:
@@ -179,12 +270,10 @@ STAGE PLANS:
 
   Stage: Stage-1
     Map Reduce
-      Alias -> Map Operator Tree:
-        a 
+      Map Operator Tree:
           TableScan
             alias: a
-            Statistics:
-                numRows: 29 dataSize: 3062 basicStatsState: COMPLETE colStatsState: NONE
+            Statistics: Num rows: 29 Data size: 3062 Basic stats: COMPLETE Column stats: NONE
             GatherStats: false
             Map Join Operator
               condition map:
@@ -192,33 +281,23 @@ STAGE PLANS:
               condition expressions:
                 0 {key} {value}
                 1 {value}
-              handleSkewJoin: false
               keys:
-                0 [Column[key]]
-                1 [Column[key]]
+                0 key (type: int)
+                1 key (type: int)
               outputColumnNames: _col0, _col1, _col6
               Position of Big Table: 0
-              Statistics:
-                  numRows: 60 dataSize: 6393 basicStatsState: COMPLETE colStatsState: NONE
+              Statistics: Num rows: 60 Data size: 6393 Basic stats: COMPLETE Column stats: NONE
               BucketMapJoin: true
               Select Operator
-                expressions:
-                      expr: _col0
-                      type: int
-                      expr: _col1
-                      type: string
-                      expr: _col6
-                      type: string
+                expressions: _col0 (type: int), _col1 (type: string), _col6 (type: string)
                 outputColumnNames: _col0, _col1, _col2
-                Statistics:
-                    numRows: 60 dataSize: 6393 basicStatsState: COMPLETE colStatsState: NONE
+                Statistics: Num rows: 60 Data size: 6393 Basic stats: COMPLETE Column stats: NONE
                 File Output Operator
                   compressed: false
                   GlobalTableId: 1
 #### A masked pattern was here ####
                   NumFilesPerFileSink: 1
-                  Statistics:
-                      numRows: 60 dataSize: 6393 basicStatsState: COMPLETE colStatsState: NONE
+                  Statistics: Num rows: 60 Data size: 6393 Basic stats: COMPLETE Column stats: NONE
 #### A masked pattern was here ####
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
@@ -226,6 +305,7 @@ STAGE PLANS:
                       properties:
                         bucket_count -1
                         columns key,value1,value2
+                        columns.comments   
                         columns.types string:string:string
 #### A masked pattern was here ####
                         name default.bucketmapjoin_tmp_result
@@ -255,12 +335,14 @@ STAGE PLANS:
               bucket_count 2
               bucket_field_name key
               columns key,value
+              columns.comments  
               columns.types int:string
 #### A masked pattern was here ####
               name default.srcbucket_mapjoin_part_2
               numFiles 2
               numRows 0
               partition_columns ds
+              partition_columns.types string
               rawDataSize 0
               serialization.ddl struct srcbucket_mapjoin_part_2 { i32 key, string value}
               serialization.format 1
@@ -275,10 +357,12 @@ STAGE PLANS:
                 bucket_count 2
                 bucket_field_name key
                 columns key,value
+                columns.comments  
                 columns.types int:string
 #### A masked pattern was here ####
                 name default.srcbucket_mapjoin_part_2
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct srcbucket_mapjoin_part_2 { i32 key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -309,6 +393,7 @@ STAGE PLANS:
               properties:
                 bucket_count -1
                 columns key,value1,value2
+                columns.comments   
                 columns.types string:string:string
 #### A masked pattern was here ####
                 name default.bucketmapjoin_tmp_result
@@ -325,8 +410,7 @@ STAGE PLANS:
 
   Stage: Stage-4
     Map Reduce
-      Alias -> Map Operator Tree:
-#### A masked pattern was here ####
+      Map Operator Tree:
           TableScan
             GatherStats: false
             File Output Operator
@@ -340,6 +424,7 @@ STAGE PLANS:
                   properties:
                     bucket_count -1
                     columns key,value1,value2
+                    columns.comments   
                     columns.types string:string:string
 #### A masked pattern was here ####
                     name default.bucketmapjoin_tmp_result
@@ -363,6 +448,7 @@ STAGE PLANS:
             properties:
               bucket_count -1
               columns key,value1,value2
+              columns.comments   
               columns.types string:string:string
 #### A masked pattern was here ####
               name default.bucketmapjoin_tmp_result
@@ -377,6 +463,7 @@ STAGE PLANS:
               properties:
                 bucket_count -1
                 columns key,value1,value2
+                columns.comments   
                 columns.types string:string:string
 #### A masked pattern was here ####
                 name default.bucketmapjoin_tmp_result
@@ -392,8 +479,7 @@ STAGE PLANS:
 
   Stage: Stage-6
     Map Reduce
-      Alias -> Map Operator Tree:
-#### A masked pattern was here ####
+      Map Operator Tree:
           TableScan
             GatherStats: false
             File Output Operator
@@ -407,6 +493,7 @@ STAGE PLANS:
                   properties:
                     bucket_count -1
                     columns key,value1,value2
+                    columns.comments   
                     columns.types string:string:string
 #### A masked pattern was here ####
                     name default.bucketmapjoin_tmp_result
@@ -430,6 +517,7 @@ STAGE PLANS:
             properties:
               bucket_count -1
               columns key,value1,value2
+              columns.comments   
               columns.types string:string:string
 #### A masked pattern was here ####
               name default.bucketmapjoin_tmp_result
@@ -444,6 +532,7 @@ STAGE PLANS:
               properties:
                 bucket_count -1
                 columns key,value1,value2
+                columns.comments   
                 columns.types string:string:string
 #### A masked pattern was here ####
                 name default.bucketmapjoin_tmp_result
@@ -635,7 +724,68 @@ POSTHOOK: Lineage: bucketmapjoin_tmp_result.value1 SIMPLE [(srcbucket_mapjoin_pa
 POSTHOOK: Lineage: bucketmapjoin_tmp_result.value2 SIMPLE [(srcbucket_mapjoin_part)b.FieldSchema(name:value, type:string, comment:null), ]
 POSTHOOK: Lineage: bucketmapjoin_tmp_result.value2 SIMPLE [(srcbucket_mapjoin_part)b.FieldSchema(name:value, type:string, comment:null), ]
 ABSTRACT SYNTAX TREE:
-  (TOK_QUERY (TOK_FROM (TOK_JOIN (TOK_TABREF (TOK_TABNAME srcbucket_mapjoin_part_2) a) (TOK_TABREF (TOK_TABNAME srcbucket_mapjoin_part) b) (and (and (= (. (TOK_TABLE_OR_COL a) key) (. (TOK_TABLE_OR_COL b) key)) (= (. (TOK_TABLE_OR_COL b) ds) "2008-04-08")) (= (. (TOK_TABLE_OR_COL a) ds) "2008-04-08")))) (TOK_INSERT (TOK_DESTINATION (TOK_TAB (TOK_TABNAME bucketmapjoin_tmp_result))) (TOK_SELECT (TOK_HINTLIST (TOK_HINT TOK_MAPJOIN (TOK_HINTARGLIST a))) (TOK_SELEXPR (. (TOK_TABLE_OR_COL a) key)) (TOK_SELEXPR (. (TOK_TABLE_OR_COL a) value)) (TOK_SELEXPR (. (TOK_TABLE_OR_COL b) value)))))
+  
+TOK_QUERY
+   TOK_FROM
+      TOK_JOIN
+         TOK_TABREF
+            TOK_TABNAME
+               srcbucket_mapjoin_part_2
+            a
+         TOK_TABREF
+            TOK_TABNAME
+               srcbucket_mapjoin_part
+            b
+         and
+            and
+               =
+                  .
+                     TOK_TABLE_OR_COL
+                        a
+                     key
+                  .
+                     TOK_TABLE_OR_COL
+                        b
+                     key
+               =
+                  .
+                     TOK_TABLE_OR_COL
+                        b
+                     ds
+                  "2008-04-08"
+            =
+               .
+                  TOK_TABLE_OR_COL
+                     a
+                  ds
+               "2008-04-08"
+   TOK_INSERT
+      TOK_DESTINATION
+         TOK_TAB
+            TOK_TABNAME
+               bucketmapjoin_tmp_result
+      TOK_SELECT
+         TOK_HINTLIST
+            TOK_HINT
+               TOK_MAPJOIN
+               TOK_HINTARGLIST
+                  a
+         TOK_SELEXPR
+            .
+               TOK_TABLE_OR_COL
+                  a
+               key
+         TOK_SELEXPR
+            .
+               TOK_TABLE_OR_COL
+                  a
+               value
+         TOK_SELEXPR
+            .
+               TOK_TABLE_OR_COL
+                  b
+               value
+
 
 STAGE DEPENDENCIES:
   Stage-9 is a root stage
@@ -666,12 +816,14 @@ STAGE PLANS:
                     bucket_count 2
                     bucket_field_name key
                     columns key,value
+                    columns.comments  
                     columns.types int:string
 #### A masked pattern was here ####
                     name default.srcbucket_mapjoin_part_2
                     numFiles 2
                     numRows 0
                     partition_columns ds
+                    partition_columns.types string
                     rawDataSize 0
                     serialization.ddl struct srcbucket_mapjoin_part_2 { i32 key, string value}
                     serialization.format 1
@@ -686,10 +838,12 @@ STAGE PLANS:
                       bucket_count 2
                       bucket_field_name key
                       columns key,value
+                      columns.comments  
                       columns.types int:string
 #### A masked pattern was here ####
                       name default.srcbucket_mapjoin_part_2
                       partition_columns ds
+                      partition_columns.types string
                       serialization.ddl struct srcbucket_mapjoin_part_2 { i32 key, string value}
                       serialization.format 1
                       serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -701,17 +855,15 @@ STAGE PLANS:
         a 
           TableScan
             alias: a
-            Statistics:
-                numRows: 29 dataSize: 3062 basicStatsState: COMPLETE colStatsState: NONE
+            Statistics: Num rows: 29 Data size: 3062 Basic stats: COMPLETE Column stats: NONE
             GatherStats: false
             HashTable Sink Operator
               condition expressions:
                 0 {key} {value}
                 1 {value}
-              handleSkewJoin: false
               keys:
-                0 [Column[key]]
-                1 [Column[key]]
+                0 key (type: int)
+                1 key (type: int)
               Position of Big Table: 1
       Bucket Mapjoin Context:
           Alias Bucket Base File Name Mapping:
@@ -723,12 +875,10 @@ STAGE PLANS:
 
   Stage: Stage-1
     Map Reduce
-      Alias -> Map Operator Tree:
-        b 
+      Map Operator Tree:
           TableScan
             alias: b
-            Statistics:
-                numRows: 55 dataSize: 5812 basicStatsState: COMPLETE colStatsState: NONE
+            Statistics: Num rows: 55 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
             GatherStats: false
             Map Join Operator
               condition map:
@@ -736,33 +886,23 @@ STAGE PLANS:
               condition expressions:
                 0 {key} {value}
                 1 {value}
-              handleSkewJoin: false
               keys:
-                0 [Column[key]]
-                1 [Column[key]]
+                0 key (type: int)
+                1 key (type: int)
               outputColumnNames: _col0, _col1, _col6
               Position of Big Table: 1
-              Statistics:
-                  numRows: 60 dataSize: 6393 basicStatsState: COMPLETE colStatsState: NONE
+              Statistics: Num rows: 60 Data size: 6393 Basic stats: COMPLETE Column stats: NONE
               BucketMapJoin: true
               Select Operator
-                expressions:
-                      expr: _col0
-                      type: int
-                      expr: _col1
-                      type: string
-                      expr: _col6
-                      type: string
+                expressions: _col0 (type: int), _col1 (type: string), _col6 (type: string)
                 outputColumnNames: _col0, _col1, _col2
-                Statistics:
-                    numRows: 60 dataSize: 6393 basicStatsState: COMPLETE colStatsState: NONE
+                Statistics: Num rows: 60 Data size: 6393 Basic stats: COMPLETE Column stats: NONE
                 File Output Operator
                   compressed: false
                   GlobalTableId: 1
 #### A masked pattern was here ####
                   NumFilesPerFileSink: 1
-                  Statistics:
-                      numRows: 60 dataSize: 6393 basicStatsState: COMPLETE colStatsState: NONE
+                  Statistics: Num rows: 60 Data size: 6393 Basic stats: COMPLETE Column stats: NONE
 #### A masked pattern was here ####
                   table:
                       input format: org.apache.hadoop.mapred.TextInputFormat
@@ -771,6 +911,7 @@ STAGE PLANS:
                         COLUMN_STATS_ACCURATE true
                         bucket_count -1
                         columns key,value1,value2
+                        columns.comments   
                         columns.types string:string:string
 #### A masked pattern was here ####
                         name default.bucketmapjoin_tmp_result
@@ -804,12 +945,14 @@ STAGE PLANS:
               bucket_count 4
               bucket_field_name key
               columns key,value
+              columns.comments  
               columns.types int:string
 #### A masked pattern was here ####
               name default.srcbucket_mapjoin_part
               numFiles 4
               numRows 0
               partition_columns ds
+              partition_columns.types string
               rawDataSize 0
               serialization.ddl struct srcbucket_mapjoin_part { i32 key, string value}
               serialization.format 1
@@ -824,10 +967,12 @@ STAGE PLANS:
                 bucket_count 4
                 bucket_field_name key
                 columns key,value
+                columns.comments  
                 columns.types int:string
 #### A masked pattern was here ####
                 name default.srcbucket_mapjoin_part
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct srcbucket_mapjoin_part { i32 key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -859,6 +1004,7 @@ STAGE PLANS:
                 COLUMN_STATS_ACCURATE true
                 bucket_count -1
                 columns key,value1,value2
+                columns.comments   
                 columns.types string:string:string
 #### A masked pattern was here ####
                 name default.bucketmapjoin_tmp_result
@@ -879,8 +1025,7 @@ STAGE PLANS:
 
   Stage: Stage-3
     Map Reduce
-      Alias -> Map Operator Tree:
-#### A masked pattern was here ####
+      Map Operator Tree:
           TableScan
             GatherStats: false
             File Output Operator
@@ -895,6 +1040,7 @@ STAGE PLANS:
                     COLUMN_STATS_ACCURATE true
                     bucket_count -1
                     columns key,value1,value2
+                    columns.comments   
                     columns.types string:string:string
 #### A masked pattern was here ####
                     name default.bucketmapjoin_tmp_result
@@ -923,6 +1069,7 @@ STAGE PLANS:
               COLUMN_STATS_ACCURATE true
               bucket_count -1
               columns key,value1,value2
+              columns.comments   
               columns.types string:string:string
 #### A masked pattern was here ####
               name default.bucketmapjoin_tmp_result
@@ -942,6 +1089,7 @@ STAGE PLANS:
                 COLUMN_STATS_ACCURATE true
                 bucket_count -1
                 columns key,value1,value2
+                columns.comments   
                 columns.types string:string:string
 #### A masked pattern was here ####
                 name default.bucketmapjoin_tmp_result
@@ -961,8 +1109,7 @@ STAGE PLANS:
 
   Stage: Stage-5
     Map Reduce
-      Alias -> Map Operator Tree:
-#### A masked pattern was here ####
+      Map Operator Tree:
           TableScan
             GatherStats: false
             File Output Operator
@@ -977,6 +1124,7 @@ STAGE PLANS:
                     COLUMN_STATS_ACCURATE true
                     bucket_count -1
                     columns key,value1,value2
+                    columns.comments   
                     columns.types string:string:string
 #### A masked pattern was here ####
                     name default.bucketmapjoin_tmp_result
@@ -1005,6 +1153,7 @@ STAGE PLANS:
               COLUMN_STATS_ACCURATE true
               bucket_count -1
               columns key,value1,value2
+              columns.comments   
               columns.types string:string:string
 #### A masked pattern was here ####
               name default.bucketmapjoin_tmp_result
@@ -1024,6 +1173,7 @@ STAGE PLANS:
                 COLUMN_STATS_ACCURATE true
                 bucket_count -1
                 columns key,value1,value2
+                columns.comments   
                 columns.types string:string:string
 #### A masked pattern was here ####
                 name default.bucketmapjoin_tmp_result

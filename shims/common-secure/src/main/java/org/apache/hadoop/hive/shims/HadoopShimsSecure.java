@@ -64,6 +64,7 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.authorize.ProxyUsers;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.security.token.TokenSelector;
@@ -459,12 +460,39 @@ public abstract class HadoopShimsSecure implements HadoopShims {
     return token != null ? token.encodeToUrlString() : null;
   }
 
+  /**
+   * Create a delegation token object for the given token string and service.
+   * Add the token to given UGI
+   */
   @Override
   public void setTokenStr(UserGroupInformation ugi, String tokenStr, String tokenService) throws IOException {
+    Token<DelegationTokenIdentifier> delegationToken = createToken(tokenStr, tokenService);
+    ugi.addToken(delegationToken);
+  }
+
+  /**
+   * Add a given service to delegation token string.
+   */
+  @Override
+  public String addServiceToToken(String tokenStr, String tokenService)
+  throws IOException {
+    Token<DelegationTokenIdentifier> delegationToken = createToken(tokenStr, tokenService);
+    return delegationToken.encodeToUrlString();
+  }
+
+  /**
+   * Create a new token using the given string and service
+   * @param tokenStr
+   * @param tokenService
+   * @return
+   * @throws IOException
+   */
+  private Token<DelegationTokenIdentifier> createToken(String tokenStr, String tokenService)
+      throws IOException {
     Token<DelegationTokenIdentifier> delegationToken = new Token<DelegationTokenIdentifier>();
     delegationToken.decodeFromUrlString(tokenStr);
     delegationToken.setService(new Text(tokenService));
-    ugi.addToken(delegationToken);
+    return delegationToken;
   }
 
   @Override
@@ -498,6 +526,14 @@ public abstract class HadoopShimsSecure implements HadoopShims {
   }
 
   @Override
+  public void authorizeProxyAccess(String proxyUser, UserGroupInformation realUserUgi,
+      String ipAddress,  Configuration conf) throws IOException {
+    ProxyUsers.refreshSuperUserGroupsConfiguration(conf);
+    ProxyUsers.authorize(UserGroupInformation.createProxyUser(proxyUser, realUserUgi),
+        ipAddress, conf);
+  }
+
+  @Override
   public boolean isSecurityEnabled() {
     return UserGroupInformation.isSecurityEnabled();
   }
@@ -520,6 +556,13 @@ public abstract class HadoopShimsSecure implements HadoopShims {
   public void loginUserFromKeytab(String principal, String keytabFile) throws IOException {
     String hostPrincipal = SecurityUtil.getServerPrincipal(principal, "0.0.0.0");
     UserGroupInformation.loginUserFromKeytab(hostPrincipal, keytabFile);
+  }
+
+  @Override
+  public UserGroupInformation loginUserFromKeytabAndReturnUGI(
+      String principal, String keytabFile) throws IOException {
+    String hostPrincipal = SecurityUtil.getServerPrincipal(principal, "0.0.0.0");
+    return UserGroupInformation.loginUserFromKeytabAndReturnUGI(hostPrincipal, keytabFile);
   }
 
   @Override

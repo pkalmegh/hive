@@ -23,7 +23,6 @@ import org.apache.hadoop.hive.ql.exec.vector.VectorizedExpressions;
 import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.*;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
-import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.io.Text;
 
 /**
@@ -44,7 +43,9 @@ import org.apache.hadoop.io.Text;
     FilterLongColLessLongScalar.class, FilterLongColLessDoubleScalar.class,
     FilterDoubleColLessLongScalar.class, FilterDoubleColLessDoubleScalar.class,
     FilterLongScalarLessLongColumn.class, FilterLongScalarLessDoubleColumn.class,
-    FilterDoubleScalarLessLongColumn.class, FilterDoubleScalarLessDoubleColumn.class})
+    FilterDoubleScalarLessLongColumn.class, FilterDoubleScalarLessDoubleColumn.class,
+    FilterDecimalColLessDecimalColumn.class, FilterDecimalColLessDecimalScalar.class,
+    FilterDecimalScalarLessDecimalColumn.class})
 public class GenericUDFOPLessThan extends GenericUDFBaseCompare {
   public GenericUDFOPLessThan(){
     this.opName = "LESS THAN";
@@ -108,6 +109,11 @@ public class GenericUDFOPLessThan extends GenericUDFBaseCompare {
           converted_o1, compareOI) < 0);
     }
     return result;
+  }
+
+  @Override
+  public GenericUDF flip() {
+    return new GenericUDFOPGreaterThan();
   }
 
 }

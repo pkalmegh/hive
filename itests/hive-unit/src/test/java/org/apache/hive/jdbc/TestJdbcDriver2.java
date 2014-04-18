@@ -46,9 +46,12 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.TableType;
+import org.apache.hadoop.hive.ql.exec.UDF;
 import org.apache.hadoop.hive.ql.processors.DfsProcessor;
 import org.apache.hadoop.hive.ql.processors.SetProcessor;
 import org.apache.hive.common.util.HiveVersionInfo;
@@ -69,6 +72,7 @@ import org.junit.Test;
  *
  */
 public class TestJdbcDriver2 {
+  private static final Log LOG = LogFactory.getLog(TestJdbcDriver2.class);
   private static final String driverName = "org.apache.hive.jdbc.HiveDriver";
   private static final String tableName = "testHiveJdbcDriver_Table";
   private static final String tableComment = "Simple table";
@@ -78,9 +82,10 @@ public class TestJdbcDriver2 {
   private static final String partitionedColumnName = "partcolabc";
   private static final String partitionedColumnValue = "20090619";
   private static final String partitionedTableComment = "Partitioned table";
-  private static final String dataTypeTableName = "testDataTypeTable";
+  private static final String dataTypeTableName = "testdatatypetable";
   private static final String dataTypeTableComment = "Table with many column data types";
   private final HiveConf conf;
+  public static String dataFileDir;
   private final Path dataFilePath;
   private final Path dataTypeDataFilePath;
   private Connection con;
@@ -89,7 +94,7 @@ public class TestJdbcDriver2 {
 
   public TestJdbcDriver2() {
     conf = new HiveConf(TestJdbcDriver2.class);
-    String dataFileDir = conf.get("test.data.files").replace('\\', '/')
+    dataFileDir = conf.get("test.data.files").replace('\\', '/')
         .replace("c:", "");
     dataFilePath = new Path(dataFileDir, "kv1.txt");
     dataTypeDataFilePath = new Path(dataFileDir, "datatypes.txt");
@@ -260,7 +265,7 @@ public class TestJdbcDriver2 {
     try{
       DriverManager.getConnection(url, "", "");
       fail("should have thrown IllegalArgumentException but did not ");
-    }catch(IllegalArgumentException i){
+    } catch(SQLException i) {
       assertTrue(i.getMessage().contains("Bad URL format. Hostname not found "
           + " in authority part of the url"));
     }
@@ -910,16 +915,17 @@ public class TestJdbcDriver2 {
     assertEquals(
         "Unexpected column count", expectedColCount, meta.getColumnCount());
 
+    String colQualifier = ((tableName != null) && !tableName.isEmpty()) ? tableName.toLowerCase() + "."  : "";
     boolean moreRow = res.next();
     while (moreRow) {
       try {
         i++;
-        assertEquals(res.getInt(1), res.getInt("under_col"));
-        assertEquals(res.getString(1), res.getString("under_col"));
-        assertEquals(res.getString(2), res.getString("value"));
+        assertEquals(res.getInt(1), res.getInt(colQualifier + "under_col"));
+        assertEquals(res.getString(1), res.getString(colQualifier + "under_col"));
+        assertEquals(res.getString(2), res.getString(colQualifier + "value"));
         if (isPartitionTable) {
           assertEquals(res.getString(3), partitionedColumnValue);
-          assertEquals(res.getString(3), res.getString(partitionedColumnName));
+          assertEquals(res.getString(3), res.getString(colQualifier + partitionedColumnName));
         }
         assertFalse("Last result value was not null", res.wasNull());
         assertNull("No warnings should be found on ResultSet", res
@@ -1071,7 +1077,7 @@ public class TestJdbcDriver2 {
     tests.put("", new Object[]{});
 
     for (String checkPattern: tests.keySet()) {
-      ResultSet rs = (ResultSet)con.getMetaData().getTables("default", null, checkPattern, null);
+      ResultSet rs = con.getMetaData().getTables("default", null, checkPattern, null);
       ResultSetMetaData resMeta = rs.getMetaData();
       assertEquals(5, resMeta.getColumnCount());
       assertEquals("TABLE_CAT", resMeta.getColumnName(1));
@@ -1100,7 +1106,7 @@ public class TestJdbcDriver2 {
     }
 
     // only ask for the views.
-    ResultSet rs = (ResultSet)con.getMetaData().getTables("default", null, null
+    ResultSet rs = con.getMetaData().getTables("default", null, null
         , new String[]{viewTypeName});
     int cnt=0;
     while (rs.next()) {
@@ -1112,7 +1118,7 @@ public class TestJdbcDriver2 {
 
   @Test
   public void testMetaDataGetCatalogs() throws SQLException {
-    ResultSet rs = (ResultSet)con.getMetaData().getCatalogs();
+    ResultSet rs = con.getMetaData().getCatalogs();
     ResultSetMetaData resMeta = rs.getMetaData();
     assertEquals(1, resMeta.getColumnCount());
     assertEquals("TABLE_CAT", resMeta.getColumnName(1));
@@ -1122,7 +1128,7 @@ public class TestJdbcDriver2 {
 
   @Test
   public void testMetaDataGetSchemas() throws SQLException {
-    ResultSet rs = (ResultSet)con.getMetaData().getSchemas();
+    ResultSet rs = con.getMetaData().getSchemas();
     ResultSetMetaData resMeta = rs.getMetaData();
     assertEquals(2, resMeta.getColumnCount());
     assertEquals("TABLE_SCHEM", resMeta.getColumnName(1));
@@ -1172,7 +1178,7 @@ public class TestJdbcDriver2 {
    */
   private void metaDataGetTableTypeTest(Set<String> tabletypes)
       throws SQLException {
-    ResultSet rs = (ResultSet)con.getMetaData().getTableTypes();
+    ResultSet rs = con.getMetaData().getTableTypes();
 
     int cnt = 0;
     while (rs.next()) {
@@ -1237,7 +1243,7 @@ public class TestJdbcDriver2 {
    */
   @Test
   public void testMetaDataGetColumnsMetaData() throws SQLException {
-    ResultSet rs = (ResultSet)con.getMetaData().getColumns(null, null
+    ResultSet rs = con.getMetaData().getColumns(null, null
         , "testhivejdbcdriver\\_table", null);
 
     ResultSetMetaData rsmd = rs.getMetaData();
@@ -1301,14 +1307,30 @@ public class TestJdbcDriver2 {
     ResultSet res = stmt.executeQuery("describe " + tableName);
 
     res.next();
-    assertEquals("Column name 'under_col' not found", "under_col", res.getString(1).trim());
+    assertEquals("Column name 'under_col' not found", "under_col", res.getString(1));
     assertEquals("Column type 'under_col' for column under_col not found", "int", res
-        .getString(2).trim());
+        .getString(2));
     res.next();
-    assertEquals("Column name 'value' not found", "value", res.getString(1).trim());
+    assertEquals("Column name 'value' not found", "value", res.getString(1));
     assertEquals("Column type 'string' for column key not found", "string", res
-        .getString(2).trim());
+        .getString(2));
 
+    assertFalse("More results found than expected", res.next());
+  }
+
+  @Test
+  public void testShowColumns() throws SQLException {
+    Statement stmt = con.createStatement();
+    assertNotNull("Statement is null", stmt);
+
+    ResultSet res = stmt.executeQuery("show columns in " + tableName);
+    res.next();
+    assertEquals("Column name 'under_col' not found",
+        "under_col", res.getString(1));
+
+    res.next();
+    assertEquals("Column name 'value' not found",
+        "value", res.getString(1));
     assertFalse("More results found than expected", res.next());
   }
 
@@ -1535,12 +1557,27 @@ public class TestJdbcDriver2 {
     assertEquals(Integer.MAX_VALUE, meta.getPrecision(14));
     assertEquals(0, meta.getScale(14));
 
+    // Move the result of getColumns() forward to match the columns of the query
+    assertTrue(colRS.next());  // c13
+    assertTrue(colRS.next());  // c14
+    assertTrue(colRS.next());  // c15
+    assertTrue(colRS.next());  // c16
+    assertTrue(colRS.next());  // c17
+
     assertEquals("c17", meta.getColumnName(15));
     assertEquals(Types.TIMESTAMP, meta.getColumnType(15));
     assertEquals("timestamp", meta.getColumnTypeName(15));
     assertEquals(29, meta.getColumnDisplaySize(15));
     assertEquals(29, meta.getPrecision(15));
     assertEquals(9, meta.getScale(15));
+
+    assertEquals("c17", colRS.getString("COLUMN_NAME"));
+    assertEquals(Types.TIMESTAMP, colRS.getInt("DATA_TYPE"));
+    assertEquals("timestamp", colRS.getString("TYPE_NAME").toLowerCase());
+    assertEquals(meta.getPrecision(15), colRS.getInt("COLUMN_SIZE"));
+    assertEquals(meta.getScale(15), colRS.getInt("DECIMAL_DIGITS"));
+
+    assertTrue(colRS.next());
 
     assertEquals("c18", meta.getColumnName(16));
     assertEquals(Types.DECIMAL, meta.getColumnType(16));
@@ -1549,12 +1586,29 @@ public class TestJdbcDriver2 {
     assertEquals(16, meta.getPrecision(16));
     assertEquals(7, meta.getScale(16));
 
+    assertEquals("c18", colRS.getString("COLUMN_NAME"));
+    assertEquals(Types.DECIMAL, colRS.getInt("DATA_TYPE"));
+    assertEquals("decimal", colRS.getString("TYPE_NAME").toLowerCase());
+    assertEquals(meta.getPrecision(16), colRS.getInt("COLUMN_SIZE"));
+    assertEquals(meta.getScale(16), colRS.getInt("DECIMAL_DIGITS"));
+
+    assertTrue(colRS.next());  // skip c19, since not selected by query
+    assertTrue(colRS.next());
+
     assertEquals("c20", meta.getColumnName(17));
     assertEquals(Types.DATE, meta.getColumnType(17));
     assertEquals("date", meta.getColumnTypeName(17));
     assertEquals(10, meta.getColumnDisplaySize(17));
     assertEquals(10, meta.getPrecision(17));
     assertEquals(0, meta.getScale(17));
+
+    assertEquals("c20", colRS.getString("COLUMN_NAME"));
+    assertEquals(Types.DATE, colRS.getInt("DATA_TYPE"));
+    assertEquals("date", colRS.getString("TYPE_NAME").toLowerCase());
+    assertEquals(meta.getPrecision(17), colRS.getInt("COLUMN_SIZE"));
+    assertEquals(meta.getScale(17), colRS.getInt("DECIMAL_DIGITS"));
+
+    assertTrue(colRS.next());
 
     assertEquals("c21", meta.getColumnName(18));
     assertEquals(Types.VARCHAR, meta.getColumnType(18));
@@ -1563,6 +1617,14 @@ public class TestJdbcDriver2 {
     assertEquals(20, meta.getColumnDisplaySize(18));
     assertEquals(20, meta.getPrecision(18));
     assertEquals(0, meta.getScale(18));
+
+    assertEquals("c21", colRS.getString("COLUMN_NAME"));
+    assertEquals(Types.VARCHAR, colRS.getInt("DATA_TYPE"));
+    assertEquals("varchar", colRS.getString("TYPE_NAME").toLowerCase());
+    assertEquals(meta.getPrecision(18), colRS.getInt("COLUMN_SIZE"));
+    assertEquals(meta.getScale(18), colRS.getInt("DECIMAL_DIGITS"));
+
+    assertTrue(colRS.next());
 
     assertEquals("c22", meta.getColumnName(19));
     assertEquals(Types.CHAR, meta.getColumnType(19));
@@ -1578,6 +1640,12 @@ public class TestJdbcDriver2 {
     assertEquals(Integer.MAX_VALUE, meta.getColumnDisplaySize(20));
     assertEquals(Integer.MAX_VALUE, meta.getPrecision(20));
     assertEquals(0, meta.getScale(20));
+
+    assertEquals("c22", colRS.getString("COLUMN_NAME"));
+    assertEquals(Types.CHAR, colRS.getInt("DATA_TYPE"));
+    assertEquals("char", colRS.getString("TYPE_NAME").toLowerCase());
+    assertEquals(meta.getPrecision(19), colRS.getInt("COLUMN_SIZE"));
+    assertEquals(meta.getScale(19), colRS.getInt("DECIMAL_DIGITS"));
 
     for (int i = 1; i <= meta.getColumnCount(); i++) {
       assertFalse(meta.isAutoIncrement(i));
@@ -1837,23 +1905,26 @@ public class TestJdbcDriver2 {
    * Test the cursor repositioning to start of resultset
    * @throws Exception
    */
+  @Test
   public void testFetchFirstQuery() throws Exception {
-    execFetchFirst("select c4 from " + dataTypeTableName + " order by c1", "c4", false);
-    execFetchFirst("select c4 from " + dataTypeTableName + " order by c1", "c4",  true);
+    execFetchFirst("select c4, c1 from " + dataTypeTableName + " order by c1", "c4", false);
+    execFetchFirst("select c4, c1 from " + dataTypeTableName + " order by c1", "c4",  true);
   }
 
   /**
    * Test the cursor repositioning to start of resultset from non-mr query
    * @throws Exception
    */
+  @Test
   public void testFetchFirstNonMR() throws Exception {
-    execFetchFirst("select * from " + dataTypeTableName, "c4", false);
+    execFetchFirst("select * from " + dataTypeTableName, dataTypeTableName.toLowerCase() + "." + "c4", false);
   }
 
   /**
    *  Test for cursor repositioning to start of resultset for non-sql commands
    * @throws Exception
    */
+  @Test
   public void testFetchFirstSetCmds() throws Exception {
     execFetchFirst("set -v", SetProcessor.SET_COLUMN_NAME, false);
   }
@@ -1862,6 +1933,7 @@ public class TestJdbcDriver2 {
    *  Test for cursor repositioning to start of resultset for non-sql commands
    * @throws Exception
    */
+  @Test
   public void testFetchFirstDfsCmds() throws Exception {
     String wareHouseDir = conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname);
     execFetchFirst("dfs -ls " + wareHouseDir, DfsProcessor.DFS_RESULT_HEADER, false);
@@ -1873,10 +1945,11 @@ public class TestJdbcDriver2 {
    * Verify unsupported JDBC resultset attributes
    * @throws Exception
    */
+  @Test
   public void testUnsupportedFetchTypes() throws Exception {
     try {
       con.createStatement(ResultSet.TYPE_SCROLL_SENSITIVE,
-        ResultSet.CONCUR_READ_ONLY);
+          ResultSet.CONCUR_READ_ONLY);
       fail("createStatement with TYPE_SCROLL_SENSITIVE should fail");
     } catch(SQLException e) {
       assertEquals("HYC00", e.getSQLState().trim());
@@ -1884,7 +1957,7 @@ public class TestJdbcDriver2 {
 
     try {
       con.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
-        ResultSet.CONCUR_UPDATABLE);
+          ResultSet.CONCUR_UPDATABLE);
       fail("createStatement with CONCUR_UPDATABLE should fail");
     } catch(SQLException e) {
       assertEquals("HYC00", e.getSQLState().trim());
@@ -1896,6 +1969,7 @@ public class TestJdbcDriver2 {
    * Verify unsupported JDBC resultset methods
    * @throws Exception
    */
+  @Test
   public void testFetchFirstError() throws Exception {
     Statement stmt = con.createStatement();
     ResultSet res = stmt.executeQuery("select * from " + tableName);
@@ -1918,7 +1992,7 @@ public class TestJdbcDriver2 {
   private void execFetchFirst(String sqlStmt, String colName, boolean oneRowOnly)
       throws Exception {
     Statement stmt = con.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,
-          ResultSet.CONCUR_READ_ONLY);
+        ResultSet.CONCUR_READ_ONLY);
     ResultSet res = stmt.executeQuery(sqlStmt);
 
     List<String> results = new ArrayList<String> ();
@@ -1947,50 +2021,148 @@ public class TestJdbcDriver2 {
     }
   }
 
+  @Test
   public void testShowGrant() throws SQLException {
     Statement stmt = con.createStatement();
     stmt.execute("grant select on table " + dataTypeTableName + " to user hive_test_user");
     stmt.execute("show grant user hive_test_user on table " + dataTypeTableName);
 
     ResultSet res = stmt.getResultSet();
-    ResultSetMetaData metaData = res.getMetaData();
-
-    assertEquals("property", metaData.getColumnName(1));
-    assertEquals("value", metaData.getColumnName(2));
-
     assertTrue(res.next());
-    assertEquals("database", res.getString(1));
-    assertEquals("default", res.getString(2));
-    assertTrue(res.next());
-    assertEquals("table", res.getString(1));
+    assertEquals("default", res.getString(1));
     assertEquals(dataTypeTableName, res.getString(2));
-    assertTrue(res.next());
-    assertEquals("principalName", res.getString(1));
-    assertEquals("hive_test_user", res.getString(2));
-    assertTrue(res.next());
-    assertEquals("principalType", res.getString(1));
-    assertEquals("USER", res.getString(2));
-    assertTrue(res.next());
-    assertEquals("privilege", res.getString(1));
-    assertEquals("Select", res.getString(2));
-    assertTrue(res.next());
-    assertEquals("grantTime", res.getString(1));
-    assertTrue(res.next());
-    assertEquals("grantor", res.getString(1));
+    assertEquals("", res.getString(3));     // partition
+    assertEquals("", res.getString(4));     // column
+    assertEquals("hive_test_user", res.getString(5));
+    assertEquals("USER", res.getString(6));
+    assertEquals("Select", res.getString(7));
+    assertEquals(false, res.getBoolean(8)); // grant option
+    assertEquals(-1, res.getLong(9));
+    assertNotNull(res.getString(10));       // grantor
     assertFalse(res.next());
     res.close();
   }
 
+  @Test
   public void testShowRoleGrant() throws SQLException {
     Statement stmt = con.createStatement();
+
+    // drop role. ignore error.
+    try {
+      stmt.execute("drop role role1");
+    } catch (Exception ex) {
+      LOG.warn("Ignoring error during drop role: " + ex);
+    }
+
     stmt.execute("create role role1");
     stmt.execute("grant role role1 to user hive_test_user");
     stmt.execute("show role grant user hive_test_user");
 
     ResultSet res = stmt.getResultSet();
     assertTrue(res.next());
+    assertEquals("public", res.getString(1));
+    assertTrue(res.next());
     assertEquals("role1", res.getString(1));
-    assertFalse(res.next());
     res.close();
+  }
+
+  /**
+   * Test the cancellation of a query that is running.
+   * We spawn 2 threads - one running the query and
+   * the other attempting to cancel.
+   * We're using a dummy udf to simulate a query,
+   * that runs for a sufficiently long time.
+   * @throws Exception
+   */
+  @Test
+  public void testQueryCancel() throws Exception {
+    String udfName = SleepUDF.class.getName();
+    Statement stmt1 = con.createStatement();
+    stmt1.execute("create temporary function sleepUDF as '" + udfName + "'");
+    stmt1.close();
+    final Statement stmt = con.createStatement();
+    // Thread executing the query
+    Thread tExecute = new Thread(new Runnable() {
+      @Override
+      public void run() {
+        try {
+          System.out.println("Executing query: ");
+          stmt.executeQuery("select sleepUDF(t1.under_col) as u0, t1.under_col as u1, " +
+              "t2.under_col as u2 from " + tableName +  "t1 join " + tableName +
+              " t2 on t1.under_col = t2.under_col");
+          fail("Expecting SQLException");
+        } catch (SQLException e) {
+          // This thread should throw an exception
+          assertNotNull(e);
+          System.out.println(e.toString());
+        }
+      }
+    });
+    // Thread cancelling the query
+    Thread tCancel = new Thread(new Runnable() {
+      @Override
+      public void run() {
+        try {
+          Thread.sleep(1000);
+          System.out.println("Cancelling query: ");
+          stmt.cancel();
+        } catch (Exception e) {
+          // No-op
+        }
+      }
+    });
+    tExecute.start();
+    tCancel.start();
+    tExecute.join();
+    tCancel.join();
+    stmt.close();
+  }
+
+  // A udf which sleeps for 100ms to simulate a long running query
+  public static class SleepUDF extends UDF {
+    public Integer evaluate(final Integer value) {
+      try {
+        Thread.sleep(100);
+      } catch (InterruptedException e) {
+        // No-op
+      }
+      return value;
+    }
+  }
+
+  /**
+   * Loads data from a table containing non-ascii value column
+   * Runs a query and compares the return value
+   * @throws Exception
+   */
+  @Test
+  public void testNonAsciiReturnValues() throws Exception {
+    String nonAsciiTableName = "nonAsciiTable";
+    String nonAsciiString = "Garçu Kôkaku kidôtai";
+    Path nonAsciiFilePath = new Path(dataFileDir, "non_ascii_tbl.txt");
+    Statement stmt = con.createStatement();
+    stmt.execute("set hive.support.concurrency = false");
+
+    // Create table
+    stmt.execute("create table " + nonAsciiTableName + " (key int, value string) " +
+        "row format delimited fields terminated by '|'");
+
+    // Load data
+    stmt.execute("load data local inpath '"
+        + nonAsciiFilePath.toString() + "' into table " + nonAsciiTableName);
+
+    ResultSet rs = stmt.executeQuery("select value from " + nonAsciiTableName +  " limit 1");
+    while(rs.next()) {
+      String resultValue = rs.getString(1);
+      assertTrue(resultValue.equalsIgnoreCase(nonAsciiString));
+    }
+
+    // Drop table, ignore error.
+    try {
+      stmt.execute("drop table " + nonAsciiTableName);
+    } catch (Exception ex) {
+      // no-op
+    }
+    stmt.close();
   }
 }

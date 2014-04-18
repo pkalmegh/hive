@@ -48,6 +48,7 @@ import javax.ws.rs.core.UriInfo;
 import org.apache.commons.exec.ExecuteException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authentication.client.PseudoAuthenticator;
 import org.apache.hive.hcatalog.templeton.LauncherDelegator.JobType;
@@ -151,6 +152,39 @@ public class Server {
   @Produces({MediaType.APPLICATION_JSON})
   public Map<String, Object> version() {
     return SUPPORTED_VERSIONS;
+  }
+
+  /**
+   * Get version of hadoop software being run by this WebHCat server
+   */
+  @GET
+  @Path("version/hadoop")
+  @Produces(MediaType.APPLICATION_JSON)
+  public Response hadoopVersion()  throws IOException {
+    VersionDelegator d = new VersionDelegator(appConf);
+    return d.getVersion("hadoop");
+  }
+
+  /**
+   * Get version of hive software being run by this WebHCat server
+   */
+  @GET
+  @Path("version/hive")
+  @Produces(MediaType.APPLICATION_JSON)
+  public Response hiveVersion()  throws IOException {
+    VersionDelegator d = new VersionDelegator(appConf);
+    return d.getVersion("hive");
+  }
+
+  /**
+   * Get version of hive software being run by this WebHCat server
+   */
+  @GET
+  @Path("version/pig")
+  @Produces(MediaType.APPLICATION_JSON)
+  public Response pigVersion()  throws IOException {
+    VersionDelegator d = new VersionDelegator(appConf);
+    return d.getVersion("pig");
   }
 
   /**
@@ -781,49 +815,6 @@ public class Server {
 
   /**
    * Return the status of the jobid.
-   * @deprecated use GET jobs/{jobid} instead.
-   */
-  @Deprecated
-  @GET
-  @Path("queue/{jobid}")
-  @Produces({MediaType.APPLICATION_JSON})
-  public QueueStatusBean showQueueId(@PathParam("jobid") String jobid)
-    throws NotAuthorizedException, BadParam, IOException, InterruptedException {
-    return showJobId(jobid);
-  }
-
-  /**
-   * Kill a job in the queue.
-   * @deprecated use DELETE jobs/{jobid} instead.
-   */
-  @Deprecated
-  @DELETE
-  @Path("queue/{jobid}")
-  @Produces({MediaType.APPLICATION_JSON})
-  public QueueStatusBean deleteQueueId(@PathParam("jobid") String jobid)
-    throws NotAuthorizedException, BadParam, IOException, InterruptedException {
-    return deleteJobId(jobid);
-  }
-
-  /**
-   * Return all the known job ids for this user.
-   * @deprecated use GET jobs instead.
-   */
-  @Deprecated
-  @GET
-  @Path("queue")
-  @Produces({MediaType.APPLICATION_JSON})
-  public List<String> showQueueList(@QueryParam("showall") boolean showall)
-    throws NotAuthorizedException, BadParam, IOException, InterruptedException {
-
-    verifyUser();
-
-    ListDelegator d = new ListDelegator(appConf);
-    return d.run(getDoAsUser(), showall);
-  }
-
-  /**
-   * Return the status of the jobid.
    */
   @GET
   @Path("jobs/{jobid}")
@@ -1061,13 +1052,19 @@ public class Server {
     if (theSecurityContext == null) { 
       return null;
     }
+    String userName = null;
     if (theSecurityContext.getUserPrincipal() == null) {
+      userName = Main.UserNameHandler.getUserName(request);
+    }
+    else {
+      userName = theSecurityContext.getUserPrincipal().getName();
+    }
+    if(userName == null) {
       return null;
     }
     //map hue/foo.bar@something.com->hue since user group checks 
     // and config files are in terms of short name
-    return UserGroupInformation.createRemoteUser(
-        theSecurityContext.getUserPrincipal().getName()).getShortUserName();
+    return UserGroupInformation.createRemoteUser(userName).getShortUserName();
   }
 
   /**
@@ -1116,5 +1113,8 @@ public class Server {
   private void checkEnableLogPrerequisite(boolean enablelog, String statusdir) throws BadParam {
     if (enablelog && !TempletonUtils.isset(statusdir))
       throw new BadParam("enablelog is only applicable when statusdir is set");
+    if(enablelog && "0.23".equalsIgnoreCase(ShimLoader.getMajorVersion())) {
+      throw new BadParam("enablelog=true is only supported with Hadoop 1.x");
+    }
   }
 }

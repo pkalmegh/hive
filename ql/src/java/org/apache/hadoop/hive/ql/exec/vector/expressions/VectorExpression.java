@@ -19,7 +19,9 @@
 package org.apache.hadoop.hive.ql.exec.vector.expressions;
 
 import java.io.Serializable;
+import java.util.Map;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.hadoop.hive.ql.exec.vector.VectorExpressionDescriptor;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
 
@@ -27,12 +29,37 @@ import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
  * Base class for expressions.
  */
 public abstract class VectorExpression implements Serializable {
+  public enum Type {
+    STRING, TIMESTAMP, DATE, OTHER;
+    private static Map<String, Type> types = ImmutableMap.<String, Type>builder()
+        .put("string", STRING)
+        .put("timestamp", TIMESTAMP)
+        .put("date", DATE)
+        .build();
+
+    public static Type getValue(String name) {
+      if (types.containsKey(name.toLowerCase())) {
+        return types.get(name);
+      }
+      return OTHER;
+    }
+  }
 
   private static final long serialVersionUID = 1L;
   /**
    * Child expressions are evaluated post order.
    */
   protected VectorExpression [] childExpressions = null;
+
+  /**
+   * More detailed input types, such as date and timestamp.
+   */
+  protected Type [] inputTypes;
+
+  /**
+   * Output type of the expression.
+   */
+  protected String outputType;
 
   /**
    * This is the primary method to implement expression logic.
@@ -50,12 +77,22 @@ public abstract class VectorExpression implements Serializable {
   /**
    * Returns type of the output column.
    */
-  public abstract String getOutputType();
+  public String getOutputType() {
+    return outputType;
+  }
+
+  /**
+   * Set type of the output column.
+   */
+  public void setOutputType(String type) {
+    this.outputType = type;
+  }
 
   /**
    * Initialize the child expressions.
    */
   public void setChildExpressions(VectorExpression [] ve) {
+
     childExpressions = ve;
   }
 
@@ -75,6 +112,21 @@ public abstract class VectorExpression implements Serializable {
         ve.evaluate(vrg);
       }
     }
+  }
+
+  /**
+   * Set more detailed types to distinguish certain types that is represented in same
+   * {@link org.apache.hadoop.hive.ql.exec.vector.VectorExpressionDescriptor.ArgumentType}s. For example, date and
+   * timestamp will be in {@link org.apache.hadoop.hive.ql.exec.vector.LongColumnVector} but they need to be
+   * distinguished.
+   * @param inputTypes
+   */
+  public void setInputTypes(Type ... inputTypes) {
+    this.inputTypes = inputTypes;
+  }
+
+  public Type [] getInputTypes() {
+    return inputTypes;
   }
 
   @Override

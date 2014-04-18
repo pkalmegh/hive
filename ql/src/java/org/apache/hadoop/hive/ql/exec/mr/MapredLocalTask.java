@@ -40,6 +40,7 @@ import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.common.io.CachingPrintStream;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.ql.Context;
 import org.apache.hadoop.hive.ql.DriverContext;
 import org.apache.hadoop.hive.ql.QueryPlan;
@@ -81,7 +82,7 @@ import org.apache.hadoop.util.ReflectionUtils;
  */
 public class MapredLocalTask extends Task<MapredLocalWork> implements Serializable {
 
-  private Map<String, FetchOperator> fetchOperators;
+  private final Map<String, FetchOperator> fetchOperators = new HashMap<String, FetchOperator>();
   protected HadoopJobExecHelper jobExecHelper;
   private JobConf job;
   public static transient final Log l4j = LogFactory.getLog(MapredLocalTask.class);
@@ -93,7 +94,7 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
 
   // not sure we need this exec context; but all the operators in the work
   // will pass this context throught
-  private final ExecMapperContext execContext = new ExecMapperContext();
+  private ExecMapperContext execContext = new ExecMapperContext();
 
   private Process executor;
 
@@ -105,6 +106,10 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
     setWork(plan);
     this.job = job;
     console = new LogHelper(LOG, isSilent);
+  }
+
+  public void setExecContext(ExecMapperContext execContext) {
+    this.execContext = execContext;
   }
 
   @Override
@@ -134,7 +139,7 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
       String hiveJar = conf.getJar();
 
       String hadoopExec = conf.getVar(HiveConf.ConfVars.HADOOPBIN);
-
+      conf.setVar(ConfVars.HIVEADDEDJARS, Utilities.getResourceFiles(conf, SessionState.ResourceType.JAR));
       // write out the plan to a local file
       Path planPath = new Path(ctx.getLocalTmpPath(), "plan.xml");
       OutputStream out = FileSystem.getLocal(conf).create(planPath);
@@ -291,26 +296,11 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
     console.printInfo(Utilities.now()
         + "\tStarting to launch local task to process map join;\tmaximum memory = "
         + memoryMXBean.getHeapMemoryUsage().getMax());
-    fetchOperators = new HashMap<String, FetchOperator>();
-    Map<FetchOperator, JobConf> fetchOpJobConfMap = new HashMap<FetchOperator, JobConf>();
     execContext.setJc(job);
     // set the local work, so all the operator can get this context
     execContext.setLocalWork(work);
-    boolean inputFileChangeSenstive = work.getInputFileChangeSensitive();
     try {
-
-      initializeOperators(fetchOpJobConfMap);
-      // for each big table's bucket, call the start forward
-      if (inputFileChangeSenstive) {
-        for (Map<String, List<String>> bigTableBucketFiles : work
-            .getBucketMapjoinContext().getAliasBucketFileNameMapping().values()) {
-          for (String bigTableBucket : bigTableBucketFiles.keySet()) {
-            startForward(inputFileChangeSenstive, bigTableBucket);
-          }
-        }
-      } else {
-        startForward(inputFileChangeSenstive, null);
-      }
+      startForward(null);
       long currentTime = System.currentTimeMillis();
       long elapsed = currentTime - startTime;
       console.printInfo(Utilities.now() + "\tEnd of local task; Time Taken: "
@@ -328,6 +318,26 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
     return 0;
   }
 
+  public void startForward(String bigTableBucket) throws Exception {
+    boolean inputFileChangeSenstive = work.getInputFileChangeSensitive();
+    initializeOperators(new HashMap<FetchOperator, JobConf>());
+    // for each big table's bucket, call the start forward
+    if (inputFileChangeSenstive) {
+      for (Map<String, List<String>> bigTableBucketFiles : work
+          .getBucketMapjoinContext().getAliasBucketFileNameMapping().values()) {
+        if (bigTableBucket == null) {
+          for (String bigTableBucketFile : bigTableBucketFiles.keySet()) {
+            startForward(inputFileChangeSenstive, bigTableBucketFile);
+          }
+        } else if (bigTableBucketFiles.keySet().contains(bigTableBucket)) {
+          startForward(inputFileChangeSenstive, bigTableBucket);
+        }
+      }
+    } else {
+      startForward(inputFileChangeSenstive, null);
+    }
+  }
+
   private void startForward(boolean inputFileChangeSenstive, String bigTableBucket)
       throws Exception {
     for (Map.Entry<String, FetchOperator> entry : fetchOperators.entrySet()) {
@@ -339,40 +349,41 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
         setUpFetchOpContext(fetchOp, alias, bigTableBucket);
       }
 
+      // get the root operator
+      Operator<? extends OperatorDesc> forwardOp = work.getAliasToWork().get(alias);
       if (fetchOp.isEmptyTable()) {
         //generate empty hashtable for empty table
         this.generateDummyHashTable(alias, bigTableBucket);
+        forwardOp.close(false);
         continue;
       }
 
-      // get the root operator
-      Operator<? extends OperatorDesc> forwardOp = work.getAliasToWork().get(alias);
       // walk through the operator tree
-      while (true) {
+      while (!forwardOp.getDone()) {
         InspectableObject row = fetchOp.getNextRow();
         if (row == null) {
-          if (inputFileChangeSenstive) {
-            execContext.setCurrentBigBucketFile(bigTableBucket);
-            forwardOp.reset();
-          }
-          forwardOp.close(false);
           break;
         }
         forwardOp.processOp(row.o, 0);
-        // check if any operator had a fatal error or early exit during
-        // execution
-        if (forwardOp.getDone()) {
-          // ExecMapper.setDone(true);
-          break;
-        }
       }
+      if (inputFileChangeSenstive) {
+        execContext.setCurrentBigBucketFile(bigTableBucket);
+        forwardOp.reset();
+      }
+      forwardOp.close(false);
     }
   }
 
   private void initializeOperators(Map<FetchOperator, JobConf> fetchOpJobConfMap)
       throws HiveException {
+    for (Map.Entry<String, Operator<? extends OperatorDesc>> entry : work.getAliasToWork().entrySet()) {
+      LOG.debug("initializeOperators: " +  entry.getKey() + ", children = "  + entry.getValue().getChildOperators());
+    }
     // this mapper operator is used to initialize all the operators
     for (Map.Entry<String, FetchWork> entry : work.getAliasToFetchWork().entrySet()) {
+      if (entry.getValue() == null) {
+        continue;
+      }
       JobConf jobClone = new JobConf(job);
 
       TableScanOperator ts = (TableScanOperator)work.getAliasToWork().get(entry.getKey());
@@ -388,7 +399,7 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
       fetchOperators.put(entry.getKey(), fetchOp);
       l4j.info("fetchoperator for " + entry.getKey() + " created");
     }
-    // initilize all forward operator
+    // initialize all forward operator
     for (Map.Entry<String, FetchOperator> entry : fetchOperators.entrySet()) {
       // get the forward op
       String alias = entry.getKey();
@@ -412,6 +423,7 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
 
   private void generateDummyHashTable(String alias, String bigBucketFileName)
       throws HiveException,IOException {
+    LOG.debug("generating dummy for " + alias);
     // find the (byte)tag for the map join(HashTableSinkOperator)
     Operator<? extends OperatorDesc> parentOp = work.getAliasToWork().get(alias);
     Operator<? extends OperatorDesc> childOp = parentOp.getChildOperators().get(0);
@@ -452,7 +464,7 @@ public class MapredLocalTask extends Task<MapredLocalWork> implements Serializab
     BucketMapJoinContext bucketMatcherCxt = this.work.getBucketMapjoinContext();
 
     Class<? extends BucketMatcher> bucketMatcherCls = bucketMatcherCxt.getBucketMatcherClass();
-    BucketMatcher bucketMatcher = (BucketMatcher) ReflectionUtils.newInstance(bucketMatcherCls,
+    BucketMatcher bucketMatcher = ReflectionUtils.newInstance(bucketMatcherCls,
         null);
     bucketMatcher.setAliasBucketFileNameMapping(bucketMatcherCxt.getAliasBucketFileNameMapping());
 

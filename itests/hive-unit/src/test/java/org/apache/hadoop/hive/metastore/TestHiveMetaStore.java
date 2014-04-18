@@ -48,12 +48,17 @@ import org.apache.hadoop.hive.metastore.api.ConfigValSecurityException;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.DoubleColumnStatsData;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.metastore.api.Function;
+import org.apache.hadoop.hive.metastore.api.FunctionType;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Order;
 import org.apache.hadoop.hive.metastore.api.Partition;
+import org.apache.hadoop.hive.metastore.api.PrincipalType;
+import org.apache.hadoop.hive.metastore.api.ResourceType;
+import org.apache.hadoop.hive.metastore.api.ResourceUri;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.SkewedInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
@@ -62,9 +67,11 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.Type;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
 import org.apache.hadoop.hive.ql.exec.Utilities;
+import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.thrift.TException;
+import org.junit.Test;
 
 import com.google.common.collect.Lists;
 
@@ -386,7 +393,7 @@ public abstract class TestHiveMetaStore extends TestCase {
 
       // create dir for /mpart5
       Path mp5Path = new Path(mpart5.getSd().getLocation());
-      warehouse.mkdirs(mp5Path);
+      warehouse.mkdirs(mp5Path, true);
       assertTrue(fs.exists(mp5Path));
       assertEquals(dbPermission, fs.getFileStatus(mp5Path).getPermission());
 
@@ -923,6 +930,8 @@ public abstract class TestHiveMetaStore extends TestCase {
 
       Database db = new Database();
       db.setName(TEST_DB1_NAME);
+      db.setOwnerName(SessionState.getUserFromAuthenticator());
+      db.setOwnerType(PrincipalType.USER);
       client.createDatabase(db);
 
       db = client.getDatabase(TEST_DB1_NAME);
@@ -931,7 +940,8 @@ public abstract class TestHiveMetaStore extends TestCase {
           TEST_DB1_NAME, db.getName());
       assertEquals("location of the returned db is different from that of inserted db",
           warehouse.getDatabasePath(db).toString(), db.getLocationUri());
-
+      assertEquals(db.getOwnerName(), SessionState.getUserFromAuthenticator());
+      assertEquals(db.getOwnerType(), PrincipalType.USER);
       Database db2 = new Database();
       db2.setName(TEST_DB2_NAME);
       client.createDatabase(db2);
@@ -1437,34 +1447,24 @@ public abstract class TestHiveMetaStore extends TestCase {
       client.updateTableColumnStatistics(colStats);
 
       // retrieve the stats obj that was just written
-      ColumnStatistics colStats2 = client.getTableColumnStatistics(dbName, tblName, colName[0]);
+      ColumnStatisticsObj colStats2 = client.getTableColumnStatistics(
+          dbName, tblName, Lists.newArrayList(colName[0])).get(0);
 
      // compare stats obj to ensure what we get is what we wrote
       assertNotNull(colStats2);
-      assertEquals(colStats2.getStatsDesc().getDbName(), dbName);
-      assertEquals(colStats2.getStatsDesc().getTableName(), tblName);
-      assertEquals(colStats2.getStatsObj().get(0).getColName(), colName[0]);
-      assertEquals(colStats2.getStatsObj().get(0).getStatsData().getDoubleStats().getLowValue(),
-        lowValue);
-      assertEquals(colStats2.getStatsObj().get(0).getStatsData().getDoubleStats().getHighValue(),
-        highValue);
-      assertEquals(colStats2.getStatsObj().get(0).getStatsData().getDoubleStats().getNumNulls(),
-        numNulls);
-      assertEquals(colStats2.getStatsObj().get(0).getStatsData().getDoubleStats().getNumDVs(),
-        numDVs);
-      assertEquals(colStats2.getStatsDesc().isIsTblLevel(), isTblLevel);
+      assertEquals(colStats2.getColName(), colName[0]);
+      assertEquals(colStats2.getStatsData().getDoubleStats().getLowValue(), lowValue);
+      assertEquals(colStats2.getStatsData().getDoubleStats().getHighValue(), highValue);
+      assertEquals(colStats2.getStatsData().getDoubleStats().getNumNulls(), numNulls);
+      assertEquals(colStats2.getStatsData().getDoubleStats().getNumDVs(), numDVs);
 
       // test delete column stats; if no col name is passed all column stats associated with the
       // table is deleted
       boolean status = client.deleteTableColumnStatistics(dbName, tblName, null);
       assertTrue(status);
       // try to query stats for a column for which stats doesn't exist
-      try {
-        colStats2 = client.getTableColumnStatistics(dbName, tblName, colName[1]);
-        assertTrue(true);
-      } catch (NoSuchObjectException e) {
-        System.out.println("Statistics for column=" + colName[1] + " not found");
-      }
+      assertTrue(client.getTableColumnStatistics(
+          dbName, tblName, Lists.newArrayList(colName[1])).isEmpty());
 
       colStats.setStatsDesc(statsDesc);
       colStats.setStatsObj(statsObjs);
@@ -1473,7 +1473,8 @@ public abstract class TestHiveMetaStore extends TestCase {
       client.updateTableColumnStatistics(colStats);
 
       // query column stats for column whose stats were updated in the previous call
-      colStats2 = client.getTableColumnStatistics(dbName, tblName, colName[0]);
+      colStats2 = client.getTableColumnStatistics(
+          dbName, tblName, Lists.newArrayList(colName[0])).get(0);
 
       // partition level column statistics test
       // create a table with multiple partitions
@@ -1505,37 +1506,27 @@ public abstract class TestHiveMetaStore extends TestCase {
 
      client.updatePartitionColumnStatistics(colStats);
 
-     colStats2 = client.getPartitionColumnStatistics(dbName, tblName, partName, colName[1]);
+     colStats2 = client.getPartitionColumnStatistics(dbName, tblName,
+         Lists.newArrayList(partName), Lists.newArrayList(colName[1])).get(partName).get(0);
 
      // compare stats obj to ensure what we get is what we wrote
      assertNotNull(colStats2);
-     assertEquals(colStats2.getStatsDesc().getDbName(), dbName);
-     assertEquals(colStats2.getStatsDesc().getTableName(), tblName);
      assertEquals(colStats.getStatsDesc().getPartName(), partName);
-     assertEquals(colStats2.getStatsObj().get(0).getColName(), colName[1]);
-     assertEquals(colStats2.getStatsObj().get(0).getStatsData().getStringStats().getMaxColLen(),
-       maxColLen);
-     assertEquals(colStats2.getStatsObj().get(0).getStatsData().getStringStats().getAvgColLen(),
-       avgColLen);
-     assertEquals(colStats2.getStatsObj().get(0).getStatsData().getStringStats().getNumNulls(),
-       numNulls);
-     assertEquals(colStats2.getStatsObj().get(0).getStatsData().getStringStats().getNumDVs(),
-       numDVs);
-     assertEquals(colStats2.getStatsDesc().isIsTblLevel(), isTblLevel);
+     assertEquals(colStats2.getColName(), colName[1]);
+     assertEquals(colStats2.getStatsData().getStringStats().getMaxColLen(), maxColLen);
+     assertEquals(colStats2.getStatsData().getStringStats().getAvgColLen(), avgColLen);
+     assertEquals(colStats2.getStatsData().getStringStats().getNumNulls(), numNulls);
+     assertEquals(colStats2.getStatsData().getStringStats().getNumDVs(), numDVs);
 
      // test stats deletion at partition level
      client.deletePartitionColumnStatistics(dbName, tblName, partName, colName[1]);
 
-     colStats2 = client.getPartitionColumnStatistics(dbName, tblName, partName, colName[0]);
+     colStats2 = client.getPartitionColumnStatistics(dbName, tblName,
+         Lists.newArrayList(partName), Lists.newArrayList(colName[0])).get(partName).get(0);
 
      // test get stats on a column for which stats doesn't exist
-     try {
-       colStats2 = client.getPartitionColumnStatistics(dbName, tblName, partName, colName[1]);
-       assertTrue(true);
-     } catch (NoSuchObjectException e) {
-       System.out.println("Statistics for column=" + colName[1] + " not found");
-     }
-
+     assertTrue(client.getPartitionColumnStatistics(dbName, tblName,
+           Lists.newArrayList(partName), Lists.newArrayList(colName[1])).isEmpty());
     } catch (Exception e) {
       System.err.println(StringUtils.stringifyException(e));
       System.err.println("testColumnStatistics() failed.");
@@ -2502,7 +2493,114 @@ public abstract class TestHiveMetaStore extends TestCase {
     }
   }
 
+  public void testSimpleFunction() throws Exception {
+    String dbName = "test_db";
+    String funcName = "test_func";
+    String className = "org.apache.hadoop.hive.ql.udf.generic.GenericUDFUpper";
+    String owner = "test_owner";
+    PrincipalType ownerType = PrincipalType.USER;
+    int createTime = (int) (System.currentTimeMillis() / 1000);
+    FunctionType funcType = FunctionType.JAVA;
 
+    try {
+      cleanUp(dbName, null, null);
+
+      createDb(dbName);
+
+      createFunction(dbName, funcName, className, owner, ownerType, createTime, funcType, null);
+
+      // Try the different getters
+
+      // getFunction()
+      Function func = client.getFunction(dbName, funcName);
+      assertEquals("function db name", dbName, func.getDbName());
+      assertEquals("function name", funcName, func.getFunctionName());
+      assertEquals("function class name", className, func.getClassName());
+      assertEquals("function owner name", owner, func.getOwnerName());
+      assertEquals("function owner type", PrincipalType.USER, func.getOwnerType());
+      assertEquals("function type", funcType, func.getFunctionType());
+      List<ResourceUri> resources = func.getResourceUris();
+      assertTrue("function resources", resources == null || resources.size() == 0);
+
+      boolean gotException = false;
+      try {
+        func = client.getFunction(dbName, "nonexistent_func");
+      } catch (MetaException e) {
+        // expected failure
+        gotException = true;
+      }
+      assertEquals(true, gotException);
+
+      // getFunctions()
+      List<String> funcs = client.getFunctions(dbName, "*_func");
+      assertEquals(1, funcs.size());
+      assertEquals(funcName, funcs.get(0));
+
+      funcs = client.getFunctions(dbName, "nonexistent_func");
+      assertEquals(0, funcs.size());
+
+      // dropFunction()
+      client.dropFunction(dbName, funcName);
+
+      // Confirm that the function is now gone
+      funcs = client.getFunctions(dbName, funcName);
+      assertEquals(0, funcs.size());
+
+    } catch (Exception e) {
+      System.err.println(StringUtils.stringifyException(e));
+      System.err.println("testConcurrentMetastores() failed.");
+      throw e;
+    } finally {
+      silentDropDatabase(dbName);
+    }
+  }
+
+  public void testFunctionWithResources() throws Exception {
+    String dbName = "test_db2";
+    String funcName = "test_func";
+    String className = "org.apache.hadoop.hive.ql.udf.generic.GenericUDFUpper";
+    String owner = "test_owner";
+    PrincipalType ownerType = PrincipalType.USER;
+    int createTime = (int) (System.currentTimeMillis() / 1000);
+    FunctionType funcType = FunctionType.JAVA;
+    List<ResourceUri> resList = new ArrayList<ResourceUri>();
+    resList.add(new ResourceUri(ResourceType.JAR, "hdfs:///tmp/jar1.jar"));
+    resList.add(new ResourceUri(ResourceType.FILE, "hdfs:///tmp/file1.txt"));
+    resList.add(new ResourceUri(ResourceType.ARCHIVE, "hdfs:///tmp/archive1.tgz"));
+
+    try {
+      cleanUp(dbName, null, null);
+
+      createDb(dbName);
+
+      createFunction(dbName, funcName, className, owner, ownerType, createTime, funcType, resList);
+
+      // Try the different getters
+
+      // getFunction()
+      Function func = client.getFunction(dbName, funcName);
+      assertEquals("function db name", dbName, func.getDbName());
+      assertEquals("function name", funcName, func.getFunctionName());
+      assertEquals("function class name", className, func.getClassName());
+      assertEquals("function owner name", owner, func.getOwnerName());
+      assertEquals("function owner type", PrincipalType.USER, func.getOwnerType());
+      assertEquals("function type", funcType, func.getFunctionType());
+      List<ResourceUri> resources = func.getResourceUris();
+      assertEquals("Resource list size", resList.size(), resources.size());
+      for (ResourceUri res : resources) {
+        assertTrue("Matching resource " + res.getResourceType() + " " + res.getUri(),
+            resList.indexOf(res) >= 0);
+      }
+
+      client.dropFunction(dbName, funcName);
+    } catch (Exception e) {
+      System.err.println(StringUtils.stringifyException(e));
+      System.err.println("testConcurrentMetastores() failed.");
+      throw e;
+    } finally {
+      silentDropDatabase(dbName);
+    }
+  }
 
   /**
    * This method simulates another Hive metastore renaming a table, by accessing the db and
@@ -2517,8 +2615,8 @@ public abstract class TestHiveMetaStore extends TestCase {
    */
   private void updateTableNameInDB(String oldTableName, String newTableName) throws SQLException {
     String connectionStr = HiveConf.getVar(hiveConf, HiveConf.ConfVars.METASTORECONNECTURLKEY);
-    int interval= HiveConf.getIntVar(hiveConf, HiveConf.ConfVars.METASTOREINTERVAL);
-    int attempts = HiveConf.getIntVar(hiveConf, HiveConf.ConfVars.METASTOREATTEMPTS);
+    int interval= 1;
+    int attempts = 1;
 
 
     Utilities.SQLCommand<Void> execUpdate = new Utilities.SQLCommand<Void>() {
@@ -2677,5 +2775,61 @@ public abstract class TestHiveMetaStore extends TestCase {
     }
 
     createPartitions(dbName, tbl, values);
+  }
+
+  @Test
+  public void testDBOwner() throws NoSuchObjectException, MetaException, TException {
+    Database db = client.getDatabase(MetaStoreUtils.DEFAULT_DATABASE_NAME);
+    assertEquals(db.getOwnerName(), HiveMetaStore.PUBLIC);
+    assertEquals(db.getOwnerType(), PrincipalType.ROLE);
+  }
+
+  /**
+   * Test changing owner and owner type of a database
+   * @throws NoSuchObjectException
+   * @throws MetaException
+   * @throws TException
+   */
+  @Test
+  public void testDBOwnerChange() throws NoSuchObjectException, MetaException, TException {
+    final String dbName = "alterDbOwner";
+    final String user1 = "user1";
+    final String user2 = "user2";
+    final String role1 = "role1";
+
+    silentDropDatabase(dbName);
+    Database db = new Database();
+    db.setName(dbName);
+    db.setOwnerName(user1);
+    db.setOwnerType(PrincipalType.USER);
+
+    client.createDatabase(db);
+    checkDbOwnerType(dbName, user1, PrincipalType.USER);
+
+    db.setOwnerName(user2);
+    client.alterDatabase(dbName, db);
+    checkDbOwnerType(dbName, user2, PrincipalType.USER);
+
+    db.setOwnerName(role1);
+    db.setOwnerType(PrincipalType.ROLE);
+    client.alterDatabase(dbName, db);
+    checkDbOwnerType(dbName, role1, PrincipalType.ROLE);
+
+  }
+
+  private void checkDbOwnerType(String dbName, String ownerName, PrincipalType ownerType)
+      throws NoSuchObjectException, MetaException, TException {
+    Database db = client.getDatabase(dbName);
+    assertEquals("Owner name", ownerName, db.getOwnerName());
+    assertEquals("Owner type", ownerType, db.getOwnerType());
+  }
+
+  private void createFunction(String dbName, String funcName, String className,
+      String ownerName, PrincipalType ownerType, int createTime,
+      org.apache.hadoop.hive.metastore.api.FunctionType functionType, List<ResourceUri> resources)
+          throws Exception {
+    Function func = new Function(funcName, dbName, className,
+        ownerName, ownerType, createTime, functionType, resources);
+    client.createFunction(func);
   }
 }

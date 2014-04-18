@@ -28,10 +28,11 @@ import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Properties;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -39,54 +40,28 @@ import jline.ArgumentCompletor;
 import jline.Completor;
 
 class DatabaseConnection {
+  private static final String HIVE_AUTH_USER = "user";
+  private static final String HIVE_AUTH_PASSWD = "password";
+  private static final String HIVE_VAR_PREFIX = "hivevar:";
+  private static final String HIVE_CONF_PREFIX = "hiveconf:";
+
   private final BeeLine beeLine;
   private Connection connection;
   private DatabaseMetaData meta;
   private final String driver;
   private final String url;
-  private final String username;
-  private final String password;
+  private final Properties info;
   private Schema schema = null;
   private Completor sqlCompletor = null;
 
 
   public DatabaseConnection(BeeLine beeLine, String driver, String url,
-      String username, String password) throws SQLException {
+       Properties info) throws SQLException {
     this.beeLine = beeLine;
     this.driver = driver;
-    this.username = username;
-    this.password = password;
-    this.url = appendHiveVariables(beeLine, url);
+    this.url = url;
+    this.info = info;
   }
-
-/**
- * Append hive variables specified on the command line to the connection url
- * (after #). They will be set later on the session on the server side.
- */
-  private static String appendHiveVariables(BeeLine beeLine, String url) {
-    StringBuilder sb = new StringBuilder( url );
-    Map<String, String> hiveVars = beeLine.getOpts().getHiveVariables();
-    if (hiveVars.size() > 0) {
-      if (url.indexOf("#") == -1) {
-        sb.append("#");
-      } else {
-        sb.append(";");
-      }
-      Set<Map.Entry<String, String>> vars = hiveVars.entrySet();
-      Iterator<Map.Entry<String, String>> it = vars.iterator();
-      while (it.hasNext()) {
-        Map.Entry<String, String> var = it.next();
-        sb.append(var.getKey());
-        sb.append("=");
-        sb.append(var.getValue());
-        if (it.hasNext()) {
-          sb.append(";");
-        }
-      }
-    }
-    return sb.toString();
-  }
-
 
   @Override
   public String toString() {
@@ -157,7 +132,17 @@ class DatabaseConnection {
       return beeLine.error(e);
     }
 
-    setConnection(DriverManager.getConnection(getUrl(), username, password));
+    Map<String, String> hiveVars = beeLine.getOpts().getHiveVariables();
+    for (Map.Entry<String, String> var : hiveVars.entrySet()) {
+      info.put(HIVE_VAR_PREFIX + var.getKey(), var.getValue());
+    }
+
+    Map<String, String> hiveConfVars = beeLine.getOpts().getHiveConfVariables();
+    for (Map.Entry<String, String> var : hiveConfVars.entrySet()) {
+      info.put(HIVE_CONF_PREFIX + var.getKey(), var.getValue());
+    }
+
+    setConnection(DriverManager.getConnection(getUrl(), info));
     setDatabaseMetaData(getConnection().getMetaData());
 
     try {

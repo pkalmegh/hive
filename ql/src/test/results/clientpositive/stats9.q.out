@@ -1,7 +1,9 @@
 PREHOOK: query: create table analyze_srcbucket like srcbucket
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: create table analyze_srcbucket like srcbucket
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@analyze_srcbucket
 PREHOOK: query: insert overwrite table analyze_srcbucket select * from srcbucket
 PREHOOK: type: QUERY
@@ -19,9 +21,6 @@ POSTHOOK: query: explain analyze table analyze_srcbucket compute statistics
 POSTHOOK: type: QUERY
 POSTHOOK: Lineage: analyze_srcbucket.key SIMPLE [(srcbucket)srcbucket.FieldSchema(name:key, type:int, comment:null), ]
 POSTHOOK: Lineage: analyze_srcbucket.value SIMPLE [(srcbucket)srcbucket.FieldSchema(name:value, type:string, comment:null), ]
-ABSTRACT SYNTAX TREE:
-  (TOK_ANALYZE (TOK_TAB (TOK_TABNAME analyze_srcbucket)))
-
 STAGE DEPENDENCIES:
   Stage-0 is a root stage
   Stage-1 depends on stages: Stage-0
@@ -29,10 +28,10 @@ STAGE DEPENDENCIES:
 STAGE PLANS:
   Stage: Stage-0
     Map Reduce
-      Alias -> Map Operator Tree:
-        analyze_srcbucket 
+      Map Operator Tree:
           TableScan
             alias: analyze_srcbucket
+            Statistics: Num rows: -1 Data size: 11603 Basic stats: PARTIAL Column stats: COMPLETE
 
   Stage: Stage-1
     Stats-Aggr Operator
@@ -49,14 +48,16 @@ POSTHOOK: Lineage: analyze_srcbucket.key SIMPLE [(srcbucket)srcbucket.FieldSchem
 POSTHOOK: Lineage: analyze_srcbucket.value SIMPLE [(srcbucket)srcbucket.FieldSchema(name:value, type:string, comment:null), ]
 PREHOOK: query: describe formatted analyze_srcbucket
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@analyze_srcbucket
 POSTHOOK: query: describe formatted analyze_srcbucket
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@analyze_srcbucket
 POSTHOOK: Lineage: analyze_srcbucket.key SIMPLE [(srcbucket)srcbucket.FieldSchema(name:key, type:int, comment:null), ]
 POSTHOOK: Lineage: analyze_srcbucket.value SIMPLE [(srcbucket)srcbucket.FieldSchema(name:value, type:string, comment:null), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	int                 	None                
-value               	string              	None                
+key                 	int                 	                    
+value               	string              	                    
 	 	 
 # Detailed Table Information	 	 
 Database:           	default             	 

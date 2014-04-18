@@ -19,8 +19,9 @@ package org.apache.hadoop.hive.ql.security.authorization.plugin;
 
 import java.util.List;
 
-import org.apache.hadoop.hive.common.classification.InterfaceAudience.Public;
+import org.apache.hadoop.hive.common.classification.InterfaceAudience.LimitedPrivate;
 import org.apache.hadoop.hive.common.classification.InterfaceStability.Evolving;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.security.authorization.HiveAuthorizationProvider;
 
 /**
@@ -33,9 +34,16 @@ import org.apache.hadoop.hive.ql.security.authorization.HiveAuthorizationProvide
  *  statements and does not make assumptions about the privileges needed for a hive operation.
  * This is referred to as V2 authorizer in other parts of the code.
  */
-@Public
+@LimitedPrivate(value = { "" })
 @Evolving
 public interface HiveAuthorizer {
+
+  public enum VERSION { V1 };
+
+  /**
+   * @return version of HiveAuthorizer interface that is implemented by this instance
+   */
+  public VERSION getVersion();
 
   /**
    * Grant privileges for principals on the object
@@ -44,9 +52,12 @@ public interface HiveAuthorizer {
    * @param hivePrivObject
    * @param grantorPrincipal
    * @param grantOption
+   * @throws HiveAuthzPluginException
+   * @throws HiveAccessControlException
    */
   void grantPrivileges(List<HivePrincipal> hivePrincipals, List<HivePrivilege> hivePrivileges,
-      HivePrivilegeObject hivePrivObject, HivePrincipal grantorPrincipal, boolean grantOption);
+      HivePrivilegeObject hivePrivObject, HivePrincipal grantorPrincipal, boolean grantOption)
+      throws HiveAuthzPluginException, HiveAccessControlException;
 
   /**
    * Revoke privileges for principals on the object
@@ -55,29 +66,53 @@ public interface HiveAuthorizer {
    * @param hivePrivObject
    * @param grantorPrincipal
    * @param grantOption
+   * @throws HiveAuthzPluginException
+   * @throws HiveAccessControlException
    */
   void revokePrivileges(List<HivePrincipal> hivePrincipals, List<HivePrivilege> hivePrivileges,
-      HivePrivilegeObject hivePrivObject, HivePrincipal grantorPrincipal, boolean grantOption);
+      HivePrivilegeObject hivePrivObject, HivePrincipal grantorPrincipal, boolean grantOption)
+      throws HiveAuthzPluginException, HiveAccessControlException;
+
 
   /**
    * Create role
    * @param roleName
    * @param adminGrantor - The user in "[ WITH ADMIN <user> ]" clause of "create role"
+   * @throws HiveAuthzPluginException
+   * @throws HiveAccessControlException
    */
-  void createRole(String roleName, HivePrincipal adminGrantor);
+  void createRole(String roleName, HivePrincipal adminGrantor)
+      throws HiveAuthzPluginException, HiveAccessControlException;
 
   /**
    * Drop role
    * @param roleName
+   * @throws HiveAuthzPluginException
+   * @throws HiveAccessControlException
    */
-  void dropRole(String roleName);
+  void dropRole(String roleName)
+      throws HiveAuthzPluginException, HiveAccessControlException;
 
   /**
-   * Get roles that this user/role belongs to
-   * @param hivePrincipal - user or role
-   * @return list of roles
+   * Get the grant information for principals granted the given role
+   * @param roleName
+   * @return
+   * @throws HiveAuthzPluginException
+   * @throws HiveAccessControlException
    */
-  List<String> getRoles(HivePrincipal hivePrincipal);
+  List<HiveRoleGrant> getPrincipalGrantInfoForRole(String roleName)
+      throws HiveAuthzPluginException, HiveAccessControlException;
+
+
+  /**
+   * Get the grant information of roles the given principal belongs to
+   * @param principal
+   * @return
+   * @throws HiveAuthzPluginException
+   * @throws HiveAccessControlException
+   */
+  List<HiveRoleGrant> getRoleGrantInfoForPrincipal(HivePrincipal principal)
+      throws HiveAuthzPluginException, HiveAccessControlException;
 
   /**
    * Grant roles in given roles list to principals in given hivePrincipals list
@@ -85,9 +120,13 @@ public interface HiveAuthorizer {
    * @param roles
    * @param grantOption
    * @param grantorPrinc
+   * @throws HiveAuthzPluginException
+   * @throws HiveAccessControlException
    */
   void grantRole(List<HivePrincipal> hivePrincipals, List<String> roles, boolean grantOption,
-      HivePrincipal grantorPrinc);
+      HivePrincipal grantorPrinc)
+      throws HiveAuthzPluginException, HiveAccessControlException;
+
 
   /**
    * Revoke roles in given roles list to principals in given hivePrincipals list
@@ -95,31 +134,64 @@ public interface HiveAuthorizer {
    * @param roles
    * @param grantOption
    * @param grantorPrinc
+   * @throws HiveAuthzPluginException
+   * @throws HiveAccessControlException
    */
   void revokeRole(List<HivePrincipal> hivePrincipals, List<String> roles, boolean grantOption,
-      HivePrincipal grantorPrinc);
+      HivePrincipal grantorPrinc)
+      throws HiveAuthzPluginException, HiveAccessControlException;
 
   /**
    * Check if user has privileges to do this action on these objects
    * @param hiveOpType
    * @param inputsHObjs
    * @param outputHObjs
+   * @throws HiveAuthzPluginException
+   * @throws HiveAccessControlException
    */
   void checkPrivileges(HiveOperationType hiveOpType, List<HivePrivilegeObject> inputsHObjs,
-      List<HivePrivilegeObject> outputHObjs);
+      List<HivePrivilegeObject> outputHObjs)
+      throws HiveAuthzPluginException, HiveAccessControlException;
 
   /**
    * @return all existing roles
+   * @throws HiveAuthzPluginException
+   * @throws HiveAccessControlException
    */
-  List<String> getAllRoles();
+  List<String> getAllRoles()
+      throws HiveAuthzPluginException, HiveAccessControlException;
 
+  /**
+   * Show privileges for given principal on given object
+   * @param principal
+   * @param privObj
+   * @return
+   * @throws HiveAuthzPluginException
+   * @throws HiveAccessControlException
+   */
+  List<HivePrivilegeInfo> showPrivileges(HivePrincipal principal, HivePrivilegeObject privObj)
+      throws HiveAuthzPluginException, HiveAccessControlException;
 
-  //other functions to be added -
-  //showAllRoles()
-  //showUsersInRole(rolename)
-  //showgrants(username)
-  //isSuperuser(username)
+  /**
+   * Set the current role to roleName argument
+   * @param roleName
+   * @throws HiveAccessControlException
+   * @throws HiveAuthzPluginException
+   */
+  void setCurrentRole(String roleName) throws HiveAccessControlException, HiveAuthzPluginException;
 
+  /**
+   * @return List having names of current roles
+   * @throws HiveAuthzPluginException
+   */
+  List<String> getCurrentRoleNames() throws HiveAuthzPluginException;
+
+  /**
+   * Modify the given HiveConf object to configure authorization related parameters
+   * or other parameters related to hive security
+   * @param hiveConf
+   */
+  public void applyAuthorizationConfigPolicy(HiveConf hiveConf);
 
 }
 

@@ -51,7 +51,7 @@ public abstract class AbstractMapJoinOperator <T extends MapJoinDesc> extends Co
    */
   protected transient List<ObjectInspector>[] joinKeysStandardObjectInspectors;
 
-  protected transient byte posBigTable = -1; // one of the tables that is not in memory
+  protected transient byte posBigTable = -1; // pos of driver alias
 
   protected transient RowContainer<List<Object>> emptyList = null;
 
@@ -119,35 +119,6 @@ public abstract class AbstractMapJoinOperator <T extends MapJoinDesc> extends Co
   @Override
   public OperatorType getType() {
     return OperatorType.MAPJOIN;
-  }
-
-  // returns true if there are elements in key list and any of them is null
-  protected boolean hasAnyNulls(ArrayList<Object> key) {
-    if (key != null && key.size() > 0) {
-      for (int i = 0; i < key.size(); i++) {
-        if (key.get(i) == null && (nullsafes == null || !nullsafes[i])) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  // returns true if there are elements in key list and any of them is null
-  protected boolean hasAnyNulls(Object[] key) {
-    if (key != null && key.length> 0) {
-      for (int i = 0; i < key.length; i++) {
-        if (key[i] == null && (nullsafes == null || !nullsafes[i])) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  // returns true if there are elements in key list and any of them is null
-  protected boolean hasAnyNulls(MapJoinKey key) {
-    return key.hasAnyNulls(nullsafes);
   }
 
   @Override

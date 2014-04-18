@@ -19,15 +19,24 @@
 package org.apache.hadoop.hive.ql.parse;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Stack;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
 import org.apache.hadoop.hive.ql.exec.HashTableDummyOperator;
+import org.apache.hadoop.hive.ql.exec.MapJoinOperator;
 import org.apache.hadoop.hive.ql.exec.Operator;
+import org.apache.hadoop.hive.ql.exec.OperatorFactory;
 import org.apache.hadoop.hive.ql.exec.ReduceSinkOperator;
 import org.apache.hadoop.hive.ql.exec.TableScanOperator;
+import org.apache.hadoop.hive.ql.exec.UnionOperator;
+import org.apache.hadoop.hive.ql.exec.Utilities;
 import org.apache.hadoop.hive.ql.lib.Node;
 import org.apache.hadoop.hive.ql.lib.NodeProcessor;
 import org.apache.hadoop.hive.ql.lib.NodeProcessorCtx;
@@ -35,9 +44,12 @@ import org.apache.hadoop.hive.ql.optimizer.GenMapRedUtils;
 import org.apache.hadoop.hive.ql.plan.BaseWork;
 import org.apache.hadoop.hive.ql.plan.MapWork;
 import org.apache.hadoop.hive.ql.plan.OperatorDesc;
+import org.apache.hadoop.hive.ql.plan.ReduceSinkDesc;
 import org.apache.hadoop.hive.ql.plan.ReduceWork;
+import org.apache.hadoop.hive.ql.plan.TezEdgeProperty;
 import org.apache.hadoop.hive.ql.plan.TezWork;
-import org.apache.hadoop.hive.ql.plan.TezWork.EdgeType;
+import org.apache.hadoop.hive.ql.plan.UnionWork;
+import org.apache.hadoop.hive.ql.plan.TezEdgeProperty.EdgeType;
 
 /**
  * GenTezWork separates the operator tree into tez tasks.
@@ -49,8 +61,15 @@ public class GenTezWork implements NodeProcessor {
 
   static final private Log LOG = LogFactory.getLog(GenTezWork.class.getName());
 
-  // sequence number is used to name vertices (e.g.: Map 1, Reduce 14, ...)
-  private int sequenceNumber = 0;
+  // instance of shared utils
+  private GenTezUtils utils = null;
+
+  /**
+   * Constructor takes utils as parameter to facilitate testing
+   */
+  public GenTezWork(GenTezUtils utils) {
+    this.utils = utils;
+  }
 
   @Override
   public Object process(Node nd, Stack<Node> stack,
@@ -73,6 +92,12 @@ public class GenTezWork implements NodeProcessor {
     LOG.debug("Root operator: " + root);
     LOG.debug("Leaf operator: " + operator);
 
+    if (context.clonedReduceSinks.contains(operator)) {
+      // if we're visiting a terminal we've created ourselves,
+      // just skip and keep going
+      return null;
+    }
+
     TezWork tezWork = context.currentTask.getWork();
 
     // Right now the work graph is pretty simple. If there is no
@@ -92,11 +117,122 @@ public class GenTezWork implements NodeProcessor {
     } else {
       // create a new vertex
       if (context.preceedingWork == null) {
-        work = createMapWork(context, root, tezWork);
+        work = utils.createMapWork(context, root, tezWork, null);
       } else {
-        work = createReduceWork(context, root, tezWork);
+        work = utils.createReduceWork(context, root, tezWork);
       }
       context.rootToWorkMap.put(root, work);
+    }
+
+    if (!context.childToWorkMap.containsKey(operator)) {
+      List<BaseWork> workItems = new LinkedList<BaseWork>();
+      workItems.add(work);
+      context.childToWorkMap.put(operator, workItems);
+    } else {
+      context.childToWorkMap.get(operator).add(work);
+    }
+
+    // remember which mapjoin operator links with which work
+    if (!context.currentMapJoinOperators.isEmpty()) {
+      for (MapJoinOperator mj: context.currentMapJoinOperators) {
+        LOG.debug("Processing map join: " + mj);
+        // remember the mapping in case we scan another branch of the 
+        // mapjoin later
+        if (!context.mapJoinWorkMap.containsKey(mj)) {
+          List<BaseWork> workItems = new LinkedList<BaseWork>();
+          workItems.add(work);
+          context.mapJoinWorkMap.put(mj, workItems);
+        } else {
+          context.mapJoinWorkMap.get(mj).add(work);
+        }
+
+        /*
+         * this happens in case of map join operations.
+         * The tree looks like this:
+         *
+         *        RS <--- we are here perhaps
+         *        |
+         *     MapJoin
+         *     /     \
+         *   RS       TS
+         *  /
+         * TS
+         *
+         * If we are at the RS pointed above, and we may have already visited the
+         * RS following the TS, we have already generated work for the TS-RS.
+         * We need to hook the current work to this generated work.
+         */
+        if (context.linkOpWithWorkMap.containsKey(mj)) {
+          Map<BaseWork,TezEdgeProperty> linkWorkMap = context.linkOpWithWorkMap.get(mj);
+          if (linkWorkMap != null) {
+            if (context.linkChildOpWithDummyOp.containsKey(mj)) {
+              for (Operator<?> dummy: context.linkChildOpWithDummyOp.get(mj)) {
+                work.addDummyOp((HashTableDummyOperator) dummy);
+              }
+            }
+            for (Entry<BaseWork,TezEdgeProperty> parentWorkMap : linkWorkMap.entrySet()) {
+              BaseWork parentWork = parentWorkMap.getKey();
+              LOG.debug("connecting "+parentWork.getName()+" with "+work.getName());
+              TezEdgeProperty edgeProp = parentWorkMap.getValue();
+              tezWork.connect(parentWork, work, edgeProp);
+              
+              // need to set up output name for reduce sink now that we know the name
+              // of the downstream work
+              for (ReduceSinkOperator r:
+                     context.linkWorkWithReduceSinkMap.get(parentWork)) {
+                if (r.getConf().getOutputName() != null) {
+                  LOG.debug("Cloning reduce sink for multi-child broadcast edge");
+                  // we've already set this one up. Need to clone for the next work.
+                  r = (ReduceSinkOperator) OperatorFactory.getAndMakeChild(
+                      (ReduceSinkDesc)r.getConf().clone(), r.getParentOperators());
+                  context.clonedReduceSinks.add(r);
+                }
+                r.getConf().setOutputName(work.getName());
+                context.connectedReduceSinks.add(r);
+              }
+            }
+          }
+        }
+      }
+      // clear out the set. we don't need it anymore.
+      context.currentMapJoinOperators.clear();
+    }
+
+    // This is where we cut the tree as described above. We also remember that
+    // we might have to connect parent work with this work later.
+    for (Operator<?> parent: new ArrayList<Operator<?>>(root.getParentOperators())) {
+      context.leafOperatorToFollowingWork.put(parent, work);
+      LOG.debug("Removing " + parent + " as parent from " + root);
+      root.removeParent(parent);
+    }
+
+    if (!context.currentUnionOperators.isEmpty()) {      
+      // if there are union all operators we need to add the work to the set
+      // of union operators.
+
+      UnionWork unionWork;
+      if (context.unionWorkMap.containsKey(operator)) {
+        // we've seen this terminal before and have created a union work object.
+        // just need to add this work to it. There will be no children of this one
+        // since we've passed this operator before.
+        assert operator.getChildOperators().isEmpty();
+        unionWork = (UnionWork) context.unionWorkMap.get(operator);
+
+      } else {
+        // first time through. we need to create a union work object and add this
+        // work to it. Subsequent work should reference the union and not the actual
+        // work.
+        unionWork = utils.createUnionWork(context, operator, tezWork);
+      }
+
+      // finally hook everything up
+      LOG.debug("Connecting union work ("+unionWork+") with work ("+work+")");
+      TezEdgeProperty edgeProp = new TezEdgeProperty(EdgeType.CONTAINS);
+      tezWork.connect(unionWork, work, edgeProp);
+      unionWork.addUnionOperators(context.currentUnionOperators);
+      context.currentUnionOperators.clear();
+      context.workWithUnionOperators.add(work);
+      work = unionWork;
     }
 
     // We're scanning a tree from roots to leaf (this is not technically
@@ -114,6 +250,9 @@ public class GenTezWork implements NodeProcessor {
 
       BaseWork followingWork = context.leafOperatorToFollowingWork.get(operator);
 
+      LOG.debug("Second pass. Leaf operator: "+operator
+        +" has common downstream work:"+followingWork);
+
       // need to add this branch to the key + value info
       assert operator instanceof ReduceSinkOperator
         && followingWork instanceof ReduceWork;
@@ -127,16 +266,14 @@ public class GenTezWork implements NodeProcessor {
       // remember the output name of the reduce sink
       rs.getConf().setOutputName(rWork.getName());
 
-      // add dependency between the two work items
-      tezWork.connect(work, rWork, EdgeType.SIMPLE_EDGE);
-    }
-
-    // This is where we cut the tree as described above. We also remember that
-    // we might have to connect parent work with this work later.
-    for (Operator<?> parent: new ArrayList<Operator<?>>(root.getParentOperators())) {
-      context.leafOperatorToFollowingWork.put(parent, work);
-      LOG.debug("Removing " + parent + " as parent from " + root);
-      root.removeParent(parent);
+      if (!context.connectedReduceSinks.contains(rs)) {
+        // add dependency between the two work items
+        TezEdgeProperty edgeProp = new TezEdgeProperty(EdgeType.SIMPLE_EDGE);
+        tezWork.connect(work, rWork, edgeProp);
+        context.connectedReduceSinks.add(rs);
+      }
+    } else {
+      LOG.debug("First pass. Leaf operator: "+operator);
     }
 
     // No children means we're at the bottom. If there are more operators to scan
@@ -148,112 +285,6 @@ public class GenTezWork implements NodeProcessor {
       context.preceedingWork = work;
     }
 
-    /*
-     * this happens in case of map join operations.
-     * The tree looks like this:
-     *
-     *       RS <--- we are here perhaps
-     *       |
-     *    MapJoin
-     *    /     \
-     *  RS       TS
-     *  /
-     * TS
-     *
-     * If we are at the RS pointed above, and we may have already visited the
-     * RS following the TS, we have already generated work for the TS-RS.
-     * We need to hook the current work to this generated work.
-     */
-    context.operatorWorkMap.put(operator, work);
-    List<BaseWork> linkWorkList = context.linkOpWithWorkMap.get(operator);
-    if (linkWorkList != null) {
-      if (context.linkChildOpWithDummyOp.containsKey(operator)) {
-        for (Operator<?> dummy: context.linkChildOpWithDummyOp.get(operator)) {
-          work.addDummyOp((HashTableDummyOperator) dummy);
-        }
-      }
-      for (BaseWork parentWork : linkWorkList) {
-        tezWork.connect(parentWork, work, EdgeType.BROADCAST_EDGE);
-
-        // need to set up output name for reduce sink not that we know the name
-        // of the downstream work
-        for (ReduceSinkOperator r:
-               context.linkWorkWithReduceSinkMap.get(parentWork)) {
-          r.getConf().setOutputName(work.getName());
-        }
-      }
-    }
-
     return null;
-  }
-
-  protected ReduceWork createReduceWork(GenTezProcContext context, Operator<?> root,
-      TezWork tezWork) {
-    assert !root.getParentOperators().isEmpty();
-    ReduceWork reduceWork = new ReduceWork("Reducer "+ (++sequenceNumber));
-    LOG.debug("Adding reduce work (" + reduceWork.getName() + ") for " + root);
-    reduceWork.setReducer(root);
-    reduceWork.setNeedsTagging(GenMapRedUtils.needsTagging(reduceWork));
-
-    // All parents should be reduce sinks. We pick the one we just walked
-    // to choose the number of reducers. In the join/union case they will
-    // all be -1. In sort/order case where it matters there will be only
-    // one parent.
-    assert context.parentOfRoot instanceof ReduceSinkOperator;
-    ReduceSinkOperator reduceSink = (ReduceSinkOperator) context.parentOfRoot;
-
-    reduceWork.setNumReduceTasks(reduceSink.getConf().getNumReducers());
-
-    setupReduceSink(context, reduceWork, reduceSink);
-
-    tezWork.add(reduceWork);
-    tezWork.connect(
-        context.preceedingWork,
-        reduceWork, EdgeType.SIMPLE_EDGE);
-
-    return reduceWork;
-  }
-
-  protected void setupReduceSink(GenTezProcContext context, ReduceWork reduceWork,
-      ReduceSinkOperator reduceSink) {
-
-    LOG.debug("Setting up reduce sink: " + reduceSink
-        + " with following reduce work: " + reduceWork.getName());
-
-    // need to fill in information about the key and value in the reducer
-    GenMapRedUtils.setKeyAndValueDesc(reduceWork, reduceSink);
-
-    // remember which parent belongs to which tag
-    reduceWork.getTagToInput().put(reduceSink.getConf().getTag(),
-         context.preceedingWork.getName());
-
-    // remember the output name of the reduce sink
-    reduceSink.getConf().setOutputName(reduceWork.getName());
-  }
-
-  protected MapWork createMapWork(GenTezProcContext context, Operator<?> root,
-      TezWork tezWork) throws SemanticException {
-    assert root.getParentOperators().isEmpty();
-    MapWork mapWork = new MapWork("Map "+ (++sequenceNumber));
-    LOG.debug("Adding map work (" + mapWork.getName() + ") for " + root);
-
-    // map work starts with table scan operators
-    assert root instanceof TableScanOperator;
-    String alias = ((TableScanOperator)root).getConf().getAlias();
-
-    setupMapWork(mapWork, context, root, alias);
-
-    // add new item to the tez work
-    tezWork.add(mapWork);
-
-    return mapWork;
-  }
-
-  // this method's main use is to help unit testing this class
-  protected void setupMapWork(MapWork mapWork, GenTezProcContext context,
-      Operator<? extends OperatorDesc> root, String alias) throws SemanticException {
-    // All the setup is done in GenMapRedUtils
-    GenMapRedUtils.setMapWork(mapWork, context.parseContext,
-        context.inputs, null, root, alias, context.conf, false);
   }
 }

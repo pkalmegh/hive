@@ -19,25 +19,20 @@
 package org.apache.hadoop.hive.ql.udf.generic;
 
 import org.apache.hadoop.hive.common.type.HiveDecimal;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedExpressions;
 import org.apache.hadoop.hive.ql.exec.vector.expressions.LongColDivideLongColumn;
 import org.apache.hadoop.hive.ql.exec.vector.expressions.LongColDivideLongScalar;
 import org.apache.hadoop.hive.ql.exec.vector.expressions.LongScalarDivideLongColumn;
-import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleColDivideDoubleColumn;
-import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleColDivideDoubleScalar;
-import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleColDivideLongColumn;
-import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleColDivideLongScalar;
-import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleScalarDivideDoubleColumn;
-import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DoubleScalarDivideLongColumn;
-import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.LongColDivideDoubleColumn;
-import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.LongColDivideDoubleScalar;
-import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.LongScalarDivideDoubleColumn;
+import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.*;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
 import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.typeinfo.DecimalTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 
 /**
  * Note that in SQL, the return type of divide is not necessarily the same
@@ -51,7 +46,9 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
   LongColDivideLongScalar.class, LongColDivideDoubleScalar.class,
   DoubleColDivideLongScalar.class, DoubleColDivideDoubleScalar.class,
   LongScalarDivideLongColumn.class, LongScalarDivideDoubleColumn.class,
-  DoubleScalarDivideLongColumn.class, DoubleScalarDivideDoubleColumn.class})
+  DoubleScalarDivideLongColumn.class, DoubleScalarDivideDoubleColumn.class,
+  DecimalColDivideDecimalColumn.class, DecimalColDivideDecimalScalar.class,
+  DecimalScalarDivideDecimalColumn.class})
 public class GenericUDFOPDivide extends GenericUDFBaseNumeric {
 
   public GenericUDFOPDivide() {
@@ -61,8 +58,32 @@ public class GenericUDFOPDivide extends GenericUDFBaseNumeric {
 
   @Override
   protected PrimitiveTypeInfo deriveResultExactTypeInfo() {
+    if (ansiSqlArithmetic) {
+      return deriveResultExactTypeInfoAnsiSql();
+    }
+    return deriveResultExactTypeInfoBackwardsCompat();
+  }
+
+  protected PrimitiveTypeInfo deriveResultExactTypeInfoAnsiSql() {
     // No type promotion. Everything goes to decimal.
     return deriveResultDecimalTypeInfo();
+  }
+
+  protected PrimitiveTypeInfo deriveResultExactTypeInfoBackwardsCompat() {
+    // Preserve existing return type behavior for division:
+    // Non-decimal division should return double
+    if (leftOI.getPrimitiveCategory() != PrimitiveCategory.DECIMAL
+        && rightOI.getPrimitiveCategory() != PrimitiveCategory.DECIMAL) {
+      return TypeInfoFactory.doubleTypeInfo;
+    }
+
+    return deriveResultDecimalTypeInfo();
+  }
+
+  @Override
+  protected PrimitiveTypeInfo deriveResultApproxTypeInfo() {
+    // Hive 0.12 behavior where double / decimal -> decimal is gone.
+    return TypeInfoFactory.doubleTypeInfo;
   }
 
   @Override

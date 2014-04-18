@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.ql.exec.persistence.MapJoinKey;
 import org.apache.hadoop.hive.ql.exec.persistence.RowContainer;
 import org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
@@ -53,11 +52,13 @@ public class JoinUtil {
       ObjectInspector[] inputObjInspector,
       int posBigTableAlias, int tagLen) throws HiveException {
     List<ObjectInspector>[] result = new List[tagLen];
-    for (byte alias = 0; alias < exprEntries.length; alias++) {
-      //get big table
-      if (alias == (byte) posBigTableAlias){
-        //skip the big tables
-          continue;
+
+    int iterate = Math.min(exprEntries.length, inputObjInspector.length);
+    for (byte alias = 0; alias < iterate; alias++) {
+      if (alias == (byte) posBigTableAlias ||
+          exprEntries[alias] == null || inputObjInspector[alias] == null) {
+        // skip the driver and directly loadable tables
+        continue;
       }
 
       List<ExprNodeEvaluator> exprList = exprEntries[alias];
@@ -77,7 +78,7 @@ public class JoinUtil {
     List<ObjectInspector>[] result = new List[tagLen];
     for (byte alias = 0; alias < aliasToObjectInspectors.length; alias++) {
       //get big table
-      if(alias == (byte) posBigTableAlias ){
+      if(alias == (byte) posBigTableAlias || aliasToObjectInspectors[alias] == null){
         //skip the big tables
           continue;
       }
@@ -106,6 +107,9 @@ public class JoinUtil {
       int posBigTableAlias) throws HiveException {
     int total = 0;
     for (Entry<Byte, List<ExprNodeDesc>> e : inputMap.entrySet()) {
+      if (e.getValue() == null) {
+        continue;
+      }
       Byte key = order == null ? e.getKey() : order[e.getKey()];
       List<ExprNodeEvaluator> valueFields = new ArrayList<ExprNodeEvaluator>();
       for (ExprNodeDesc expr : e.getValue()) {
@@ -142,30 +146,6 @@ public class JoinUtil {
 
     return nr;
   }
-
-  /**
-   * Return the key as a standard object. StandardObject can be inspected by a
-   * standard ObjectInspector. The first parameter a MapJoinKey can
-   * be null if the caller would like a new object to be instantiated.
-   */
-  public static MapJoinKey computeMapJoinKeys(MapJoinKey key, Object row,
-      List<ExprNodeEvaluator> keyFields, List<ObjectInspector> keyFieldsOI)
-      throws HiveException {
-    int size = keyFields.size();
-    if(key == null || key.getKey().length != size) {
-      key = new MapJoinKey(new Object[size]);
-    }
-    Object[] array = key.getKey();
-    for (int keyIndex = 0; keyIndex < size; keyIndex++) {
-      array[keyIndex] = (ObjectInspectorUtils.copyToStandardObject(keyFields.get(keyIndex)
-          .evaluate(row), keyFieldsOI.get(keyIndex), ObjectInspectorCopyOption.WRITABLE));
-    }
-    return key;
-  }
-
-
-
-
 
   /**
    * Return the value as a standard object. StandardObject can be inspected by a

@@ -22,9 +22,14 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.regex.MatchResult;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import org.apache.hadoop.hive.common.type.Decimal128;
 import org.apache.hadoop.hive.ql.exec.vector.BytesColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.ColumnVector;
+import org.apache.hadoop.hive.ql.exec.vector.DecimalColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.DoubleColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.LongColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.TimestampUtils;
@@ -138,6 +143,34 @@ public class FakeVectorRowBatchFromObjectIterables extends FakeVectorRowBatchBas
             dcv.vector[row] = Double.valueOf(value.toString());
           }
         };
+      } else if (types[i].toLowerCase().startsWith("decimal")) {
+            Pattern decimalPattern = Pattern.compile(
+                "decimal(?:\\((\\d+)(?:\\,(\\d+))?\\))?", Pattern.CASE_INSENSITIVE);
+            Matcher mr = decimalPattern.matcher(types[i]);
+            int precission = 38;
+            int scale = 0;
+            if (mr.matches()) {
+              String typePrecission = mr.group(1);
+              if (typePrecission != null) {
+                precission = Integer.parseInt(typePrecission);
+              }
+              String typeScale = mr.group(2);
+              if (typeScale != null) {
+                scale = Integer.parseInt(typeScale);
+              }
+            }
+
+            batch.cols[i] = new DecimalColumnVector(batchSize, precission, scale);
+            columnAssign[i] = new ColumnVectorAssign() {
+                @Override
+                public void assign(
+                        ColumnVector columnVector,
+                        int row,
+                        Object value) {
+                    DecimalColumnVector dcv = (DecimalColumnVector) columnVector;
+                    dcv.vector[row] = (Decimal128)value;
+                }
+            };
       } else {
         throw new HiveException("Unimplemented type " + types[i]);
       }

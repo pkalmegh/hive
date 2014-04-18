@@ -31,18 +31,25 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
+import org.apache.hadoop.hive.metastore.MetaStoreUtils;
+import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.exec.FunctionRegistry;
+import org.apache.hadoop.hive.ql.exec.FunctionUtils;
 import org.apache.hadoop.hive.ql.exec.TaskFactory;
+import org.apache.hadoop.hive.ql.hooks.WriteEntity;
 import org.apache.hadoop.hive.ql.lib.Dispatcher;
 import org.apache.hadoop.hive.ql.lib.Node;
 import org.apache.hadoop.hive.ql.lib.PreOrderWalker;
+import org.apache.hadoop.hive.ql.metadata.Hive;
+import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.plan.CreateMacroDesc;
 import org.apache.hadoop.hive.ql.plan.DropMacroDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.FunctionWork;
+import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 
@@ -73,6 +80,12 @@ public class MacroSemanticAnalyzer extends BaseSemanticAnalyzer {
   @SuppressWarnings("unchecked")
   private void analyzeCreateMacro(ASTNode ast) throws SemanticException {
     String functionName = ast.getChild(0).getText();
+
+    // Temp macros are not allowed to have qualified names.
+    if (FunctionUtils.isQualifiedFunctionName(functionName)) {
+      throw new SemanticException("Temporary macro cannot be created with a qualified name.");
+    }
+
     List<FieldSchema> arguments =
       BaseSemanticAnalyzer.getColumns((ASTNode)ast.getChild(1), true);
     boolean isNoArgumentMacro = arguments.size() == 0;
@@ -80,6 +93,7 @@ public class MacroSemanticAnalyzer extends BaseSemanticAnalyzer {
     ArrayList<String> macroColNames = new ArrayList<String>(arguments.size());
     ArrayList<TypeInfo> macroColTypes = new ArrayList<TypeInfo>(arguments.size());
     final Set<String> actualColumnNames = new HashSet<String>();
+
     if(!isNoArgumentMacro) {
       /*
        * Walk down expression to see which arguments are actually used.
@@ -126,6 +140,8 @@ public class MacroSemanticAnalyzer extends BaseSemanticAnalyzer {
     }
     CreateMacroDesc desc = new CreateMacroDesc(functionName, macroColNames, macroColTypes, body);
     rootTasks.add(TaskFactory.get(new FunctionWork(desc), conf));
+
+    addEntities();
   }
 
   @SuppressWarnings("unchecked")
@@ -136,11 +152,25 @@ public class MacroSemanticAnalyzer extends BaseSemanticAnalyzer {
     // configured not to ignore this
     boolean throwException =
       !ifExists && !HiveConf.getBoolVar(conf, ConfVars.DROPIGNORESNONEXISTENT);
+
+    // Temp macros are not allowed to have qualified names.
+    if (FunctionUtils.isQualifiedFunctionName(functionName)) {
+      throw new SemanticException("Temporary macro name cannot be a qualified name.");
+    }
+
     if (throwException && FunctionRegistry.getFunctionInfo(functionName) == null) {
       throw new SemanticException(ErrorMsg.INVALID_FUNCTION.getMsg(functionName));
     }
 
     DropMacroDesc desc = new DropMacroDesc(functionName);
     rootTasks.add(TaskFactory.get(new FunctionWork(desc), conf));
+
+    addEntities();
+  }
+
+  private void addEntities() throws SemanticException {
+    Database database = getDatabase(MetaStoreUtils.DEFAULT_DATABASE_NAME);
+    // This restricts macro creation to privileged users.
+    outputs.add(new WriteEntity(database, WriteEntity.WriteType.DDL_NO_LOCK));
   }
 }

@@ -52,6 +52,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import junit.framework.Assert;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.logging.Log;
@@ -87,7 +88,6 @@ import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.thrift.ThriftDeserializer;
 import org.apache.hadoop.hive.serde2.thrift.test.Complex;
 import org.apache.hadoop.hive.shims.HadoopShims;
-import org.apache.hadoop.hive.shims.Hadoop23Shims;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
@@ -100,9 +100,7 @@ import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.ZooKeeper;
 import org.junit.Assume;
 
-import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Ordering;
 
 /**
  * QTestUtil.
@@ -267,7 +265,7 @@ public class QTestUtil {
                   (new Path(dfsUriString,
                             "/build/ql/test/data/warehouse/")).toString());
     }
-    
+
     // Windows paths should be converted after MiniMrShim.setupConfiguration()
     // since setupConfiguration may overwrite configuration values.
     if (Shell.WINDOWS) {
@@ -288,9 +286,6 @@ public class QTestUtil {
 
     String orgTestTempDir = System.getProperty("test.tmp.dir");
     System.setProperty("test.tmp.dir", getHdfsUriString(orgTestTempDir));
-
-    String orgTestDataDir = System.getProperty("test.src.data.dir");
-    System.setProperty("test.src.data.dir", getHdfsUriString(orgTestDataDir));
 
     String orgScratchDir = conf.getVar(HiveConf.ConfVars.SCRATCHDIR);
     conf.setVar(HiveConf.ConfVars.SCRATCHDIR, getHdfsUriString(orgScratchDir));
@@ -330,12 +325,12 @@ public class QTestUtil {
     }
   }
 
-  public QTestUtil(String outDir, String logDir, MiniClusterType clusterType, String hadoopVer) 
+  public QTestUtil(String outDir, String logDir, MiniClusterType clusterType, String hadoopVer)
     throws Exception {
     this(outDir, logDir, clusterType, null, hadoopVer);
   }
 
-  public QTestUtil(String outDir, String logDir, MiniClusterType clusterType, 
+  public QTestUtil(String outDir, String logDir, MiniClusterType clusterType,
       String confDir, String hadoopVer)
     throws Exception {
     this.outDir = outDir;
@@ -366,13 +361,11 @@ public class QTestUtil {
     if (clusterType != MiniClusterType.none) {
       dfs = shims.getMiniDfs(conf, numberOfDataNodes, true, null);
       FileSystem fs = dfs.getFileSystem();
+      String uriString = getHdfsUriString(fs.getUri().toString());
       if (clusterType == MiniClusterType.tez) {
-        if (!(shims instanceof Hadoop23Shims)) {
-          throw new Exception("Cannot run tez on hadoop-1, Version: "+this.hadoopVer);
-        }
-        mr = ((Hadoop23Shims)shims).getMiniTezCluster(conf, 4, getHdfsUriString(fs.getUri().toString()), 1);
+        mr = shims.getMiniTezCluster(conf, 4, uriString, 1);
       } else {
-        mr = shims.getMiniMrCluster(conf, 4, getHdfsUriString(fs.getUri().toString()), 1);
+        mr = shims.getMiniMrCluster(conf, 4, uriString, 1);
       }
     }
 
@@ -582,14 +575,17 @@ public class QTestUtil {
         }
       }
       if (!DEFAULT_DATABASE_NAME.equals(dbName)) {
-        db.dropDatabase(dbName);
+        // Drop cascade, may need to drop functions
+        db.dropDatabase(dbName, true, true, true);
       }
     }
     SessionState.get().setCurrentDatabase(DEFAULT_DATABASE_NAME);
 
     List<String> roleNames = db.getAllRoleNames();
       for (String roleName : roleNames) {
-        db.dropRole(roleName);
+        if (!"PUBLIC".equalsIgnoreCase(roleName) && !"ADMIN".equalsIgnoreCase(roleName)) {
+          db.dropRole(roleName);
+        }
     }
     // allocate and initialize a new conf since a test can
     // modify conf by using 'set' commands
@@ -645,6 +641,17 @@ public class QTestUtil {
           + " failed with exit code= " + ecode);
     }
 
+    return;
+  }
+
+  private void runCmd(String cmd) throws Exception {
+    int ecode = 0;
+    ecode = drv.run(cmd).getResponseCode();
+    drv.close();
+    if (ecode != 0) {
+      throw new Exception("command: " + cmd
+          + " failed with exit code= " + ecode);
+    }
     return;
   }
 
@@ -755,6 +762,10 @@ public class QTestUtil {
     runCreateTableCmd(AllVectorTypesRecord.TABLE_CREATE_COMMAND);
     runLoadCmd("LOAD DATA LOCAL INPATH '" + fpath.toUri().getPath()
         + "' INTO  TABLE "+AllVectorTypesRecord.TABLE_NAME);
+
+    runCmd("DROP FUNCTION IF EXISTS qtest_get_java_boolean ");
+    runCmd("CREATE FUNCTION qtest_get_java_boolean "
+        + " AS 'org.apache.hadoop.hive.ql.udf.generic.GenericUDFTestGetJavaBoolean'");
 
     conf.setBoolean("hive.test.init.phase", false);
 
@@ -1247,6 +1258,9 @@ public class QTestUtil {
       ".*job_local[0-9_]*.*",
       ".*USING 'java -cp.*",
       "^Deleted.*",
+      ".*DagName:.*",
+      ".*Input:.*/data/files/.*",
+      ".*Output:.*/data/files/.*"
   });
 
   public int checkCliDriverResults(String tname) throws Exception {
@@ -1374,7 +1388,7 @@ public class QTestUtil {
   }
 
   private static int executeCmd(Collection<String> args, String outFile, String errFile) throws Exception {
-    String[] cmdArray = (String[]) args.toArray(new String[args.size()]);
+    String[] cmdArray = args.toArray(new String[args.size()]);
     return executeCmd(cmdArray, outFile, errFile);
   }
 
@@ -1518,6 +1532,7 @@ public class QTestUtil {
       this.fname = fname;
     }
 
+    @Override
     public void run() {
       try {
         // assumption is that environment has already been cleaned once globally

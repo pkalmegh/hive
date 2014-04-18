@@ -90,6 +90,10 @@ os.environ['HADOOP_CLASSPATH'] += os.pathsep + hcatLibJarFiles
 hiveJars = os.path.join(os.environ['HIVE_LIB_DIR'], '*')
 os.environ['HADOOP_CLASSPATH'] += os.pathsep + hiveJars
 
+# adding hbase jars in classpath
+if 'HBASE_HOME' in os.environ and os.path.isdir(os.path.join(os.environ['HBASE_HOME'], 'lib')):
+  os.environ['HADOOP_CLASSPATH'] += os.pathsep + os.path.join(os.environ['HBASE_HOME'], 'lib', '*');
+
 ##### done with addition of jars
 
 

@@ -24,6 +24,7 @@ import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.ByteBuffer;
 import java.security.PrivilegedExceptionAction;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -36,6 +37,8 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -77,14 +80,17 @@ public interface HadoopShims {
    *  @return TaskAttempt Log Url
    */
   String getTaskAttemptLogUrl(JobConf conf,
-    String taskTrackerHttpAddress,
-    String taskAttemptId)
-    throws MalformedURLException;
+      String taskTrackerHttpAddress,
+      String taskAttemptId)
+          throws MalformedURLException;
 
   /**
    * Returns a shim to wrap MiniMrCluster
    */
   public MiniMrShim getMiniMrCluster(Configuration conf, int numberOfTaskTrackers,
+      String nameNode, int numDir) throws IOException;
+
+  public MiniMrShim getMiniTezCluster(Configuration conf, int numberOfTaskTrackers,
                                      String nameNode, int numDir) throws IOException;
 
   /**
@@ -122,7 +128,7 @@ public interface HadoopShims {
       String archiveName) throws Exception;
 
   public URI getHarUri(URI original, URI base, URI originalBase)
-        throws URISyntaxException;
+      throws URISyntaxException;
   /**
    * Hive uses side effect files exclusively for it's output. It also manages
    * the setup/cleanup/commit of output from the hive client. As a result it does
@@ -162,7 +168,7 @@ public interface HadoopShims {
    * @throws InterruptedException
    */
   public <T> T doAs(UserGroupInformation ugi, PrivilegedExceptionAction<T> pvea) throws
-    IOException, InterruptedException;
+  IOException, InterruptedException;
 
   /**
    * Once a delegation token is stored in a file, the location is specified
@@ -185,13 +191,13 @@ public interface HadoopShims {
 
 
   /**
-   * Used by metastore server to creates UGI object for a remote user.
+   * Used to creates UGI object for a remote user.
    * @param userName remote User Name
    * @param groupNames group names associated with remote user name
    * @return UGI created for the remote user.
    */
-
   public UserGroupInformation createRemoteUser(String userName, List<String> groupNames);
+
   /**
    * Get the short name corresponding to the subject in the passed UGI
    *
@@ -227,7 +233,7 @@ public interface HadoopShims {
    * @return the string form of the token found
    * @throws IOException
    */
-  String getTokenStrForm(String tokenSignature) throws IOException;
+  public String getTokenStrForm(String tokenSignature) throws IOException;
 
   /**
    * Add a delegation token to the given ugi
@@ -236,9 +242,18 @@ public interface HadoopShims {
    * @param tokenService
    * @throws IOException
    */
-  void setTokenStr(UserGroupInformation ugi, String tokenStr, String tokenService)
-    throws IOException;
+  public void setTokenStr(UserGroupInformation ugi, String tokenStr, String tokenService)
+      throws IOException;
 
+  /**
+   * Add given service to the string format token
+   * @param tokenStr
+   * @param tokenService
+   * @return
+   * @throws IOException
+   */
+  public String addServiceToToken(String tokenStr, String tokenService)
+      throws IOException;
 
   enum JobTrackerState { INITIALIZING, RUNNING };
 
@@ -296,6 +311,14 @@ public interface HadoopShims {
   public void loginUserFromKeytab(String principal, String keytabFile) throws IOException;
 
   /**
+   *  Perform kerberos login using the given principal and keytab,
+   *  and return the UGI object
+   * @throws IOException
+   */
+  public UserGroupInformation loginUserFromKeytabAndReturnUGI(String principal,
+      String keytabFile) throws IOException;
+
+  /**
    * Perform kerberos re-login using the given principal and keytab, to renew
    * the credentials
    * @throws IOException
@@ -319,7 +342,7 @@ public interface HadoopShims {
    * @throws IOException
    */
   public boolean moveToAppropriateTrash(FileSystem fs, Path path, Configuration conf)
-          throws IOException;
+      throws IOException;
 
   /**
    * Get the default block size for the path. FileSystem alone is not sufficient to
@@ -344,7 +367,14 @@ public interface HadoopShims {
    * @param userName
    * @return
    */
-  UserGroupInformation createProxyUser(String userName) throws IOException;
+  public UserGroupInformation createProxyUser(String userName) throws IOException;
+
+  /**
+   * Verify proxy access to given UGI for given user
+   * @param ugi
+   */
+  public void authorizeProxyAccess(String proxyUser, UserGroupInformation realUserUgi,
+      String ipAddress, Configuration conf) throws IOException;
 
   /**
    * The method sets to set the partition file has a different signature between
@@ -363,6 +393,7 @@ public interface HadoopShims {
   public interface InputSplitShim extends InputSplit {
     JobConf getJob();
 
+    @Override
     long getLength();
 
     /** Returns an array containing the startoffsets of the files in the split. */
@@ -387,14 +418,18 @@ public interface HadoopShims {
     Path[] getPaths();
 
     /** Returns all the Paths where this input-split resides. */
+    @Override
     String[] getLocations() throws IOException;
 
     void shrinkSplit(long length);
 
+    @Override
     String toString();
 
+    @Override
     void readFields(DataInput in) throws IOException;
 
+    @Override
     void write(DataOutput out) throws IOException;
   }
 
@@ -422,11 +457,11 @@ public interface HadoopShims {
    * @param fs the file system
    * @param path the directory name to get the status and block locations
    * @param filter a filter that needs to accept the file (or null)
-   * @return an iterator for the located file status objects
+   * @return an list for the located file status objects
    * @throws IOException
    */
-  Iterator<FileStatus> listLocatedStatus(FileSystem fs, Path path,
-                                         PathFilter filter) throws IOException;
+  List<FileStatus> listLocatedStatus(FileSystem fs, Path path,
+                                     PathFilter filter) throws IOException;
 
   /**
    * For file status returned by listLocatedStatus, convert them into a list
@@ -437,22 +472,29 @@ public interface HadoopShims {
    * @throws IOException
    */
   BlockLocation[] getLocations(FileSystem fs,
-                               FileStatus status) throws IOException;
+      FileStatus status) throws IOException;
+
+  /**
+   * Flush and make visible to other users the changes to the given stream.
+   * @param stream the stream to hflush.
+   * @throws IOException
+   */
+  public void hflush(FSDataOutputStream stream) throws IOException;
 
   public HCatHadoopShims getHCatShim();
   public interface HCatHadoopShims {
 
-    enum PropertyName {CACHE_ARCHIVES, CACHE_FILES, CACHE_SYMLINK}
+    enum PropertyName {CACHE_ARCHIVES, CACHE_FILES, CACHE_SYMLINK, CLASSPATH_ARCHIVES, CLASSPATH_FILES}
 
     public TaskID createTaskID();
 
     public TaskAttemptID createTaskAttemptID();
 
     public org.apache.hadoop.mapreduce.TaskAttemptContext createTaskAttemptContext(Configuration conf,
-                                                                                   TaskAttemptID taskId);
+        TaskAttemptID taskId);
 
     public org.apache.hadoop.mapred.TaskAttemptContext createTaskAttemptContext(JobConf conf,
-                                                                                org.apache.hadoop.mapred.TaskAttemptID taskId, Progressable progressable);
+        org.apache.hadoop.mapred.TaskAttemptID taskId, Progressable progressable);
 
     public JobContext createJobContext(Configuration conf, JobID jobId);
 
@@ -520,4 +562,73 @@ public interface HadoopShims {
   public FileSystem createProxyFileSystem(FileSystem fs, URI uri);
 
   public Map<String, String> getHadoopConfNames();
+
+  /**
+   * a hadoop.io ByteBufferPool shim.
+   */
+  public interface ByteBufferPoolShim {
+    /**
+     * Get a new ByteBuffer from the pool.  The pool can provide this from
+     * removing a buffer from its internal cache, or by allocating a
+     * new buffer.
+     *
+     * @param direct     Whether the buffer should be direct.
+     * @param length     The minimum length the buffer will have.
+     * @return           A new ByteBuffer. Its capacity can be less
+     *                   than what was requested, but must be at
+     *                   least 1 byte.
+     */
+    ByteBuffer getBuffer(boolean direct, int length);
+
+    /**
+     * Release a buffer back to the pool.
+     * The pool may choose to put this buffer into its cache/free it.
+     *
+     * @param buffer    a direct bytebuffer
+     */
+    void putBuffer(ByteBuffer buffer);
+  }
+
+  /**
+   * Provides an HDFS ZeroCopyReader shim.
+   * @param in FSDataInputStream to read from (where the cached/mmap buffers are tied to)
+   * @param in ByteBufferPoolShim to allocate fallback buffers with
+   *
+   * @return returns null if not supported
+   */
+  public ZeroCopyReaderShim getZeroCopyReader(FSDataInputStream in, ByteBufferPoolShim pool) throws IOException;
+
+  public interface ZeroCopyReaderShim {
+    /**
+     * Get a ByteBuffer from the FSDataInputStream - this can be either a HeapByteBuffer or an MappedByteBuffer.
+     * Also move the in stream by that amount. The data read can be small than maxLength.
+     *
+     * @return ByteBuffer read from the stream,
+     */
+    public ByteBuffer readBuffer(int maxLength, boolean verifyChecksums) throws IOException;
+    /**
+     * Release a ByteBuffer obtained from a read on the
+     * Also move the in stream by that amount. The data read can be small than maxLength.
+     *
+     */
+    public void releaseBuffer(ByteBuffer buffer);
+  }
+
+  public enum DirectCompressionType {
+    NONE,
+    ZLIB_NOHEADER,
+    ZLIB,
+    SNAPPY,
+  };
+
+  public interface DirectDecompressorShim {
+    public void decompress(ByteBuffer src, ByteBuffer dst) throws IOException;
+  }
+
+  public DirectDecompressorShim getDirectDecompressor(DirectCompressionType codec);
+
+  /**
+   * Get configuration from JobContext
+   */
+  public Configuration getConfiguration(JobContext context);
 }

@@ -8,16 +8,20 @@ POSTHOOK: query: drop view if exists w
 POSTHOOK: type: DROPVIEW
 PREHOOK: query: create view v as select cast(key as string) from src
 PREHOOK: type: CREATEVIEW
+PREHOOK: Input: default@src
 POSTHOOK: query: create view v as select cast(key as string) from src
 POSTHOOK: type: CREATEVIEW
+POSTHOOK: Input: default@src
 POSTHOOK: Output: default@v
 PREHOOK: query: describe formatted v
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@v
 POSTHOOK: query: describe formatted v
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@v
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
+key                 	string              	                    
 	 	 
 # Detailed Table Information	 	 
 Database:           	default             	 
@@ -44,19 +48,23 @@ PREHOOK: query: create view w as select key, value from (
   select key, value from src
 ) a
 PREHOOK: type: CREATEVIEW
+PREHOOK: Input: default@src
 POSTHOOK: query: create view w as select key, value from (
   select key, value from src
 ) a
 POSTHOOK: type: CREATEVIEW
+POSTHOOK: Input: default@src
 POSTHOOK: Output: default@w
 PREHOOK: query: describe formatted w
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@w
 POSTHOOK: query: describe formatted w
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@w
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Detailed Table Information	 	 
 Database:           	default             	 
@@ -103,10 +111,12 @@ PREHOOK: query: -- HIVE-4116 Can't use views using map datatype.
 
 CREATE TABLE items (id INT, name STRING, info MAP<STRING,STRING>)
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: -- HIVE-4116 Can't use views using map datatype.
 
 CREATE TABLE items (id INT, name STRING, info MAP<STRING,STRING>)
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@items
 PREHOOK: query: explain
 CREATE VIEW priceview AS SELECT items.id, items.info['price'] FROM items
@@ -114,9 +124,6 @@ PREHOOK: type: CREATEVIEW
 POSTHOOK: query: explain
 CREATE VIEW priceview AS SELECT items.id, items.info['price'] FROM items
 POSTHOOK: type: CREATEVIEW
-ABSTRACT SYNTAX TREE:
-  (TOK_CREATEVIEW (TOK_TABNAME priceview) (TOK_QUERY (TOK_FROM (TOK_TABREF (TOK_TABNAME items))) (TOK_INSERT (TOK_DESTINATION (TOK_DIR TOK_TMP_FILE)) (TOK_SELECT (TOK_SELEXPR (. (TOK_TABLE_OR_COL items) id)) (TOK_SELEXPR ([ (. (TOK_TABLE_OR_COL items) info) 'price'))))))
-
 STAGE DEPENDENCIES:
   Stage-0 is a root stage
 
@@ -124,8 +131,6 @@ STAGE PLANS:
   Stage: Stage-0
       Create View Operator:
         Create View
-          if not exists: false
-          is alter view as select: false
           or replace: false
           columns: id int, _c1 string
           expanded text: SELECT `items`.`id`, `items`.`info`['price'] FROM `default`.`items`
@@ -134,8 +139,10 @@ STAGE PLANS:
 
 PREHOOK: query: CREATE VIEW priceview AS SELECT items.id, items.info['price'] FROM items
 PREHOOK: type: CREATEVIEW
+PREHOOK: Input: default@items
 POSTHOOK: query: CREATE VIEW priceview AS SELECT items.id, items.info['price'] FROM items
 POSTHOOK: type: CREATEVIEW
+POSTHOOK: Input: default@items
 POSTHOOK: Output: default@priceview
 PREHOOK: query: select * from priceview
 PREHOOK: type: QUERY

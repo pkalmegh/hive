@@ -19,6 +19,7 @@
 package org.apache.hive.hcatalog.pig;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
@@ -31,6 +32,7 @@ import org.apache.hadoop.hive.common.classification.InterfaceAudience;
 import org.apache.hadoop.hive.common.classification.InterfaceStability;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.metadata.Table;
+import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.security.Credentials;
@@ -47,6 +49,8 @@ import org.apache.pig.PigException;
 import org.apache.pig.ResourceSchema;
 import org.apache.pig.ResourceStatistics;
 import org.apache.pig.impl.util.UDFContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Pig {@link org.apache.pig.LoadFunc} to read data from HCat
@@ -54,6 +58,7 @@ import org.apache.pig.impl.util.UDFContext;
 @InterfaceAudience.Public
 @InterfaceStability.Evolving
 public class HCatLoader extends HCatBaseLoader {
+  private static final Logger LOG = LoggerFactory.getLogger(HCatLoader.class);
 
   private static final String PARTITION_FILTER = "partition.filter"; // for future use
 
@@ -152,6 +157,12 @@ public class HCatLoader extends HCatBaseLoader {
     if (requiredFieldsInfo != null) {
       // convert to hcatschema and pass to HCatInputFormat
       try {
+        //push down projections to columnar store works for RCFile and ORCFile
+        ArrayList<Integer> list = new ArrayList<Integer>(requiredFieldsInfo.getFields().size());
+        for (RequiredField rf : requiredFieldsInfo.getFields()) {
+          list.add(rf.getIndex());
+        }
+        ColumnProjectionUtils.appendReadColumns(job.getConfiguration(), list);
         outputSchema = phutil.getHCatSchema(requiredFieldsInfo.getFields(), signature, this.getClass());
         HCatInputFormat.setOutputSchema(job, outputSchema);
       } catch (Exception e) {
@@ -170,6 +181,9 @@ public class HCatLoader extends HCatBaseLoader {
           throw new IOException(e);
         }
       }
+    }
+    if(LOG.isDebugEnabled()) {
+      LOG.debug("outputSchema=" + outputSchema);
     }
 
   }

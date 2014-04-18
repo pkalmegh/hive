@@ -49,7 +49,11 @@ public class <ClassName> extends VectorAggregateExpression {
       private static final long serialVersionUID = 1L;
 
       transient private <ValueType> value;
-      transient private boolean isNull;
+
+      /**
+      * Value is explicitly (re)initialized in reset()
+      */
+      transient private boolean isNull = true;
 
       public void checkValue(<ValueType> value) {
         if (isNull) {
@@ -63,6 +67,12 @@ public class <ClassName> extends VectorAggregateExpression {
       @Override
       public int getVariableSize() {
         throw new UnsupportedOperationException();
+      }
+
+      @Override
+      public void reset () {
+        isNull = true;
+        value = 0;
       }
     }
     
@@ -401,7 +411,7 @@ public class <ClassName> extends VectorAggregateExpression {
     @Override
     public void reset(AggregationBuffer agg) throws HiveException {
       Aggregation myAgg = (Aggregation) agg;
-      myAgg.isNull = true;
+      myAgg.reset();
     }
 
     @Override

@@ -22,16 +22,21 @@ import java.lang.Integer;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.net.URI;
+import java.nio.ByteBuffer;
 import java.io.FileNotFoundException;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocatedFileStatus;
@@ -41,7 +46,12 @@ import org.apache.hadoop.fs.ProxyFileSystem;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.fs.Trash;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
+import org.apache.hadoop.hive.shims.HadoopShims.ByteBufferPoolShim;
+import org.apache.hadoop.hive.shims.HadoopShims.DirectCompressionType;
+import org.apache.hadoop.hive.shims.HadoopShims.DirectDecompressorShim;
+import org.apache.hadoop.hive.shims.HadoopShims.ZeroCopyReaderShim;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MiniMRCluster;
@@ -70,6 +80,19 @@ import org.apache.tez.test.MiniTezCluster;
 public class Hadoop23Shims extends HadoopShimsSecure {
 
   HadoopShims.MiniDFSShim cluster = null;
+
+  final boolean zeroCopy;
+
+  public Hadoop23Shims() {
+    boolean zcr = false;
+    try {
+      Class.forName("org.apache.hadoop.fs.CacheFlag", false,
+          ShimLoader.class.getClassLoader());
+      zcr = true;
+    } catch (ClassNotFoundException ce) {
+    }
+    this.zeroCopy = zcr;
+  }
 
   @Override
   public String getTaskAttemptLogUrl(JobConf conf,
@@ -427,6 +450,10 @@ public class Hadoop23Shims extends HadoopShimsSecure {
           return MRJobConfig.CACHE_FILES;
         case CACHE_SYMLINK:
           return MRJobConfig.CACHE_SYMLINK;
+        case CLASSPATH_ARCHIVES:
+          return MRJobConfig.CLASSPATH_ARCHIVES;
+        case CLASSPATH_FILES:
+          return MRJobConfig.CLASSPATH_FILES;
       }
 
       return "";
@@ -445,51 +472,19 @@ public class Hadoop23Shims extends HadoopShimsSecure {
   }
 
   @Override
-  public Iterator<FileStatus> listLocatedStatus(final FileSystem fs,
-                                                final Path path,
-                                                final PathFilter filter
-  ) throws IOException {
-    return new Iterator<FileStatus>() {
-      private final RemoteIterator<LocatedFileStatus> inner =
-          fs.listLocatedStatus(path);
-      private FileStatus next;
-      {
-        next = null;
-        while (inner.hasNext() && next == null) {
-          next = inner.next();
-          if (filter != null && !filter.accept(next.getPath())) {
-            next = null;
-          }
-        }
+  public List<FileStatus> listLocatedStatus(final FileSystem fs,
+                                            final Path path,
+                                            final PathFilter filter
+                                           ) throws IOException {
+    RemoteIterator<LocatedFileStatus> itr = fs.listLocatedStatus(path);
+    List<FileStatus> result = new ArrayList<FileStatus>();
+    while(itr.hasNext()) {
+      FileStatus stat = itr.next();
+      if (filter == null || filter.accept(stat.getPath())) {
+        result.add(stat);
       }
-
-      @Override
-      public boolean hasNext() {
-        return next != null;
-      }
-
-      @Override
-      public FileStatus next() {
-        FileStatus result = next;
-        next = null;
-        try {
-          while (inner.hasNext() && next == null) {
-            next = inner.next();
-            if (filter != null && !filter.accept(next.getPath())) {
-              next = null;
-            }
-          }
-        } catch (IOException ioe) {
-          throw new IllegalArgumentException("Iterator exception", ioe);
-        }
-        return result;
-      }
-
-      @Override
-      public void remove() {
-        throw new IllegalArgumentException("Not supported");
-      }
-    };
+    }
+    return result;
   }
 
   @Override
@@ -500,6 +495,11 @@ public class Hadoop23Shims extends HadoopShimsSecure {
     } else {
       return fs.getFileBlockLocations(status, 0, status.getLen());
     }
+  }
+
+  @Override
+  public void hflush(FSDataOutputStream stream) throws IOException {
+    stream.hflush();
   }
 
   class ProxyFileSystem23 extends ProxyFileSystem {
@@ -548,13 +548,36 @@ public class Hadoop23Shims extends HadoopShimsSecure {
     ret.put("HADOOPMAPREDINPUTDIRRECURSIVE", "mapreduce.input.fileinputformat.input.dir.recursive");
     ret.put("MAPREDMAXSPLITSIZE", "mapreduce.input.fileinputformat.split.maxsize");
     ret.put("MAPREDMINSPLITSIZE", "mapreduce.input.fileinputformat.split.minsize");
-    ret.put("MAPREDMINSPLITSIZEPERNODE", "mapreduce.input.fileinputformat.split.minsize.per.rack");
-    ret.put("MAPREDMINSPLITSIZEPERRACK", "mapreduce.input.fileinputformat.split.minsize.per.node");
+    ret.put("MAPREDMINSPLITSIZEPERNODE", "mapreduce.input.fileinputformat.split.minsize.per.node");
+    ret.put("MAPREDMINSPLITSIZEPERRACK", "mapreduce.input.fileinputformat.split.minsize.per.rack");
     ret.put("HADOOPNUMREDUCERS", "mapreduce.job.reduces");
     ret.put("HADOOPJOBNAME", "mapreduce.job.name");
     ret.put("HADOOPSPECULATIVEEXECREDUCERS", "mapreduce.reduce.speculative");
     ret.put("MAPREDSETUPCLEANUPNEEDED", "mapreduce.job.committer.setup.cleanup.needed");
     ret.put("MAPREDTASKCLEANUPNEEDED", "mapreduce.job.committer.task.cleanup.needed");
     return ret;
+ }
+
+  @Override
+  public ZeroCopyReaderShim getZeroCopyReader(FSDataInputStream in, ByteBufferPoolShim pool) throws IOException {
+    if(zeroCopy) {
+      return ZeroCopyShims.getZeroCopyReader(in, pool);
+    }
+    /* not supported */
+    return null;
+  }
+
+  @Override
+  public DirectDecompressorShim getDirectDecompressor(DirectCompressionType codec) {
+    if(zeroCopy) {
+      return ZeroCopyShims.getDirectDecompressor(codec);
+    }
+    /* not supported */
+    return null;
+  }
+  
+  @Override
+  public Configuration getConfiguration(org.apache.hadoop.mapreduce.JobContext context) {
+    return context.getConfiguration();
   }
 }

@@ -27,6 +27,9 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.Job;
+import org.apache.hive.hcatalog.common.HCatConstants;
+import org.apache.hive.hcatalog.common.HCatUtil;
+import org.apache.hive.hcatalog.data.schema.HCatSchema;
 
 /**
  * The InputFormat to use to read data from HCatalog.
@@ -98,7 +101,7 @@ public class HCatInputFormat extends HCatBaseInputFormat {
   }
 
   /**
-   * @deprecated As of 0.13
+   * @deprecated as of 0.13, slated for removal with 0.15
    * Use {@link #setInput(org.apache.hadoop.conf.Configuration, String, String, String)} instead,
    * to specify a partition filter to directly initialize the input with.
    */
@@ -139,5 +142,32 @@ public class HCatInputFormat extends HCatBaseInputFormat {
       throw new IOException(e);
     }
     return this;
+  }
+
+  /**
+   * Return partitioning columns for this input, can only be called after setInput is called.
+   * @return partitioning columns of the table specified by the job.
+   * @throws IOException
+   */
+  public static HCatSchema getPartitionColumns(Configuration conf) throws IOException {
+    InputJobInfo inputInfo = (InputJobInfo) HCatUtil.deserialize(
+        conf.get(HCatConstants.HCAT_KEY_JOB_INFO));
+    Preconditions.checkNotNull(inputInfo,
+        "inputJobInfo is null, setInput has not yet been called to save job into conf supplied.");
+    return inputInfo.getTableInfo().getPartitionColumns();
+
+  }
+
+  /**
+   * Return data columns for this input, can only be called after setInput is called.
+   * @return data columns of the table specified by the job.
+   * @throws IOException
+   */
+  public static HCatSchema getDataColumns(Configuration conf) throws IOException {
+    InputJobInfo inputInfo = (InputJobInfo) HCatUtil.deserialize(
+        conf.get(HCatConstants.HCAT_KEY_JOB_INFO));
+    Preconditions.checkNotNull(inputInfo,
+        "inputJobInfo is null, setInput has not yet been called to save job into conf supplied.");
+    return inputInfo.getTableInfo().getDataColumns();
   }
 }

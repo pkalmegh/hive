@@ -33,6 +33,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.io.HiveIOExceptionHandlerUtil;
 import org.apache.hadoop.hive.ql.plan.TableDesc;
 import org.apache.hadoop.hive.ql.exec.Operator;
@@ -43,9 +44,7 @@ import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc;
 import org.apache.hadoop.hive.ql.plan.MapWork;
 import org.apache.hadoop.hive.ql.plan.OperatorDesc;
 import org.apache.hadoop.hive.ql.plan.PartitionDesc;
-import org.apache.hadoop.hive.ql.plan.TableDesc;
 import org.apache.hadoop.hive.ql.plan.TableScanDesc;
-import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.io.Writable;
@@ -283,7 +282,9 @@ public class HiveInputFormat<K extends WritableComparable, V extends Writable>
       if (headerCount != 0 || footerCount != 0) {
         
         // Input file has header or footer, cannot be splitted.
-        conf.setLong("mapred.min.split.size", Long.MAX_VALUE);
+        conf.setLong(
+            ShimLoader.getHadoopShims().getHadoopConfNames().get("MAPREDMINSPLITSIZE"),
+            Long.MAX_VALUE);
       }
     }
 
@@ -300,7 +301,17 @@ public class HiveInputFormat<K extends WritableComparable, V extends Writable>
 
     Path[] dirs = FileInputFormat.getInputPaths(job);
     if (dirs.length == 0) {
-      throw new IOException("No input paths specified in job");
+      // on tez we're avoiding to duplicate the file info in FileInputFormat.
+      if (HiveConf.getVar(job, HiveConf.ConfVars.HIVE_EXECUTION_ENGINE).equals("tez")) {
+        try {
+          List<Path> paths = Utilities.getInputPathsTez(job, mrwork);
+          dirs = paths.toArray(new Path[paths.size()]);
+        } catch (Exception e) {
+          throw new IOException("Could not create input files", e);
+        }
+      } else {
+        throw new IOException("No input paths specified in job");
+      }
     }
     JobConf newjob = new JobConf(job);
     List<InputSplit> result = new ArrayList<InputSplit>();
@@ -356,12 +367,15 @@ public class HiveInputFormat<K extends WritableComparable, V extends Writable>
       currentInputFormatClass = inputFormatClass;
     }
 
-    LOG.info("Generating splits");
-    addSplitsForGroup(currentDirs, currentTableScan, newjob,
-        getInputFormatFromCache(currentInputFormatClass, job),
-        currentInputFormatClass, currentDirs.size()*(numSplits / dirs.length),
-        currentTable, result);
+    if (dirs.length != 0) {
+      LOG.info("Generating splits");
+      addSplitsForGroup(currentDirs, currentTableScan, newjob,
+          getInputFormatFromCache(currentInputFormatClass, job),
+          currentInputFormatClass, currentDirs.size()*(numSplits / dirs.length),
+          currentTable, result);
+    }
 
+    Utilities.clearWorkMap();
     LOG.info("number of splits " + result.size());
     perfLogger.PerfLogEnd(CLASS_NAME, PerfLogger.GET_SPLITS);
     return result.toArray(new HiveInputSplit[result.size()]);
@@ -376,7 +390,7 @@ public class HiveInputFormat<K extends WritableComparable, V extends Writable>
     }
     if (partDesc == null) {
       throw new IOException("cannot find dir = " + dir.toString()
-          + " in partToPartitionInfo!");
+          + " in " + pathToPartitionInfo);
     }
 
     return partDesc;

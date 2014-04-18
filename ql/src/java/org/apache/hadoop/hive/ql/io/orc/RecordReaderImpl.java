@@ -17,8 +17,11 @@
  */
 package org.apache.hadoop.hive.ql.io.orc;
 
+import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.HIVE_ORC_ZEROCOPY;
+
 import java.io.EOFException;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -27,15 +30,23 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.common.type.HiveChar;
 import org.apache.hadoop.hive.common.type.HiveDecimal;
+import org.apache.hadoop.hive.common.type.HiveVarchar;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.vector.BytesColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.ColumnVector;
+import org.apache.hadoop.hive.ql.exec.vector.DecimalColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.DoubleColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.LongColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
@@ -49,12 +60,17 @@ import org.apache.hadoop.hive.serde2.io.HiveCharWritable;
 import org.apache.hadoop.hive.serde2.io.HiveVarcharWritable;
 import org.apache.hadoop.hive.serde2.io.ShortWritable;
 import org.apache.hadoop.hive.serde2.typeinfo.HiveDecimalUtils;
+import org.apache.hadoop.hive.shims.HadoopShims.ByteBufferPoolShim;
+import org.apache.hadoop.hive.shims.HadoopShims.ZeroCopyReaderShim;
+import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.io.BooleanWritable;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+
+import com.google.common.collect.ComparisonChain;
 
 class RecordReaderImpl implements RecordReader {
 
@@ -87,64 +103,185 @@ class RecordReaderImpl implements RecordReader {
   private final int[] filterColumns;
   // an array about which row groups aren't skipped
   private boolean[] includedRowGroups = null;
+  private final Configuration conf;
 
-  RecordReaderImpl(Iterable<StripeInformation> stripes,
+  private final ByteBufferAllocatorPool pool = new ByteBufferAllocatorPool();
+  private final ZeroCopyReaderShim zcr;
+
+  // this is an implementation copied from ElasticByteBufferPool in hadoop-2,
+  // which lacks a clear()/clean() operation
+  public final static class ByteBufferAllocatorPool implements ByteBufferPoolShim {
+    private static final class Key implements Comparable<Key> {
+      private final int capacity;
+      private final long insertionGeneration;
+
+      Key(int capacity, long insertionGeneration) {
+        this.capacity = capacity;
+        this.insertionGeneration = insertionGeneration;
+      }
+
+      @Override
+      public int compareTo(Key other) {
+        return ComparisonChain.start().compare(capacity, other.capacity)
+            .compare(insertionGeneration, other.insertionGeneration).result();
+      }
+
+      @Override
+      public boolean equals(Object rhs) {
+        if (rhs == null) {
+          return false;
+        }
+        try {
+          Key o = (Key) rhs;
+          return (compareTo(o) == 0);
+        } catch (ClassCastException e) {
+          return false;
+        }
+      }
+
+      @Override
+      public int hashCode() {
+        return new HashCodeBuilder().append(capacity).append(insertionGeneration)
+            .toHashCode();
+      }
+    }
+
+    private final TreeMap<Key, ByteBuffer> buffers = new TreeMap<Key, ByteBuffer>();
+
+    private final TreeMap<Key, ByteBuffer> directBuffers = new TreeMap<Key, ByteBuffer>();
+
+    private long currentGeneration = 0;
+
+    private final TreeMap<Key, ByteBuffer> getBufferTree(boolean direct) {
+      return direct ? directBuffers : buffers;
+    }
+
+    public void clear() {
+      buffers.clear();
+      directBuffers.clear();
+    }
+
+    @Override
+    public ByteBuffer getBuffer(boolean direct, int length) {
+      TreeMap<Key, ByteBuffer> tree = getBufferTree(direct);
+      Map.Entry<Key, ByteBuffer> entry = tree.ceilingEntry(new Key(length, 0));
+      if (entry == null) {
+        return direct ? ByteBuffer.allocateDirect(length) : ByteBuffer
+            .allocate(length);
+      }
+      tree.remove(entry.getKey());
+      return entry.getValue();
+    }
+
+    @Override
+    public void putBuffer(ByteBuffer buffer) {
+      TreeMap<Key, ByteBuffer> tree = getBufferTree(buffer.isDirect());
+      while (true) {
+        Key key = new Key(buffer.capacity(), currentGeneration++);
+        if (!tree.containsKey(key)) {
+          tree.put(key, buffer);
+          return;
+        }
+        // Buffers are indexed by (capacity, generation).
+        // If our key is not unique on the first try, we try again
+      }
+    }
+  }
+
+  /**
+   * Given a list of column names, find the given column and return the index.
+   * @param columnNames the list of potential column names
+   * @param columnName the column name to look for
+   * @param rootColumn offset the result with the rootColumn
+   * @return the column number or -1 if the column wasn't found
+   */
+  static int findColumns(String[] columnNames,
+                         String columnName,
+                         int rootColumn) {
+    for(int i=0; i < columnNames.length; ++i) {
+      if (columnName.equals(columnNames[i])) {
+        return i + rootColumn;
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * Find the mapping from predicate leaves to columns.
+   * @param sargLeaves the search argument that we need to map
+   * @param columnNames the names of the columns
+   * @param rootColumn the offset of the top level row, which offsets the
+   *                   result
+   * @return an array mapping the sarg leaves to concrete column numbers
+   */
+  static int[] mapSargColumns(List<PredicateLeaf> sargLeaves,
+                             String[] columnNames,
+                             int rootColumn) {
+    int[] result = new int[sargLeaves.size()];
+    Arrays.fill(result, -1);
+    for(int i=0; i < result.length; ++i) {
+      String colName = sargLeaves.get(i).getColumnName();
+      result[i] = findColumns(columnNames, colName, rootColumn);
+    }
+    return result;
+  }
+
+  RecordReaderImpl(List<StripeInformation> stripes,
                    FileSystem fileSystem,
                    Path path,
-                   long offset, long length,
+                   Reader.Options options,
                    List<OrcProto.Type> types,
                    CompressionCodec codec,
                    int bufferSize,
-                   boolean[] included,
                    long strideRate,
-                   SearchArgument sarg,
-                   String[] columnNames
+                   Configuration conf
                   ) throws IOException {
     this.file = fileSystem.open(path);
     this.codec = codec;
     this.types = types;
     this.bufferSize = bufferSize;
-    this.included = included;
-    this.sarg = sarg;
+    this.included = options.getInclude();
+    this.conf = conf;
+    this.sarg = options.getSearchArgument();
     if (sarg != null) {
       sargLeaves = sarg.getLeaves();
-      filterColumns = new int[sargLeaves.size()];
-      for(int i=0; i < filterColumns.length; ++i) {
-        String colName = sargLeaves.get(i).getColumnName();
-        filterColumns[i] = findColumns(columnNames, colName);
-      }
+      filterColumns = mapSargColumns(sargLeaves, options.getColumnNames(), 0);
     } else {
       sargLeaves = null;
       filterColumns = null;
     }
     long rows = 0;
     long skippedRows = 0;
+    long offset = options.getOffset();
+    long maxOffset = options.getMaxOffset();
     for(StripeInformation stripe: stripes) {
       long stripeStart = stripe.getOffset();
       if (offset > stripeStart) {
         skippedRows += stripe.getNumberOfRows();
-      } else if (stripeStart < offset + length) {
+      } else if (stripeStart < maxOffset) {
         this.stripes.add(stripe);
         rows += stripe.getNumberOfRows();
       }
     }
 
+    final boolean zeroCopy = (conf != null)
+        && (HiveConf.getBoolVar(conf, HIVE_ORC_ZEROCOPY));
+
+    if (zeroCopy
+        && (codec == null || ((codec instanceof DirectDecompressionCodec)
+            && ((DirectDecompressionCodec) codec).isAvailable()))) {
+      /* codec is null or is available */
+      this.zcr = ShimLoader.getHadoopShims().getZeroCopyReader(file, pool);
+    } else {
+      this.zcr = null;
+    }
+
     firstRow = skippedRows;
     totalRowCount = rows;
-    reader = createTreeReader(path, 0, types, included);
+    reader = createTreeReader(path, 0, types, included, conf);
     indexes = new OrcProto.RowIndex[types.size()];
     rowIndexStride = strideRate;
     advanceToNextRow(0L);
-  }
-
-  static int findColumns(String[] columnNames,
-                                 String columnName) {
-    for(int i=0; i < columnNames.length; ++i) {
-      if (columnName.equals(columnNames[i])) {
-        return i;
-      }
-    }
-    return -1;
   }
 
   private static final class PositionProviderImpl implements PositionProvider {
@@ -166,10 +303,12 @@ class RecordReaderImpl implements RecordReader {
     protected final int columnId;
     private BitFieldReader present = null;
     protected boolean valuePresent = false;
+    protected final Configuration conf;
 
-    TreeReader(Path path, int columnId) {
+    TreeReader(Path path, int columnId, Configuration conf) {
       this.path = path;
       this.columnId = columnId;
+      this.conf = conf;
     }
 
     void checkEncoding(OrcProto.ColumnEncoding encoding) throws IOException {
@@ -185,7 +324,7 @@ class RecordReaderImpl implements RecordReader {
       switch (kind) {
       case DIRECT_V2:
       case DICTIONARY_V2:
-        return new RunLengthIntegerReaderV2(in, signed);
+        return new RunLengthIntegerReaderV2(in, signed, conf);
       case DIRECT:
       case DICTIONARY:
         return new RunLengthIntegerReader(in, signed);
@@ -278,8 +417,8 @@ class RecordReaderImpl implements RecordReader {
   private static class BooleanTreeReader extends TreeReader{
     private BitFieldReader reader = null;
 
-    BooleanTreeReader(Path path, int columnId) {
-      super(path, columnId);
+    BooleanTreeReader(Path path, int columnId, Configuration conf) {
+      super(path, columnId, conf);
     }
 
     @Override
@@ -338,8 +477,8 @@ class RecordReaderImpl implements RecordReader {
   private static class ByteTreeReader extends TreeReader{
     private RunLengthByteReader reader = null;
 
-    ByteTreeReader(Path path, int columnId) {
-      super(path, columnId);
+    ByteTreeReader(Path path, int columnId, Configuration conf) {
+      super(path, columnId, conf);
     }
 
     @Override
@@ -398,8 +537,8 @@ class RecordReaderImpl implements RecordReader {
   private static class ShortTreeReader extends TreeReader{
     private IntegerReader reader = null;
 
-    ShortTreeReader(Path path, int columnId) {
-      super(path, columnId);
+    ShortTreeReader(Path path, int columnId, Configuration conf) {
+      super(path, columnId, conf);
     }
 
     @Override
@@ -468,8 +607,8 @@ class RecordReaderImpl implements RecordReader {
   private static class IntTreeReader extends TreeReader{
     private IntegerReader reader = null;
 
-    IntTreeReader(Path path, int columnId) {
-      super(path, columnId);
+    IntTreeReader(Path path, int columnId, Configuration conf) {
+      super(path, columnId, conf);
     }
 
     @Override
@@ -538,8 +677,8 @@ class RecordReaderImpl implements RecordReader {
   private static class LongTreeReader extends TreeReader{
     private IntegerReader reader = null;
 
-    LongTreeReader(Path path, int columnId) {
-      super(path, columnId);
+    LongTreeReader(Path path, int columnId, Configuration conf) {
+      super(path, columnId, conf);
     }
 
     @Override
@@ -608,8 +747,8 @@ class RecordReaderImpl implements RecordReader {
   private static class FloatTreeReader extends TreeReader{
     private InStream stream;
 
-    FloatTreeReader(Path path, int columnId) {
-      super(path, columnId);
+    FloatTreeReader(Path path, int columnId, Configuration conf) {
+      super(path, columnId, conf);
     }
 
     @Override
@@ -688,8 +827,8 @@ class RecordReaderImpl implements RecordReader {
   private static class DoubleTreeReader extends TreeReader{
     private InStream stream;
 
-    DoubleTreeReader(Path path, int columnId) {
-      super(path, columnId);
+    DoubleTreeReader(Path path, int columnId, Configuration conf) {
+      super(path, columnId, conf);
     }
 
     @Override
@@ -767,8 +906,8 @@ class RecordReaderImpl implements RecordReader {
     private InStream stream;
     private IntegerReader lengths = null;
 
-    BinaryTreeReader(Path path, int columnId) {
-      super(path, columnId);
+    BinaryTreeReader(Path path, int columnId, Configuration conf) {
+      super(path, columnId, conf);
     }
 
     @Override
@@ -846,8 +985,8 @@ class RecordReaderImpl implements RecordReader {
     private IntegerReader nanos = null;
     private final LongColumnVector nanoVector = new LongColumnVector();
 
-    TimestampTreeReader(Path path, int columnId) {
-      super(path, columnId);
+    TimestampTreeReader(Path path, int columnId, Configuration conf) {
+      super(path, columnId, conf);
     }
 
     @Override
@@ -953,7 +1092,7 @@ class RecordReaderImpl implements RecordReader {
 
     private static int parseNanos(long serialized) {
       int zeros = 7 & (int) serialized;
-      int result = (int) serialized >>> 3;
+      int result = (int) (serialized >>> 3);
       if (zeros != 0) {
         for(int i =0; i <= zeros; ++i) {
           result *= 10;
@@ -973,8 +1112,8 @@ class RecordReaderImpl implements RecordReader {
   private static class DateTreeReader extends TreeReader{
     private IntegerReader reader = null;
 
-    DateTreeReader(Path path, int columnId) {
-      super(path, columnId);
+    DateTreeReader(Path path, int columnId, Configuration conf) {
+      super(path, columnId, conf);
     }
 
     @Override
@@ -1043,12 +1182,13 @@ class RecordReaderImpl implements RecordReader {
   private static class DecimalTreeReader extends TreeReader{
     private InStream valueStream;
     private IntegerReader scaleStream = null;
+    private LongColumnVector scratchScaleVector = new LongColumnVector(VectorizedRowBatch.DEFAULT_SIZE);
 
     private final int precision;
     private final int scale;
 
-    DecimalTreeReader(Path path, int columnId, int precision, int scale) {
-      super(path, columnId);
+    DecimalTreeReader(Path path, int columnId, int precision, int scale, Configuration conf) {
+      super(path, columnId, conf);
       this.precision = precision;
       this.scale = scale;
     }
@@ -1093,8 +1233,50 @@ class RecordReaderImpl implements RecordReader {
 
     @Override
     Object nextVector(Object previousVector, long batchSize) throws IOException {
-      throw new UnsupportedOperationException(
-          "NextVector is not supported operation for Decimal type");
+      DecimalColumnVector result = null;
+      if (previousVector == null) {
+        result = new DecimalColumnVector(precision, scale);
+      } else {
+        result = (DecimalColumnVector) previousVector;
+      }
+
+      // Save the reference for isNull in the scratch vector
+      boolean [] scratchIsNull = scratchScaleVector.isNull;
+
+      // Read present/isNull stream
+      super.nextVector(result, batchSize);
+
+      // Read value entries based on isNull entries
+      if (result.isRepeating) {
+        if (!result.isNull[0]) {
+          BigInteger bInt = SerializationUtils.readBigInteger(valueStream);
+          short scaleInData = (short) scaleStream.next();
+          result.vector[0].update(bInt, scaleInData);
+
+          // Change the scale to match the schema if the scale in data is different.
+          if (scale != scaleInData) {
+            result.vector[0].changeScaleDestructive((short) scale);
+          }
+        }
+      } else {
+        // result vector has isNull values set, use the same to read scale vector.
+        scratchScaleVector.isNull = result.isNull;
+        scaleStream.nextVector(scratchScaleVector, batchSize);
+        for (int i = 0; i < batchSize; i++) {
+          if (!result.isNull[i]) {
+            BigInteger bInt = SerializationUtils.readBigInteger(valueStream);
+            result.vector[i].update(bInt, (short) scratchScaleVector.vector[i]);
+
+            // Change the scale to match the schema if the scale in data is different.
+            if (scale != scratchScaleVector.vector[i]) {
+              result.vector[i].changeScaleDestructive((short) scale);
+            }
+          }
+        }
+      }
+      // Switch back the null vector.
+      scratchScaleVector.isNull = scratchIsNull;
+      return result;
     }
 
     @Override
@@ -1115,8 +1297,8 @@ class RecordReaderImpl implements RecordReader {
   private static class StringTreeReader extends TreeReader {
     private TreeReader reader;
 
-    StringTreeReader(Path path, int columnId) {
-      super(path, columnId);
+    StringTreeReader(Path path, int columnId, Configuration conf) {
+      super(path, columnId, conf);
     }
 
     @Override
@@ -1133,11 +1315,11 @@ class RecordReaderImpl implements RecordReader {
       switch (encodings.get(columnId).getKind()) {
         case DIRECT:
         case DIRECT_V2:
-          reader = new StringDirectTreeReader(path, columnId);
+          reader = new StringDirectTreeReader(path, columnId, conf);
           break;
         case DICTIONARY:
         case DICTIONARY_V2:
-          reader = new StringDictionaryTreeReader(path, columnId);
+          reader = new StringDictionaryTreeReader(path, columnId, conf);
           break;
         default:
           throw new IllegalArgumentException("Unsupported encoding " +
@@ -1177,8 +1359,8 @@ class RecordReaderImpl implements RecordReader {
 
     private final LongColumnVector scratchlcv;
 
-    StringDirectTreeReader(Path path, int columnId) {
-      super(path, columnId);
+    StringDirectTreeReader(Path path, int columnId, Configuration conf) {
+      super(path, columnId, conf);
       scratchlcv = new LongColumnVector();
     }
 
@@ -1326,8 +1508,8 @@ class RecordReaderImpl implements RecordReader {
     private byte[] dictionaryBufferInBytesCache = null;
     private final LongColumnVector scratchlcv;
 
-    StringDictionaryTreeReader(Path path, int columnId) {
-      super(path, columnId);
+    StringDictionaryTreeReader(Path path, int columnId, Configuration conf) {
+      super(path, columnId, conf);
       scratchlcv = new LongColumnVector();
     }
 
@@ -1492,8 +1674,8 @@ class RecordReaderImpl implements RecordReader {
   private static class CharTreeReader extends StringTreeReader {
     int maxLength;
 
-    CharTreeReader(Path path, int columnId, int maxLength) {
-      super(path, columnId);
+    CharTreeReader(Path path, int columnId, int maxLength, Configuration conf) {
+      super(path, columnId, conf);
       this.maxLength = maxLength;
     }
 
@@ -1520,8 +1702,8 @@ class RecordReaderImpl implements RecordReader {
   private static class VarcharTreeReader extends StringTreeReader {
     int maxLength;
 
-    VarcharTreeReader(Path path, int columnId, int maxLength) {
-      super(path, columnId);
+    VarcharTreeReader(Path path, int columnId, int maxLength, Configuration conf) {
+      super(path, columnId, conf);
       this.maxLength = maxLength;
     }
 
@@ -1551,8 +1733,8 @@ class RecordReaderImpl implements RecordReader {
 
     StructTreeReader(Path path, int columnId,
                      List<OrcProto.Type> types,
-                     boolean[] included) throws IOException {
-      super(path, columnId);
+                     boolean[] included, Configuration conf) throws IOException {
+      super(path, columnId, conf);
       OrcProto.Type type = types.get(columnId);
       int fieldCount = type.getFieldNamesCount();
       this.fields = new TreeReader[fieldCount];
@@ -1560,7 +1742,7 @@ class RecordReaderImpl implements RecordReader {
       for(int i=0; i < fieldCount; ++i) {
         int subtype = type.getSubtypes(i);
         if (included == null || included[subtype]) {
-          this.fields[i] = createTreeReader(path, subtype, types, included);
+          this.fields[i] = createTreeReader(path, subtype, types, included, conf);
         }
         this.fieldNames[i] = type.getFieldNames(i);
       }
@@ -1653,15 +1835,15 @@ class RecordReaderImpl implements RecordReader {
 
     UnionTreeReader(Path path, int columnId,
                     List<OrcProto.Type> types,
-                    boolean[] included) throws IOException {
-      super(path, columnId);
+                    boolean[] included, Configuration conf) throws IOException {
+      super(path, columnId, conf);
       OrcProto.Type type = types.get(columnId);
       int fieldCount = type.getSubtypesCount();
       this.fields = new TreeReader[fieldCount];
       for(int i=0; i < fieldCount; ++i) {
         int subtype = type.getSubtypes(i);
         if (included == null || included[subtype]) {
-          this.fields[i] = createTreeReader(path, subtype, types, included);
+          this.fields[i] = createTreeReader(path, subtype, types, included, conf);
         }
       }
     }
@@ -1732,11 +1914,11 @@ class RecordReaderImpl implements RecordReader {
 
     ListTreeReader(Path path, int columnId,
                    List<OrcProto.Type> types,
-                   boolean[] included) throws IOException {
-      super(path, columnId);
+                   boolean[] included, Configuration conf) throws IOException {
+      super(path, columnId, conf);
       OrcProto.Type type = types.get(columnId);
       elementReader = createTreeReader(path, type.getSubtypes(0), types,
-          included);
+          included, conf);
     }
 
     @Override
@@ -1823,18 +2005,18 @@ class RecordReaderImpl implements RecordReader {
     MapTreeReader(Path path,
                   int columnId,
                   List<OrcProto.Type> types,
-                  boolean[] included) throws IOException {
-      super(path, columnId);
+                  boolean[] included, Configuration conf) throws IOException {
+      super(path, columnId, conf);
       OrcProto.Type type = types.get(columnId);
       int keyColumn = type.getSubtypes(0);
       int valueColumn = type.getSubtypes(1);
       if (included == null || included[keyColumn]) {
-        keyReader = createTreeReader(path, keyColumn, types, included);
+        keyReader = createTreeReader(path, keyColumn, types, included, conf);
       } else {
         keyReader = null;
       }
       if (included == null || included[valueColumn]) {
-        valueReader = createTreeReader(path, valueColumn, types, included);
+        valueReader = createTreeReader(path, valueColumn, types, included, conf);
       } else {
         valueReader = null;
       }
@@ -1916,54 +2098,55 @@ class RecordReaderImpl implements RecordReader {
   private static TreeReader createTreeReader(Path path,
                                              int columnId,
                                              List<OrcProto.Type> types,
-                                             boolean[] included
+                                             boolean[] included,
+                                             Configuration conf
                                             ) throws IOException {
     OrcProto.Type type = types.get(columnId);
     switch (type.getKind()) {
       case BOOLEAN:
-        return new BooleanTreeReader(path, columnId);
+        return new BooleanTreeReader(path, columnId, conf);
       case BYTE:
-        return new ByteTreeReader(path, columnId);
+        return new ByteTreeReader(path, columnId, conf);
       case DOUBLE:
-        return new DoubleTreeReader(path, columnId);
+        return new DoubleTreeReader(path, columnId, conf);
       case FLOAT:
-        return new FloatTreeReader(path, columnId);
+        return new FloatTreeReader(path, columnId, conf);
       case SHORT:
-        return new ShortTreeReader(path, columnId);
+        return new ShortTreeReader(path, columnId, conf);
       case INT:
-        return new IntTreeReader(path, columnId);
+        return new IntTreeReader(path, columnId, conf);
       case LONG:
-        return new LongTreeReader(path, columnId);
+        return new LongTreeReader(path, columnId, conf);
       case STRING:
-        return new StringTreeReader(path, columnId);
+        return new StringTreeReader(path, columnId, conf);
       case CHAR:
         if (!type.hasMaximumLength()) {
           throw new IllegalArgumentException("ORC char type has no length specified");
         }
-        return new CharTreeReader(path, columnId, type.getMaximumLength());
+        return new CharTreeReader(path, columnId, type.getMaximumLength(), conf);
       case VARCHAR:
         if (!type.hasMaximumLength()) {
           throw new IllegalArgumentException("ORC varchar type has no length specified");
         }
-        return new VarcharTreeReader(path, columnId, type.getMaximumLength());
+        return new VarcharTreeReader(path, columnId, type.getMaximumLength(), conf);
       case BINARY:
-        return new BinaryTreeReader(path, columnId);
+        return new BinaryTreeReader(path, columnId, conf);
       case TIMESTAMP:
-        return new TimestampTreeReader(path, columnId);
+        return new TimestampTreeReader(path, columnId, conf);
       case DATE:
-        return new DateTreeReader(path, columnId);
+        return new DateTreeReader(path, columnId, conf);
       case DECIMAL:
         int precision = type.hasPrecision() ? type.getPrecision() : HiveDecimal.SYSTEM_DEFAULT_PRECISION;
         int scale =  type.hasScale()? type.getScale() : HiveDecimal.SYSTEM_DEFAULT_SCALE;
-        return new DecimalTreeReader(path, columnId, precision, scale);
+        return new DecimalTreeReader(path, columnId, precision, scale, conf);
       case STRUCT:
-        return new StructTreeReader(path, columnId, types, included);
+        return new StructTreeReader(path, columnId, types, included, conf);
       case LIST:
-        return new ListTreeReader(path, columnId, types, included);
+        return new ListTreeReader(path, columnId, types, included, conf);
       case MAP:
-        return new MapTreeReader(path, columnId, types, included);
+        return new MapTreeReader(path, columnId, types, included, conf);
       case UNION:
-        return new UnionTreeReader(path, columnId, types, included);
+        return new UnionTreeReader(path, columnId, types, included, conf);
       default:
         throw new IllegalArgumentException("Unsupported type " +
           type.getKind());
@@ -2015,57 +2198,47 @@ class RecordReaderImpl implements RecordReader {
   }
 
   /**
-   * Get the minimum value out of an index entry.
-   * @param index the index entry
-   * @return the object for the minimum value or null if there isn't one
+   * Get the maximum value out of an index entry.
+   * @param index
+   *          the index entry
+   * @return the object for the maximum value or null if there isn't one
    */
-  static Object getMin(OrcProto.ColumnStatistics index) {
-    if (index.hasIntStatistics()) {
-      OrcProto.IntegerStatistics stat = index.getIntStatistics();
-      if (stat.hasMinimum()) {
-        return stat.getMinimum();
-      }
+  static Object getMax(ColumnStatistics index) {
+    if (index instanceof IntegerColumnStatistics) {
+      return ((IntegerColumnStatistics) index).getMaximum();
+    } else if (index instanceof DoubleColumnStatistics) {
+      return ((DoubleColumnStatistics) index).getMaximum();
+    } else if (index instanceof StringColumnStatistics) {
+      return ((StringColumnStatistics) index).getMaximum();
+    } else if (index instanceof DateColumnStatistics) {
+      return ((DateColumnStatistics) index).getMaximum();
+    } else if (index instanceof DecimalColumnStatistics) {
+      return ((DecimalColumnStatistics) index).getMaximum();
+    } else {
+      return null;
     }
-    if (index.hasStringStatistics()) {
-      OrcProto.StringStatistics stat = index.getStringStatistics();
-      if (stat.hasMinimum()) {
-        return stat.getMinimum();
-      }
-    }
-    if (index.hasDoubleStatistics()) {
-      OrcProto.DoubleStatistics stat = index.getDoubleStatistics();
-      if (stat.hasMinimum()) {
-        return stat.getMinimum();
-      }
-    }
-    return null;
   }
 
   /**
-   * Get the maximum value out of an index entry.
-   * @param index the index entry
-   * @return the object for the maximum value or null if there isn't one
+   * Get the minimum value out of an index entry.
+   * @param index
+   *          the index entry
+   * @return the object for the minimum value or null if there isn't one
    */
-  static Object getMax(OrcProto.ColumnStatistics index) {
-    if (index.hasIntStatistics()) {
-      OrcProto.IntegerStatistics stat = index.getIntStatistics();
-      if (stat.hasMaximum()) {
-        return stat.getMaximum();
-      }
+  static Object getMin(ColumnStatistics index) {
+    if (index instanceof IntegerColumnStatistics) {
+      return ((IntegerColumnStatistics) index).getMinimum();
+    } else if (index instanceof DoubleColumnStatistics) {
+      return ((DoubleColumnStatistics) index).getMinimum();
+    } else if (index instanceof StringColumnStatistics) {
+      return ((StringColumnStatistics) index).getMinimum();
+    } else if (index instanceof DateColumnStatistics) {
+      return ((DateColumnStatistics) index).getMinimum();
+    } else if (index instanceof DecimalColumnStatistics) {
+      return ((DecimalColumnStatistics) index).getMinimum();
+    } else {
+      return null;
     }
-    if (index.hasStringStatistics()) {
-      OrcProto.StringStatistics stat = index.getStringStatistics();
-      if (stat.hasMaximum()) {
-        return stat.getMaximum();
-      }
-    }
-    if (index.hasDoubleStatistics()) {
-      OrcProto.DoubleStatistics stat = index.getDoubleStatistics();
-      if (stat.hasMaximum()) {
-        return stat.getMaximum();
-      }
-    }
-    return null;
   }
 
   /**
@@ -2077,8 +2250,9 @@ class RecordReaderImpl implements RecordReader {
    *   predicate.
    */
   static TruthValue evaluatePredicate(OrcProto.ColumnStatistics index,
-                               PredicateLeaf predicate) {
-    Object minValue = getMin(index);
+                                      PredicateLeaf predicate) {
+    ColumnStatistics cs = ColumnStatisticsImpl.deserialize(index);
+    Object minValue = getMin(cs);
     // if we didn't have any values, everything must have been null
     if (minValue == null) {
       if (predicate.getOperator() == PredicateLeaf.Operator.IS_NULL) {
@@ -2087,25 +2261,36 @@ class RecordReaderImpl implements RecordReader {
         return TruthValue.NULL;
       }
     }
-    Object maxValue = getMax(index);
+    Object maxValue = getMax(cs);
     return evaluatePredicateRange(predicate, minValue, maxValue);
   }
 
-  static TruthValue evaluatePredicateRange(PredicateLeaf predicate, Object minValue,
-      Object maxValue) {
+  static TruthValue evaluatePredicateRange(PredicateLeaf predicate, Object min,
+      Object max) {
     Location loc;
-    switch (predicate.getOperator()) {
+    try {
+      // Predicate object and stats object can be one of the following base types
+      // LONG, DOUBLE, STRING, DATE, DECIMAL
+      // Out of these DATE is not implicitly convertible to other types and rest
+      // others are implicitly convertible. In cases where DATE cannot be converted
+      // the stats object is converted to text and comparison is performed.
+      // When STRINGs are converted to other base types, NumberFormat exception
+      // can occur in which case TruthValue.YES_NO_NULL value is returned
+      Object baseObj = predicate.getLiteral();
+      Object minValue = getConvertedStatsObj(min, baseObj);
+      Object maxValue = getConvertedStatsObj(max, baseObj);
+      Object predObj = getBaseObjectForComparison(baseObj, minValue);
+
+      switch (predicate.getOperator()) {
       case NULL_SAFE_EQUALS:
-        loc = compareToRange((Comparable) predicate.getLiteral(),
-            minValue, maxValue);
+        loc = compareToRange((Comparable) predObj, minValue, maxValue);
         if (loc == Location.BEFORE || loc == Location.AFTER) {
           return TruthValue.NO;
         } else {
           return TruthValue.YES_NO;
         }
       case EQUALS:
-        loc = compareToRange((Comparable) predicate.getLiteral(),
-            minValue, maxValue);
+        loc = compareToRange((Comparable) predObj, minValue, maxValue);
         if (minValue.equals(maxValue) && loc == Location.MIN) {
           return TruthValue.YES_NULL;
         } else if (loc == Location.BEFORE || loc == Location.AFTER) {
@@ -2114,8 +2299,7 @@ class RecordReaderImpl implements RecordReader {
           return TruthValue.YES_NO_NULL;
         }
       case LESS_THAN:
-        loc = compareToRange((Comparable) predicate.getLiteral(),
-            minValue, maxValue);
+        loc = compareToRange((Comparable) predObj, minValue, maxValue);
         if (loc == Location.AFTER) {
           return TruthValue.YES_NULL;
         } else if (loc == Location.BEFORE || loc == Location.MIN) {
@@ -2124,8 +2308,7 @@ class RecordReaderImpl implements RecordReader {
           return TruthValue.YES_NO_NULL;
         }
       case LESS_THAN_EQUALS:
-        loc = compareToRange((Comparable) predicate.getLiteral(),
-            minValue, maxValue);
+        loc = compareToRange((Comparable) predObj, minValue, maxValue);
         if (loc == Location.AFTER || loc == Location.MAX) {
           return TruthValue.YES_NULL;
         } else if (loc == Location.BEFORE) {
@@ -2137,8 +2320,9 @@ class RecordReaderImpl implements RecordReader {
         if (minValue.equals(maxValue)) {
           // for a single value, look through to see if that value is in the
           // set
-          for(Object arg: predicate.getLiteralList()) {
-            loc = compareToRange((Comparable) arg, minValue, maxValue);
+          for (Object arg : predicate.getLiteralList()) {
+            predObj = getBaseObjectForComparison(arg, minValue);
+            loc = compareToRange((Comparable) predObj, minValue, maxValue);
             if (loc == Location.MIN) {
               return TruthValue.YES_NULL;
             }
@@ -2146,8 +2330,9 @@ class RecordReaderImpl implements RecordReader {
           return TruthValue.NO_NULL;
         } else {
           // are all of the values outside of the range?
-          for(Object arg: predicate.getLiteralList()) {
-            loc = compareToRange((Comparable) arg, minValue, maxValue);
+          for (Object arg : predicate.getLiteralList()) {
+            predObj = getBaseObjectForComparison(arg, minValue);
+            loc = compareToRange((Comparable) predObj, minValue, maxValue);
             if (loc == Location.MIN || loc == Location.MIDDLE ||
                 loc == Location.MAX) {
               return TruthValue.YES_NO_NULL;
@@ -2157,10 +2342,13 @@ class RecordReaderImpl implements RecordReader {
         }
       case BETWEEN:
         List<Object> args = predicate.getLiteralList();
-        loc = compareToRange((Comparable) args.get(0), minValue, maxValue);
+        Object predObj1 = getBaseObjectForComparison(args.get(0), minValue);
+
+        loc = compareToRange((Comparable) predObj1, minValue, maxValue);
         if (loc == Location.BEFORE || loc == Location.MIN) {
-          Location loc2 = compareToRange((Comparable) args.get(1), minValue,
-              maxValue);
+          Object predObj2 = getBaseObjectForComparison(args.get(1), minValue);
+
+          Location loc2 = compareToRange((Comparable) predObj2, minValue, maxValue);
           if (loc2 == Location.AFTER || loc2 == Location.MAX) {
             return TruthValue.YES_NULL;
           } else if (loc2 == Location.BEFORE) {
@@ -2177,7 +2365,61 @@ class RecordReaderImpl implements RecordReader {
         return TruthValue.YES_NO;
       default:
         return TruthValue.YES_NO_NULL;
+      }
+
+      // in case failed conversion, return the default YES_NO_NULL truth value
+    } catch (NumberFormatException nfe) {
+      return TruthValue.YES_NO_NULL;
     }
+  }
+
+  private static Object getBaseObjectForComparison(Object predObj, Object statsObj) {
+    if (predObj != null) {
+      // following are implicitly convertible
+      if (statsObj instanceof Long) {
+        if (predObj instanceof Double) {
+          return ((Double) predObj).longValue();
+        } else if (predObj instanceof HiveDecimal) {
+          return ((HiveDecimal) predObj).longValue();
+        } else if (predObj instanceof String) {
+          return Long.valueOf(predObj.toString());
+        }
+      } else if (statsObj instanceof Double) {
+        if (predObj instanceof Long) {
+          return ((Long) predObj).doubleValue();
+        } else if (predObj instanceof HiveDecimal) {
+          return ((HiveDecimal) predObj).doubleValue();
+        } else if (predObj instanceof String) {
+          return Double.valueOf(predObj.toString());
+        }
+      } else if (statsObj instanceof String) {
+        return predObj.toString();
+      } else if (statsObj instanceof HiveDecimal) {
+        if (predObj instanceof Long) {
+          return HiveDecimal.create(((Long) predObj));
+        } else if (predObj instanceof Double) {
+          return HiveDecimal.create(predObj.toString());
+        } else if (predObj instanceof String) {
+          return HiveDecimal.create(predObj.toString());
+        }
+      }
+    }
+    return predObj;
+  }
+
+  private static Object getConvertedStatsObj(Object statsObj, Object predObj) {
+
+    // converting between date and other types is not implicit, so convert to
+    // text for comparison
+    if (((predObj instanceof DateWritable) && !(statsObj instanceof DateWritable))
+        || ((statsObj instanceof DateWritable) && !(predObj instanceof DateWritable))) {
+      return StringUtils.stripEnd(statsObj.toString(), null);
+    }
+
+    if (statsObj instanceof String) {
+      return StringUtils.stripEnd(statsObj.toString(), null);
+    }
+    return statsObj;
   }
 
   /**
@@ -2191,7 +2433,7 @@ class RecordReaderImpl implements RecordReader {
     if (sarg == null || rowIndexStride == 0) {
       return null;
     }
-    readRowIndex();
+    readRowIndex(currentStripe);
     long rowsInStripe = stripes.get(currentStripe).getNumberOfRows();
     int groupsInStripe = (int) ((rowsInStripe + rowIndexStride - 1) /
         rowIndexStride);
@@ -2236,6 +2478,11 @@ class RecordReaderImpl implements RecordReader {
       is.close();
     }
     if(bufferChunks != null) {
+      if(zcr != null) {
+        for (BufferChunk bufChunk : bufferChunks) {
+          zcr.releaseBuffer(bufChunk.chunk);
+        }
+      }
       bufferChunks.clear();
     }
     streams.clear();
@@ -2388,6 +2635,7 @@ class RecordReaderImpl implements RecordReader {
       case LONG:
       case FLOAT:
       case DOUBLE:
+      case DATE:
       case STRUCT:
       case MAP:
       case LIST:
@@ -2489,15 +2737,22 @@ class RecordReaderImpl implements RecordReader {
                   types.get(column).getKind(), stream.getKind(), isCompressed,
                   hasNull[column]);
               long start = indexes[column].getEntry(group).getPositions(posn);
+              final long nextGroupOffset;
+              if (group < includedRowGroups.length - 1) {
+                nextGroupOffset = indexes[column].getEntry(group + 1).getPositions(posn);
+              } else {
+                nextGroupOffset = length;
+              }
+
               // figure out the worst case last location
-              long end = (group == includedRowGroups.length - 1) ?
-                  length : Math.min(length,
-                                    indexes[column].getEntry(group + 1)
-                                        .getPositions(posn)
-                                        + (isCompressed ?
-                                            (OutStream.HEADER_SIZE
-                                              + compressionSize) :
-                                            WORST_UNCOMPRESSED_SLOP));
+
+              // if adjacent groups have the same compressed block offset then stretch the slop
+              // by factor of 2 to safely accommodate the next compression block.
+              // One for the current compression block and another for the next compression block.
+              final long slop = isCompressed ? 2 * (OutStream.HEADER_SIZE + compressionSize)
+                  : WORST_UNCOMPRESSED_SLOP;
+              long end = (group == includedRowGroups.length - 1) ? length : Math.min(length,
+                  nextGroupOffset + slop);
               result.add(new DiskRange(offset + start, offset + end));
             }
           }
@@ -2545,10 +2800,20 @@ class RecordReaderImpl implements RecordReader {
     for(DiskRange range: ranges) {
       int len = (int) (range.end - range.offset);
       long off = range.offset;
-      file.seek(base + off); 
-      byte[] buffer = new byte[len];
-      file.readFully(buffer, 0, buffer.length);
-      result.add(new BufferChunk(ByteBuffer.wrap(buffer), range.offset));
+      file.seek(base + off);
+      if(zcr != null) {
+        while(len > 0) {
+          ByteBuffer partial = zcr.readBuffer(len, false);
+          result.add(new BufferChunk(partial, off));
+          int read = partial.remaining();
+          len -= read;
+          off += read;
+        }
+      } else {
+        byte[] buffer = new byte[len];
+        file.readFully(buffer, 0, buffer.length);
+        result.add(new BufferChunk(ByteBuffer.wrap(buffer), range.offset));
+      }
     }
     return result;
   }
@@ -2725,6 +2990,10 @@ class RecordReaderImpl implements RecordReader {
     // find the next row
     rowInStripe += 1;
     advanceToNextRow(rowInStripe + rowBaseInStripe);
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("row from " + reader.path);
+      LOG.debug("orc row = " + result);
+    }
     return result;
   }
 
@@ -2736,7 +3005,37 @@ class RecordReaderImpl implements RecordReader {
       readStripe();
     }
 
-    long batchSize = Math.min(VectorizedRowBatch.DEFAULT_SIZE, (rowCountInStripe - rowInStripe));
+    long batchSize = 0;
+
+    // In case of PPD, batch size should be aware of row group boundaries. If only a subset of row
+    // groups are selected then marker position is set to the end of range (subset of row groups
+    // within strip). Batch size computed out of marker position makes sure that batch size is
+    // aware of row group boundary and will not cause overflow when reading rows
+    // illustration of this case is here https://issues.apache.org/jira/browse/HIVE-6287
+    if (rowIndexStride != 0 && includedRowGroups != null && rowInStripe < rowCountInStripe) {
+      int startRowGroup = (int) (rowInStripe / rowIndexStride);
+      if (!includedRowGroups[startRowGroup]) {
+        while (startRowGroup < includedRowGroups.length && !includedRowGroups[startRowGroup]) {
+          startRowGroup += 1;
+        }
+      }
+
+      int endRowGroup = startRowGroup;
+      while (endRowGroup < includedRowGroups.length && includedRowGroups[endRowGroup]) {
+        endRowGroup += 1;
+      }
+
+      final long markerPosition = (endRowGroup * rowIndexStride) < rowCountInStripe ? (endRowGroup * rowIndexStride)
+          : rowCountInStripe;
+      batchSize = Math.min(VectorizedRowBatch.DEFAULT_SIZE, (markerPosition - rowInStripe));
+
+      if (LOG.isDebugEnabled() && batchSize < VectorizedRowBatch.DEFAULT_SIZE) {
+        LOG.debug("markerPosition: " + markerPosition + " batchSize: " + batchSize);
+      }
+    } else {
+      batchSize = Math.min(VectorizedRowBatch.DEFAULT_SIZE, (rowCountInStripe - rowInStripe));
+    }
+
     rowInStripe += batchSize;
     if (previous == null) {
       ColumnVector[] cols = (ColumnVector[]) reader.nextVector(null, (int) batchSize);
@@ -2756,6 +3055,7 @@ class RecordReaderImpl implements RecordReader {
   @Override
   public void close() throws IOException {
     clearStreams();
+    pool.clear();
     file.close();
   }
 
@@ -2785,8 +3085,18 @@ class RecordReaderImpl implements RecordReader {
     throw new IllegalArgumentException("Seek after the end of reader range");
   }
 
-  private void readRowIndex() throws IOException {
-    long offset = stripes.get(currentStripe).getOffset();
+  OrcProto.RowIndex[] readRowIndex(int stripeIndex) throws IOException {
+    long offset = stripes.get(stripeIndex).getOffset();
+    OrcProto.StripeFooter stripeFooter;
+    OrcProto.RowIndex[] indexes;
+    // if this is the current stripe, use the cached objects.
+    if (stripeIndex == currentStripe) {
+      stripeFooter = this.stripeFooter;
+      indexes = this.indexes;
+    } else {
+      stripeFooter = readStripeFooter(stripes.get(stripeIndex));
+      indexes = new OrcProto.RowIndex[this.indexes.length];
+    }
     for(OrcProto.Stream stream: stripeFooter.getStreamsList()) {
       if (stream.getKind() == OrcProto.Stream.Kind.ROW_INDEX) {
         int col = stream.getColumn();
@@ -2801,6 +3111,7 @@ class RecordReaderImpl implements RecordReader {
       }
       offset += stream.getLength();
     }
+    return indexes;
   }
 
   private void seekToRowEntry(int rowEntry) throws IOException {
@@ -2832,7 +3143,7 @@ class RecordReaderImpl implements RecordReader {
       currentStripe = rightStripe;
       readStripe();
     }
-    readRowIndex();
+    readRowIndex(currentStripe);
 
     // if we aren't to the right row yet, advanance in the stripe.
     advanceToNextRow(rowNumber);

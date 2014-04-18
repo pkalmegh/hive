@@ -18,18 +18,6 @@
 
 package org.apache.hadoop.hive.ql;
 
-import java.io.DataInput;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.net.URI;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.ConcurrentHashMap;
-
 import org.antlr.runtime.TokenRewriteStream;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -42,13 +30,31 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hive.common.FileUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.TaskRunner;
+import org.apache.hadoop.hive.ql.exec.Utilities;
 import org.apache.hadoop.hive.ql.hooks.WriteEntity;
 import org.apache.hadoop.hive.ql.lockmgr.HiveLock;
 import org.apache.hadoop.hive.ql.lockmgr.HiveLockManager;
 import org.apache.hadoop.hive.ql.lockmgr.HiveLockObj;
+import org.apache.hadoop.hive.ql.lockmgr.HiveTxnManager;
 import org.apache.hadoop.hive.ql.plan.LoadTableDesc;
+import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.shims.ShimLoader;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.StringUtils;
+
+import java.io.DataInput;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.net.URI;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
+
+import javax.security.auth.login.LoginException;
 
 /**
  * Context for Semantic Analyzers. Usage: not reusable - construct a new one for
@@ -92,6 +98,9 @@ public class Context {
   // List of Locks for this query
   protected List<HiveLock> hiveLocks;
   protected HiveLockManager hiveLockMgr;
+
+  // Transaction manager for this query
+  protected HiveTxnManager hiveTxnManager;
 
   private boolean needLockMgr;
 
@@ -200,12 +209,11 @@ public class Context {
         try {
           FileSystem fs = dirPath.getFileSystem(conf);
           dirPath = new Path(fs.makeQualified(dirPath).toString());
-          if (!fs.mkdirs(dirPath)) {
+          FsPermission fsPermission = new FsPermission(Short.parseShort(scratchDirPermission.trim(), 8));
+
+          if (!Utilities.createDirsWithPermission(conf, dirPath, fsPermission)) {
             throw new RuntimeException("Cannot make directory: "
                                        + dirPath.toString());
-          } else {
-            FsPermission fsPermission = new FsPermission(Short.parseShort(scratchDirPermission.trim(), 8));
-            fs.setPermission(dirPath, fsPermission);
           }
           if (isHDFSCleanup) {
             fs.deleteOnExit(dirPath);
@@ -218,6 +226,7 @@ public class Context {
       fsScratchDirs.put(fileSystem + "-" + TaskRunner.getTaskRunnerID(), dir);
 
     }
+
     return dir;
   }
 
@@ -252,6 +261,7 @@ public class Context {
     try {
       Path dir = FileUtils.makeQualified(nonLocalScratchPath, conf);
       URI uri = dir.toUri();
+
       Path newScratchDir = getScratchDir(uri.getScheme(), uri.getAuthority(),
                            !explain, uri.getPath());
       LOG.info("New scratch dir is " + newScratchDir);
@@ -333,6 +343,16 @@ public class Context {
   public Path getExternalTmpPath(URI extURI) {
     return new Path(getExternalScratchDir(extURI), EXT_PREFIX +
       nextPathId());
+  }
+
+  /**
+   * This is similar to getExternalTmpPath() with difference being this method returns temp path
+   * within passed in uri, whereas getExternalTmpPath() ignores passed in path and returns temp
+   * path within /tmp
+   */
+  public Path getExtTmpPathRelTo(URI uri) {
+    return new Path (getScratchDir(uri.getScheme(), uri.getAuthority(), !explain, 
+    uri.getPath() + Path.SEPARATOR + "_" + this.executionId), EXT_PREFIX + nextPathId());
   }
 
   /**
@@ -523,15 +543,12 @@ public class Context {
     this.hiveLocks = hiveLocks;
   }
 
-  public HiveLockManager getHiveLockMgr() {
-    if (hiveLockMgr != null) {
-      hiveLockMgr.refresh();
-    }
-    return hiveLockMgr;
+  public HiveTxnManager getHiveTxnManager() {
+    return hiveTxnManager;
   }
 
-  public void setHiveLockMgr(HiveLockManager hiveLockMgr) {
-    this.hiveLockMgr = hiveLockMgr;
+  public void setHiveTxnManager(HiveTxnManager txnMgr) {
+    hiveTxnManager = txnMgr;
   }
 
   public void setOriginalTracker(String originalTracker) {

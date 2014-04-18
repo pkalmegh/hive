@@ -21,9 +21,11 @@ package org.apache.hadoop.hive.ql.optimizer.physical;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Stack;
 
 import org.apache.hadoop.fs.Path;
@@ -118,23 +120,31 @@ public class MapJoinResolver implements PhysicalPlanResolver {
         currTask.setBackupTask(null);
 
         if (currTask.getTaskTag() == Task.CONVERTED_MAPJOIN) {
-          localTask.setTaskTag(Task.CONVERTED_LOCAL_MAPJOIN);
+          localTask.setTaskTag(Task.CONVERTED_MAPJOIN_LOCAL);
         } else {
-          localTask.setTaskTag(Task.LOCAL_MAPJOIN);
+          localTask.setTaskTag(Task.HINTED_MAPJOIN_LOCAL);
+          currTask.setTaskTag(Task.HINTED_MAPJOIN);
         }
         // replace the map join operator to local_map_join operator in the operator tree
         // and return all the dummy parent
-        LocalMapJoinProcCtx  localMapJoinProcCtx= adjustLocalTask(localTask);
+        LocalMapJoinProcCtx localMapJoinProcCtx = adjustLocalTask(localTask);
         List<Operator<? extends OperatorDesc>> dummyOps =
          localMapJoinProcCtx.getDummyParentOp();
 
         // create new local work and setup the dummy ops
-        MapredLocalWork newLocalWork = new MapredLocalWork();
+        MapredLocalWork newLocalWork = localwork.extractDirectWorks(
+            localMapJoinProcCtx.getDirectWorks());
         newLocalWork.setDummyParentOp(dummyOps);
-        newLocalWork.setTmpPath(tmpPath);
-        newLocalWork.setInputFileChangeSensitive(localwork.getInputFileChangeSensitive());
-        newLocalWork.setBucketMapjoinContext(localwork.copyPartSpecMappingOnly());
         mapredWork.getMapWork().setMapLocalWork(newLocalWork);
+
+        if (localwork.getAliasToFetchWork().isEmpty()) {
+          // no alias to stage.. no local task
+          newLocalWork.setHasStagedAlias(false);
+          currTask.setBackupTask(localTask.getBackupTask());
+          currTask.setBackupChildrenTasks(localTask.getBackupChildrenTasks());
+          return;
+        }
+        newLocalWork.setHasStagedAlias(true);
         // get all parent tasks
         List<Task<? extends Serializable>> parentTasks = currTask.getParentTasks();
         currTask.setParentTasks(null);
@@ -160,7 +170,7 @@ public class MapJoinResolver implements PhysicalPlanResolver {
             // set list work
             List<Serializable> listWork = (List<Serializable>) conditionalWork.getListWorks();
             index = listWork.indexOf(mapredWork);
-            listWork.set(index, (Serializable) localwork);
+            listWork.set(index, localwork);
             conditionalWork.setListWorks(listWork);
             ConditionalResolver resolver = conditionalTask.getResolver();
             if (resolver instanceof ConditionalResolverSkewJoin) {
@@ -188,21 +198,22 @@ public class MapJoinResolver implements PhysicalPlanResolver {
               // get bigKeysDirToTaskMap
               ConditionalResolverCommonJoinCtx context = (ConditionalResolverCommonJoinCtx) conditionalTask
                   .getResolverCtx();
-              HashMap<String, Task<? extends Serializable>> aliasToWork = context.getAliasToTask();
+              HashMap<Task<? extends Serializable>, Set<String>> taskToAliases = context.getTaskToAliases();
               // to avoid concurrent modify the hashmap
-              HashMap<String, Task<? extends Serializable>> newAliasToWork = new HashMap<String, Task<? extends Serializable>>();
+              HashMap<Task<? extends Serializable>, Set<String>> newTaskToAliases =
+                  new HashMap<Task<? extends Serializable>, Set<String>>();
               // reset the resolver
-              for (Map.Entry<String, Task<? extends Serializable>> entry : aliasToWork.entrySet()) {
-                Task<? extends Serializable> task = entry.getValue();
-                String key = entry.getKey();
+              for (Map.Entry<Task<? extends Serializable>, Set<String>> entry : taskToAliases.entrySet()) {
+                Task<? extends Serializable> task = entry.getKey();
+                Set<String> key = new HashSet<String>(entry.getValue());
 
                 if (task.equals(currTask)) {
-                  newAliasToWork.put(key, localTask);
+                  newTaskToAliases.put(localTask, key);
                 } else {
-                  newAliasToWork.put(key, task);
+                  newTaskToAliases.put(task, key);
                 }
               }
-              context.setAliasToTask(newAliasToWork);
+              context.setTaskToAliases(newTaskToAliases);
               conditionalTask.setResolverCtx(context);
             }
           }
@@ -272,10 +283,13 @@ public class MapJoinResolver implements PhysicalPlanResolver {
     private List<Operator<? extends OperatorDesc>> dummyParentOp = null;
     private boolean isFollowedByGroupBy;
 
+    private Map<MapJoinOperator, List<Operator<? extends OperatorDesc>>> directWorks;
+
     public LocalMapJoinProcCtx(Task<? extends Serializable> task, ParseContext parseCtx) {
       currentTask = task;
       this.parseCtx = parseCtx;
       dummyParentOp = new ArrayList<Operator<? extends OperatorDesc>>();
+      directWorks = new HashMap<MapJoinOperator, List<Operator<? extends OperatorDesc>>>();
       isFollowedByGroupBy = false;
     }
 
@@ -312,6 +326,20 @@ public class MapJoinResolver implements PhysicalPlanResolver {
 
     public void addDummyParentOp(Operator<? extends OperatorDesc> op) {
       this.dummyParentOp.add(op);
+    }
+
+    public void setDirectWorks(
+        Map<MapJoinOperator, List<Operator<? extends OperatorDesc>>> directWorks) {
+      this.directWorks = directWorks;
+    }
+
+    public Map<MapJoinOperator, List<Operator<? extends OperatorDesc>>> getDirectWorks() {
+      return directWorks;
+    }
+
+    public void addDirectWorks(
+        MapJoinOperator mapJoinOp, List<Operator<? extends OperatorDesc>> directOperators) {
+      directWorks.put(mapJoinOp, directOperators);
     }
   }
 }

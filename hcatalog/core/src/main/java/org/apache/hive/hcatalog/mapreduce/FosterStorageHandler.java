@@ -23,7 +23,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.common.FileUtils;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
-import org.apache.hadoop.hive.ql.io.RCFile;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.DefaultStorageHandler;
 import org.apache.hadoop.hive.ql.plan.TableDesc;
@@ -49,9 +48,6 @@ import java.util.Map;
 public class FosterStorageHandler extends DefaultStorageHandler {
 
   public Configuration conf;
-  /** The directory under which data is initially written for a partitioned table */
-  protected static final String DYNTEMP_DIR_NAME = "_DYN";
-
   /** The directory under which data is initially written for a non partitioned table */
   protected static final String TEMP_DIR_NAME = "_TEMP";
 
@@ -101,7 +97,6 @@ public class FosterStorageHandler extends DefaultStorageHandler {
   @Override
   public void configureInputJobProperties(TableDesc tableDesc,
                       Map<String, String> jobProperties) {
-
   }
 
   @Override
@@ -114,25 +109,40 @@ public class FosterStorageHandler extends DefaultStorageHandler {
       String parentPath = jobInfo.getTableInfo().getTableLocation();
       String dynHash = tableDesc.getJobProperties().get(
         HCatConstants.HCAT_DYNAMIC_PTN_JOBID);
+      String idHash = tableDesc.getJobProperties().get(
+          HCatConstants.HCAT_OUTPUT_ID_HASH);
 
       // For dynamic partitioned writes without all keyvalues specified,
       // we create a temp dir for the associated write job
       if (dynHash != null) {
-        parentPath = new Path(parentPath,
-          DYNTEMP_DIR_NAME + dynHash).toString();
+        // if external table and custom root specified, update the parent path
+        if (Boolean.valueOf((String)tableDesc.getProperties().get("EXTERNAL"))
+            && jobInfo.getCustomDynamicRoot() != null
+            && jobInfo.getCustomDynamicRoot().length() > 0) {
+          parentPath = new Path(parentPath, jobInfo.getCustomDynamicRoot()).toString();
+        }
+        parentPath = new Path(parentPath, FileOutputCommitterContainer.DYNTEMP_DIR_NAME + dynHash).toString();
+      } else {
+        parentPath = new Path(parentPath,FileOutputCommitterContainer.SCRATCH_DIR_NAME + idHash).toString();
       }
 
       String outputLocation;
 
-      if ((dynHash == null)
+      if ((dynHash != null)
+          && Boolean.valueOf((String)tableDesc.getProperties().get("EXTERNAL"))
+          && jobInfo.getCustomDynamicPath() != null
+          && jobInfo.getCustomDynamicPath().length() > 0) {
+        // dynamic partitioning with custom path; resolve the custom path
+        // using partition column values
+        outputLocation = HCatFileUtil.resolveCustomPath(jobInfo, null, true);
+      } else if ((dynHash == null)
            && Boolean.valueOf((String)tableDesc.getProperties().get("EXTERNAL"))
            && jobInfo.getLocation() != null && jobInfo.getLocation().length() > 0) {
         // honor custom location for external table apart from what metadata specifies
-        // only if we're not using dynamic partitioning - see HIVE-5011
         outputLocation = jobInfo.getLocation();
       } else if (dynHash == null && jobInfo.getPartitionValues().size() == 0) {
-        // For non-partitioned tables, we send them to the temp dir
-        outputLocation = TEMP_DIR_NAME;
+        // Unpartitioned table, writing to the scratch dir directly is good enough.
+        outputLocation = "";
       } else {
         List<String> cols = new ArrayList<String>();
         List<String> values = new ArrayList<String>();
@@ -148,18 +158,21 @@ public class FosterStorageHandler extends DefaultStorageHandler {
         outputLocation = FileUtils.makePartName(cols, values);
       }
 
-      jobInfo.setLocation(new Path(parentPath, outputLocation).toString());
+      if (outputLocation!= null && !outputLocation.isEmpty()){
+        jobInfo.setLocation(new Path(parentPath, outputLocation).toString());
+      } else {
+        jobInfo.setLocation(new Path(parentPath).toString());
+      }
 
       //only set output dir if partition is fully materialized
-      if (jobInfo.getPartitionValues().size()
-        == jobInfo.getTableInfo().getPartitionColumns().size()) {
+      if (jobInfo.getPartitionValues().size() ==
+          jobInfo.getTableInfo().getPartitionColumns().size()) {
         jobProperties.put("mapred.output.dir", jobInfo.getLocation());
       }
 
-      //TODO find a better home for this, RCFile specifc
-      jobProperties.put(RCFile.COLUMN_NUMBER_CONF_STR,
-        Integer.toOctalString(
-          jobInfo.getOutputSchema().getFields().size()));
+      SpecialCases.addSpecialCasesParametersToOutputJobProperties(jobProperties, jobInfo, ofClass);
+
+
       jobProperties.put(HCatConstants.HCAT_KEY_OUTPUT_INFO,
         HCatUtil.serialize(jobInfo));
     } catch (IOException e) {

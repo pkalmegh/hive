@@ -17,14 +17,19 @@
  */
 package org.apache.hadoop.hive.ql.security.authorization.plugin;
 
-import java.io.IOException;
-
-import org.apache.hadoop.hive.common.classification.InterfaceAudience.Public;
+import org.apache.hadoop.hive.common.classification.InterfaceAudience.LimitedPrivate;
+import org.apache.hadoop.hive.common.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 /**
  * Factory for getting current valid instance of IMetaStoreClient
+ * Metastore client cannot be cached in authorization interface as that
+ * can get invalidated between the calls with the logic in Hive class.
+ * The standard way of getting metastore client object is through Hive.get().getMSC().
+ * But Hive class is not a public interface, so this factory helps in hiding Hive
+ * class from the authorization interface users.
  */
-@Public
+@LimitedPrivate(value = { "" })
+@Evolving
 public interface HiveMetastoreClientFactory {
-  IMetaStoreClient getHiveMetastoreClient() throws IOException;
+  IMetaStoreClient getHiveMetastoreClient() throws HiveAuthzPluginException;
 }

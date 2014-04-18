@@ -20,7 +20,6 @@ package org.apache.hadoop.hive.ql.optimizer;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,15 +27,13 @@ import java.util.Stack;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.Warehouse;
-import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.ql.DriverContext;
-import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.TableScanOperator;
 import org.apache.hadoop.hive.ql.exec.Task;
 import org.apache.hadoop.hive.ql.exec.TaskFactory;
 import org.apache.hadoop.hive.ql.exec.mr.MapRedTask;
+import org.apache.hadoop.hive.ql.io.orc.OrcInputFormat;
 import org.apache.hadoop.hive.ql.io.rcfile.stats.PartialScanWork;
 import org.apache.hadoop.hive.ql.lib.Node;
 import org.apache.hadoop.hive.ql.lib.NodeProcessor;
@@ -44,14 +41,16 @@ import org.apache.hadoop.hive.ql.lib.NodeProcessorCtx;
 import org.apache.hadoop.hive.ql.metadata.Partition;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.optimizer.GenMRProcContext.GenMapRedCtx;
-import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer.tableSpec;
 import org.apache.hadoop.hive.ql.parse.ParseContext;
 import org.apache.hadoop.hive.ql.parse.PrunedPartitionList;
 import org.apache.hadoop.hive.ql.parse.QBParseInfo;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.plan.MapredWork;
 import org.apache.hadoop.hive.ql.plan.OperatorDesc;
+import org.apache.hadoop.hive.ql.plan.StatsNoJobWork;
 import org.apache.hadoop.hive.ql.plan.StatsWork;
+import org.apache.hadoop.mapred.InputFormat;
+
 /**
  * Processor for the rule - table scan.
  */
@@ -61,7 +60,6 @@ public class GenMRTableScan1 implements NodeProcessor {
 
   /**
    * Table Sink encountered.
-   *
    * @param nd
    *          the table sink operator encountered
    * @param opProcCtx
@@ -72,6 +70,8 @@ public class GenMRTableScan1 implements NodeProcessor {
     TableScanOperator op = (TableScanOperator) nd;
     GenMRProcContext ctx = (GenMRProcContext) opProcCtx;
     ParseContext parseCtx = ctx.getParseCtx();
+    Class<? extends InputFormat> inputFormat = parseCtx.getTopToTable().get(op)
+        .getInputFormatClass();
     Map<Operator<? extends OperatorDesc>, GenMapRedCtx> mapCurrCtx = ctx.getMapCurrCtx();
 
     // create a dummy MapReduce task
@@ -90,65 +90,71 @@ public class GenMRTableScan1 implements NodeProcessor {
 
         QBParseInfo parseInfo = parseCtx.getQB().getParseInfo();
         if (parseInfo.isAnalyzeCommand()) {
+          boolean partialScan = parseInfo.isPartialScanAnalyzeCommand();
+          boolean noScan = parseInfo.isNoScanAnalyzeCommand();
+          if (inputFormat.equals(OrcInputFormat.class) && (noScan || partialScan)) {
 
-          //   ANALYZE TABLE T [PARTITION (...)] COMPUTE STATISTICS;
-          // The plan consists of a simple MapRedTask followed by a StatsTask.
-          // The MR task is just a simple TableScanOperator
+            // ANALYZE TABLE T [PARTITION (...)] COMPUTE STATISTICS partialscan;
+            // ANALYZE TABLE T [PARTITION (...)] COMPUTE STATISTICS noscan;
+            // There will not be any MR or Tez job above this task
+            StatsNoJobWork snjWork = new StatsNoJobWork(parseCtx.getQB().getParseInfo().getTableSpec());
+            snjWork.setStatsReliable(parseCtx.getConf().getBoolVar(
+                HiveConf.ConfVars.HIVE_STATS_RELIABLE));
+            Task<StatsNoJobWork> snjTask = TaskFactory.get(snjWork, parseCtx.getConf());
+            ctx.setCurrTask(snjTask);
+            ctx.setCurrTopOp(null);
+            ctx.getRootTasks().clear();
+            ctx.getRootTasks().add(snjTask);
+          } else {
+            // ANALYZE TABLE T [PARTITION (...)] COMPUTE STATISTICS;
+            // The plan consists of a simple MapRedTask followed by a StatsTask.
+            // The MR task is just a simple TableScanOperator
 
-          StatsWork statsWork = new StatsWork(parseCtx.getQB().getParseInfo().getTableSpec());
-          statsWork.setAggKey(op.getConf().getStatsAggPrefix());
-          statsWork.setSourceTask(currTask);
-          statsWork.setStatsReliable(
-            parseCtx.getConf().getBoolVar(HiveConf.ConfVars.HIVE_STATS_RELIABLE));
-          Task<StatsWork> statsTask = TaskFactory.get(statsWork, parseCtx.getConf());
-          currTask.addDependentTask(statsTask);
-          if (!ctx.getRootTasks().contains(currTask)) {
-            ctx.getRootTasks().add(currTask);
-          }
-
-          // ANALYZE TABLE T [PARTITION (...)] COMPUTE STATISTICS noscan;
-          // The plan consists of a StatsTask only.
-          if (parseInfo.isNoScanAnalyzeCommand()) {
-            statsTask.setParentTasks(null);
-            statsWork.setNoScanAnalyzeCommand(true);
-            ctx.getRootTasks().remove(currTask);
-            ctx.getRootTasks().add(statsTask);
-          }
-
-          // ANALYZE TABLE T [PARTITION (...)] COMPUTE STATISTICS partialscan;
-          if (parseInfo.isPartialScanAnalyzeCommand()) {
-            handlePartialScanCommand(op, ctx, parseCtx, currTask, parseInfo, statsWork, statsTask);
-          }
-
-          currWork.getMapWork().setGatheringStats(true);
-          if (currWork.getReduceWork() != null) {
-            currWork.getReduceWork().setGatheringStats(true);
-          }
-          // NOTE: here we should use the new partition predicate pushdown API to get a list of pruned list,
-          // and pass it to setTaskPlan as the last parameter
-          Set<Partition> confirmedPartns = new HashSet<Partition>();
-          tableSpec tblSpec = parseInfo.getTableSpec();
-          if (tblSpec.specType == tableSpec.SpecType.STATIC_PARTITION) {
-            // static partition
-            if (tblSpec.partHandle != null) {
-              confirmedPartns.add(tblSpec.partHandle);
-            } else {
-              // partial partition spec has null partHandle
-              assert parseInfo.isNoScanAnalyzeCommand();
-              confirmedPartns.addAll(tblSpec.partitions);
+            StatsWork statsWork = new StatsWork(parseCtx.getQB().getParseInfo().getTableSpec());
+            statsWork.setAggKey(op.getConf().getStatsAggPrefix());
+            statsWork.setSourceTask(currTask);
+            statsWork.setStatsReliable(parseCtx.getConf().getBoolVar(
+                HiveConf.ConfVars.HIVE_STATS_RELIABLE));
+            Task<StatsWork> statsTask = TaskFactory.get(statsWork, parseCtx.getConf());
+            currTask.addDependentTask(statsTask);
+            if (!ctx.getRootTasks().contains(currTask)) {
+              ctx.getRootTasks().add(currTask);
             }
-          } else if (tblSpec.specType == tableSpec.SpecType.DYNAMIC_PARTITION) {
-            // dynamic partition
-            confirmedPartns.addAll(tblSpec.partitions);
-          }
-          if (confirmedPartns.size() > 0) {
-            Table source = parseCtx.getQB().getMetaData().getTableForAlias(alias);
-            PrunedPartitionList partList = new PrunedPartitionList(source, confirmedPartns, false);
-            GenMapRedUtils.setTaskPlan(currAliasId, currTopOp, currTask, false, ctx, partList);
-          } else { // non-partitioned table
-            GenMapRedUtils.setTaskPlan(currAliasId, currTopOp, currTask, false, ctx);
+
+            // ANALYZE TABLE T [PARTITION (...)] COMPUTE STATISTICS noscan;
+            // The plan consists of a StatsTask only.
+            if (parseInfo.isNoScanAnalyzeCommand()) {
+              statsTask.setParentTasks(null);
+              statsWork.setNoScanAnalyzeCommand(true);
+              ctx.getRootTasks().remove(currTask);
+              ctx.getRootTasks().add(statsTask);
+            }
+
+            // ANALYZE TABLE T [PARTITION (...)] COMPUTE STATISTICS partialscan;
+            if (parseInfo.isPartialScanAnalyzeCommand()) {
+              handlePartialScanCommand(op, ctx, parseCtx, currTask, parseInfo, statsWork, statsTask);
+            }
+
+            currWork.getMapWork().setGatheringStats(true);
+            if (currWork.getReduceWork() != null) {
+              currWork.getReduceWork().setGatheringStats(true);
+            }
+
+            // NOTE: here we should use the new partition predicate pushdown API to get a list of
+            // pruned list,
+            // and pass it to setTaskPlan as the last parameter
+            Set<Partition> confirmedPartns = GenMapRedUtils
+                .getConfirmedPartitionsForScan(parseInfo);
+            if (confirmedPartns.size() > 0) {
+              Table source = parseCtx.getQB().getMetaData().getTableForAlias(alias);
+              PrunedPartitionList partList = new PrunedPartitionList(source, confirmedPartns, false);
+              GenMapRedUtils.setTaskPlan(currAliasId, currTopOp, currTask, false, ctx, partList);
+            } else { // non-partitioned table
+              GenMapRedUtils.setTaskPlan(currAliasId, currTopOp, currTask, false, ctx);
+            }
           }
         }
+
         return true;
       }
     }
@@ -157,9 +163,7 @@ public class GenMRTableScan1 implements NodeProcessor {
   }
 
   /**
-   * handle partial scan command.
-   *
-   * It is composed of PartialScanTask followed by StatsTask .
+   * handle partial scan command. It is composed of PartialScanTask followed by StatsTask .
    * @param op
    * @param ctx
    * @param parseCtx
@@ -170,28 +174,13 @@ public class GenMRTableScan1 implements NodeProcessor {
    * @throws SemanticException
    */
   private void handlePartialScanCommand(TableScanOperator op, GenMRProcContext ctx,
-      ParseContext parseCtx,
-      Task<? extends Serializable> currTask, QBParseInfo parseInfo, StatsWork statsWork,
-      Task<StatsWork> statsTask) throws SemanticException {
+      ParseContext parseCtx, Task<? extends Serializable> currTask, QBParseInfo parseInfo,
+      StatsWork statsWork, Task<StatsWork> statsTask) throws SemanticException {
     String aggregationKey = op.getConf().getStatsAggPrefix();
-    List<Path> inputPaths = new ArrayList<Path>();
-    switch (parseInfo.getTableSpec().specType) {
-    case TABLE_ONLY:
-      inputPaths.add(parseInfo.getTableSpec().tableHandle.getPath());
-      break;
-    case STATIC_PARTITION:
-      Partition part = parseInfo.getTableSpec().partHandle;
-      try {
-        aggregationKey += Warehouse.makePartPath(part.getSpec());
-      } catch (MetaException e) {
-        throw new SemanticException(ErrorMsg.ANALYZE_TABLE_PARTIALSCAN_AGGKEY.getMsg(
-            part.getDataLocation().toString() + e.getMessage()));
-      }
-      inputPaths.add(part.getDataLocation());
-      break;
-    default:
-      assert false;
-    }
+    StringBuffer aggregationKeyBuffer = new StringBuffer(aggregationKey);
+    List<Path> inputPaths = GenMapRedUtils.getInputPathsForPartialScan(parseInfo,
+        aggregationKeyBuffer);
+    aggregationKey = aggregationKeyBuffer.toString();
 
     // scan work
     PartialScanWork scanWork = new PartialScanWork(inputPaths);

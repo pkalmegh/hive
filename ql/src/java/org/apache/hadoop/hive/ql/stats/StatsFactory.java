@@ -30,6 +30,7 @@ import org.apache.hadoop.util.ReflectionUtils;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.HIVESTATSDBCLASS;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.HIVE_STATS_KEY_PREFIX_MAX_LENGTH;
+import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.HIVE_STATS_KEY_PREFIX_RESERVE_LENGTH;
 
 /**
  * A factory of stats publisher and aggregator implementations of the
@@ -41,15 +42,24 @@ public final class StatsFactory {
 
   private Class <? extends Serializable> publisherImplementation;
   private Class <? extends Serializable> aggregatorImplementation;
-  private Configuration jobConf;
+  private final Configuration jobConf;
 
   public static int getMaxPrefixLength(Configuration conf) {
+
+    if (HiveConf.getVar(conf, HIVESTATSDBCLASS).equalsIgnoreCase(StatDB.fs.name())) {
+      // no limit on prefix for fs.
+      return -1;
+    }
     int maxPrefixLength = HiveConf.getIntVar(conf, HIVE_STATS_KEY_PREFIX_MAX_LENGTH);
     if (HiveConf.getVar(conf, HIVESTATSDBCLASS).equalsIgnoreCase(StatDB.counter.name())) {
       // see org.apache.hadoop.mapred.Counter or org.apache.hadoop.mapreduce.MRJobConfig
       int groupNameMax = conf.getInt("mapreduce.job.counters.group.name.max", 128);
       maxPrefixLength = maxPrefixLength < 0 ? groupNameMax :
           Math.min(maxPrefixLength, groupNameMax);
+    }
+    if (maxPrefixLength > 0) {
+      int reserve = HiveConf.getIntVar(conf, HIVE_STATS_KEY_PREFIX_RESERVE_LENGTH);
+      return reserve < 0 ? maxPrefixLength : maxPrefixLength - reserve;
     }
     return maxPrefixLength;
   }

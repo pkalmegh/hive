@@ -1,7 +1,11 @@
-PREHOOK: query: create table tst1(key string, value string) partitioned by (ds string) clustered by (key) into 10 buckets
+PREHOOK: query: -- INCLUDE_HADOOP_MAJOR_VERSIONS(0.20,0.20S)
+create table tst1(key string, value string) partitioned by (ds string) clustered by (key) into 10 buckets
 PREHOOK: type: CREATETABLE
-POSTHOOK: query: create table tst1(key string, value string) partitioned by (ds string) clustered by (key) into 10 buckets
+PREHOOK: Output: database:default
+POSTHOOK: query: -- INCLUDE_HADOOP_MAJOR_VERSIONS(0.20,0.20S)
+create table tst1(key string, value string) partitioned by (ds string) clustered by (key) into 10 buckets
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@tst1
 PREHOOK: query: alter table tst1 clustered by (key) into 8 buckets
 PREHOOK: type: ALTERTABLE_CLUSTER_SORT
@@ -13,17 +17,19 @@ POSTHOOK: Input: default@tst1
 POSTHOOK: Output: default@tst1
 PREHOOK: query: describe formatted tst1
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@tst1
 POSTHOOK: query: describe formatted tst1
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@tst1
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-ds                  	string              	None                
+ds                  	string              	                    
 	 	 
 # Detailed Table Information	 	 
 Database:           	default             	 
@@ -57,19 +63,21 @@ POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:ke
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: describe formatted tst1 partition (ds = '1')
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@tst1
 POSTHOOK: query: describe formatted tst1 partition (ds = '1')
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@tst1
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-ds                  	string              	None                
+ds                  	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[1]                 	 
@@ -124,21 +132,23 @@ POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:ke
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: describe formatted tst1 partition (ds = '1')
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@tst1
 POSTHOOK: query: describe formatted tst1 partition (ds = '1')
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@tst1
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-ds                  	string              	None                
+ds                  	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[1]                 	 
@@ -167,21 +177,23 @@ Storage Desc Params:
 	serialization.format	1                   
 PREHOOK: query: describe formatted tst1
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@tst1
 POSTHOOK: query: describe formatted tst1
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@tst1
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-ds                  	string              	None                
+ds                  	string              	                    
 	 	 
 # Detailed Table Information	 	 
 Database:           	default             	 
@@ -220,21 +232,23 @@ POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:ke
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: describe formatted tst1
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@tst1
 POSTHOOK: query: describe formatted tst1
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@tst1
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-ds                  	string              	None                
+ds                  	string              	                    
 	 	 
 # Detailed Table Information	 	 
 Database:           	default             	 
@@ -258,21 +272,23 @@ Storage Desc Params:
 	serialization.format	1                   
 PREHOOK: query: describe formatted tst1 partition (ds = '1')
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@tst1
 POSTHOOK: query: describe formatted tst1 partition (ds = '1')
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@tst1
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-ds                  	string              	None                
+ds                  	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[1]                 	 
@@ -313,21 +329,23 @@ POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:ke
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: describe formatted tst1
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@tst1
 POSTHOOK: query: describe formatted tst1
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@tst1
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-ds                  	string              	None                
+ds                  	string              	                    
 	 	 
 # Detailed Table Information	 	 
 Database:           	default             	 
@@ -351,21 +369,23 @@ Storage Desc Params:
 	serialization.format	1                   
 PREHOOK: query: describe formatted tst1 partition (ds = '1')
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@tst1
 POSTHOOK: query: describe formatted tst1 partition (ds = '1')
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@tst1
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-ds                  	string              	None                
+ds                  	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[1]                 	 
@@ -411,21 +431,23 @@ POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:ke
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: describe formatted tst1
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@tst1
 POSTHOOK: query: describe formatted tst1
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@tst1
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-ds                  	string              	None                
+ds                  	string              	                    
 	 	 
 # Detailed Table Information	 	 
 Database:           	default             	 
@@ -465,21 +487,23 @@ POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:ke
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: describe formatted tst1
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@tst1
 POSTHOOK: query: describe formatted tst1
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@tst1
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-ds                  	string              	None                
+ds                  	string              	                    
 	 	 
 # Detailed Table Information	 	 
 Database:           	default             	 
@@ -519,21 +543,23 @@ POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:ke
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: describe formatted tst1
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@tst1
 POSTHOOK: query: describe formatted tst1
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@tst1
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-ds                  	string              	None                
+ds                  	string              	                    
 	 	 
 # Detailed Table Information	 	 
 Database:           	default             	 
@@ -573,21 +599,23 @@ POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:ke
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: describe formatted tst1
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@tst1
 POSTHOOK: query: describe formatted tst1
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@tst1
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: tst1 PARTITION(ds=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-ds                  	string              	None                
+ds                  	string              	                    
 	 	 
 # Detailed Table Information	 	 
 Database:           	default             	 

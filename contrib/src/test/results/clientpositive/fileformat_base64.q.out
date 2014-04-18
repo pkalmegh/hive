@@ -12,9 +12,6 @@ CREATE TABLE base64_test(key INT, value STRING) STORED AS
   INPUTFORMAT 'org.apache.hadoop.hive.contrib.fileformat.base64.Base64TextInputFormat'
   OUTPUTFORMAT 'org.apache.hadoop.hive.contrib.fileformat.base64.Base64TextOutputFormat'
 POSTHOOK: type: CREATETABLE
-ABSTRACT SYNTAX TREE:
-  (TOK_CREATETABLE (TOK_TABNAME base64_test) TOK_LIKETABLE (TOK_TABCOLLIST (TOK_TABCOL key TOK_INT) (TOK_TABCOL value TOK_STRING)) (TOK_TABLEFILEFORMAT 'org.apache.hadoop.hive.contrib.fileformat.base64.Base64TextInputFormat' 'org.apache.hadoop.hive.contrib.fileformat.base64.Base64TextOutputFormat'))
-
 STAGE DEPENDENCIES:
   Stage-0 is a root stage
 
@@ -23,28 +20,29 @@ STAGE PLANS:
       Create Table Operator:
         Create Table
           columns: key int, value string
-          if not exists: false
           input format: org.apache.hadoop.hive.contrib.fileformat.base64.Base64TextInputFormat
-          # buckets: -1
           output format: org.apache.hadoop.hive.contrib.fileformat.base64.Base64TextOutputFormat
           name: base64_test
-          isExternal: false
 
 PREHOOK: query: CREATE TABLE base64_test(key INT, value STRING) STORED AS
   INPUTFORMAT 'org.apache.hadoop.hive.contrib.fileformat.base64.Base64TextInputFormat'
   OUTPUTFORMAT 'org.apache.hadoop.hive.contrib.fileformat.base64.Base64TextOutputFormat'
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: CREATE TABLE base64_test(key INT, value STRING) STORED AS
   INPUTFORMAT 'org.apache.hadoop.hive.contrib.fileformat.base64.Base64TextInputFormat'
   OUTPUTFORMAT 'org.apache.hadoop.hive.contrib.fileformat.base64.Base64TextOutputFormat'
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@base64_test
 PREHOOK: query: DESCRIBE EXTENDED base64_test
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@base64_test
 POSTHOOK: query: DESCRIBE EXTENDED base64_test
 POSTHOOK: type: DESCTABLE
-key                 	int                 	None                
-value               	string              	None                
+POSTHOOK: Input: default@base64_test
+key                 	int                 	                    
+value               	string              	                    
 	 	 
 #### A masked pattern was here ####
 PREHOOK: query: FROM src

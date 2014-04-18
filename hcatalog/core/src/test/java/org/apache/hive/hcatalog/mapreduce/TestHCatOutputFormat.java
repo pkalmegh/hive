@@ -40,8 +40,11 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.ql.io.RCFileInputFormat;
 import org.apache.hadoop.hive.ql.io.RCFileOutputFormat;
 import org.apache.hadoop.hive.serde.serdeConstants;
+import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.OutputCommitter;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -142,7 +145,7 @@ public class TestHCatOutputFormat extends TestCase {
     OutputJobInfo info = OutputJobInfo.create(dbName, tblName, partitionValues);
 
     HCatOutputFormat.setOutput(job, info);
-    OutputJobInfo jobInfo = HCatOutputFormat.getJobInfo(job);
+    OutputJobInfo jobInfo = HCatOutputFormat.getJobInfo(job.getConfiguration());
 
     assertNotNull(jobInfo.getTableInfo());
     assertEquals(1, jobInfo.getPartitionValues().size());
@@ -154,7 +157,13 @@ public class TestHCatOutputFormat extends TestCase {
   }
 
   public void publishTest(Job job) throws Exception {
-    OutputCommitter committer = new FileOutputCommitterContainer(job, null);
+    HCatOutputFormat hcof = new HCatOutputFormat();
+    TaskAttemptContext tac = ShimLoader.getHadoopShims().getHCatShim().createTaskAttemptContext(
+        job.getConfiguration(), ShimLoader.getHadoopShims().getHCatShim().createTaskAttemptID());
+    OutputCommitter committer = hcof.getOutputCommitter(tac);
+    committer.setupJob(job);
+    committer.setupTask(tac);
+    committer.commitTask(tac);
     committer.commitJob(job);
 
     Partition part = client.getPartition(dbName, tblName, Arrays.asList("p1"));

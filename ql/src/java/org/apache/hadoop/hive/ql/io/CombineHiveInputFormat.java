@@ -37,8 +37,11 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.Utilities;
+import org.apache.hadoop.hive.ql.io.orc.OrcInputFormat;
+import org.apache.hadoop.hive.ql.io.orc.OrcRecordUpdater;
 import org.apache.hadoop.hive.ql.log.PerfLogger;
 import org.apache.hadoop.hive.ql.parse.SplitSample;
 import org.apache.hadoop.hive.ql.plan.OperatorDesc;
@@ -271,6 +274,17 @@ public class CombineHiveInputFormat<K extends WritableComparable, V extends Writ
       mrwork.getAliasToWork();
     CombineFileInputFormatShim combine = ShimLoader.getHadoopShims()
         .getCombineFileInputFormat();
+    
+    // on tez we're avoiding duplicating path info since the info will go over
+    // rpc
+    if (HiveConf.getVar(job, HiveConf.ConfVars.HIVE_EXECUTION_ENGINE).equals("tez")) {
+      try {
+        List<Path> dirs = Utilities.getInputPathsTez(job, mrwork);
+        Utilities.setInputPaths(job, dirs);
+      } catch (Exception e) {
+        throw new IOException("Could not create input paths", e);
+      }
+    }
 
     InputSplit[] splits = null;
     if (combine == null) {
@@ -295,7 +309,6 @@ public class CombineHiveInputFormat<K extends WritableComparable, V extends Writ
     Set<Path> poolSet = new HashSet<Path>();
 
     for (Path path : paths) {
-
       PartitionDesc part = HiveFileFormatUtils.getPartitionDescFromPathRecursively(
           pathToPartitionInfo, path, IOPrepareCache.get().allocatePartitionDescMap());
       TableDesc tableDesc = part.getTableDesc();
@@ -313,6 +326,14 @@ public class CombineHiveInputFormat<K extends WritableComparable, V extends Writ
       } catch (Exception e) {
         // ignore
       }
+      FileSystem inpFs = path.getFileSystem(job);
+      if (inputFormatClass.isAssignableFrom(OrcInputFormat.class)) {
+        if (inpFs.exists(new Path(path, OrcRecordUpdater.ACID_FORMAT))) {
+          throw new IOException("CombineHiveInputFormat is incompatible " +
+            " with ACID tables. Please set hive.input.format=" +
+              "org.apache.hadoop.hive.ql.io.HiveInputFormat");
+        }
+      }
 
       // Since there is no easy way of knowing whether MAPREDUCE-1597 is present in the tree or not,
       // we use a configuration variable for the same
@@ -323,7 +344,6 @@ public class CombineHiveInputFormat<K extends WritableComparable, V extends Writ
         // so don't use CombineFileInputFormat for non-splittable files
 
         //ie, dont't combine if inputformat is a TextInputFormat and has compression turned on
-        FileSystem inpFs = path.getFileSystem(job);
 
         if (inputFormat instanceof TextInputFormat) {
           Queue<Path> dirs = new LinkedList<Path>();

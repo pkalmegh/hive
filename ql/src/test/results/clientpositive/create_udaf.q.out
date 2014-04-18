@@ -4,9 +4,6 @@ PREHOOK: type: CREATEFUNCTION
 POSTHOOK: query: EXPLAIN
 CREATE TEMPORARY FUNCTION test_max AS 'org.apache.hadoop.hive.ql.udf.UDAFTestMax'
 POSTHOOK: type: CREATEFUNCTION
-ABSTRACT SYNTAX TREE:
-  (TOK_CREATEFUNCTION test_max 'org.apache.hadoop.hive.ql.udf.UDAFTestMax')
-
 STAGE DEPENDENCIES:
   Stage-0 is a root stage
 
@@ -15,12 +12,16 @@ STAGE PLANS:
 
 PREHOOK: query: CREATE TEMPORARY FUNCTION test_max AS 'org.apache.hadoop.hive.ql.udf.UDAFTestMax'
 PREHOOK: type: CREATEFUNCTION
+PREHOOK: Output: database:default
 POSTHOOK: query: CREATE TEMPORARY FUNCTION test_max AS 'org.apache.hadoop.hive.ql.udf.UDAFTestMax'
 POSTHOOK: type: CREATEFUNCTION
+POSTHOOK: Output: database:default
 PREHOOK: query: CREATE TABLE dest1(col INT)
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: CREATE TABLE dest1(col INT)
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@dest1
 PREHOOK: query: FROM src INSERT OVERWRITE TABLE dest1 SELECT test_max(length(src.value))
 PREHOOK: type: QUERY
@@ -95,6 +96,8 @@ POSTHOOK: Lineage: dest1.col EXPRESSION [(src)src.FieldSchema(name:value, type:s
 98
 PREHOOK: query: DROP TEMPORARY FUNCTION test_max
 PREHOOK: type: DROPFUNCTION
+PREHOOK: Output: database:default
 POSTHOOK: query: DROP TEMPORARY FUNCTION test_max
 POSTHOOK: type: DROPFUNCTION
+POSTHOOK: Output: database:default
 POSTHOOK: Lineage: dest1.col EXPRESSION [(src)src.FieldSchema(name:value, type:string, comment:default), ]

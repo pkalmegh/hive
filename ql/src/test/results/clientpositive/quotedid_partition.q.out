@@ -1,7 +1,9 @@
 PREHOOK: query: create table src_p(`x+1` string, `y&y` string) partitioned by (`!@#$%^&*()_q` string)
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: create table src_p(`x+1` string, `y&y` string) partitioned by (`!@#$%^&*()_q` string)
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@src_p
 PREHOOK: query: insert overwrite table src_p partition(`!@#$%^&*()_q`='a') select * from src
 PREHOOK: type: QUERY
@@ -15,8 +17,10 @@ POSTHOOK: Lineage: src_p PARTITION(!@#$%^&*()_q=a).x+1 SIMPLE [(src)src.FieldSch
 POSTHOOK: Lineage: src_p PARTITION(!@#$%^&*()_q=a).y&y SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: show partitions src_p
 PREHOOK: type: SHOWPARTITIONS
+PREHOOK: Input: default@src_p
 POSTHOOK: query: show partitions src_p
 POSTHOOK: type: SHOWPARTITIONS
+POSTHOOK: Input: default@src_p
 POSTHOOK: Lineage: src_p PARTITION(!@#$%^&*()_q=a).x+1 SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: src_p PARTITION(!@#$%^&*()_q=a).y&y SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 !@%23$%25%5E&%2A()_q=a
@@ -30,9 +34,6 @@ group by `x+1`, `y&y`, `!@#$%^&*()_q` having `!@#$%^&*()_q` = 'a'
 POSTHOOK: type: QUERY
 POSTHOOK: Lineage: src_p PARTITION(!@#$%^&*()_q=a).x+1 SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: src_p PARTITION(!@#$%^&*()_q=a).y&y SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-ABSTRACT SYNTAX TREE:
-  (TOK_QUERY (TOK_FROM (TOK_TABREF (TOK_TABNAME src_p))) (TOK_INSERT (TOK_DESTINATION (TOK_DIR TOK_TMP_FILE)) (TOK_SELECT (TOK_SELEXPR (TOK_TABLE_OR_COL x+1)) (TOK_SELEXPR (TOK_TABLE_OR_COL y&y)) (TOK_SELEXPR (TOK_TABLE_OR_COL !@#$%^&*()_q))) (TOK_WHERE (and (= (TOK_TABLE_OR_COL !@#$%^&*()_q) 'a') (= (TOK_TABLE_OR_COL x+1) '10'))) (TOK_GROUPBY (TOK_TABLE_OR_COL x+1) (TOK_TABLE_OR_COL y&y) (TOK_TABLE_OR_COL !@#$%^&*()_q)) (TOK_HAVING (= (TOK_TABLE_OR_COL !@#$%^&*()_q) 'a'))))
-
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
   Stage-0 is a root stage
@@ -40,75 +41,40 @@ STAGE DEPENDENCIES:
 STAGE PLANS:
   Stage: Stage-1
     Map Reduce
-      Alias -> Map Operator Tree:
-        src_p 
+      Map Operator Tree:
           TableScan
             alias: src_p
+            Statistics: Num rows: 500 Data size: 5312 Basic stats: COMPLETE Column stats: NONE
             Filter Operator
-              predicate:
-                  expr: (x+1 = '10')
-                  type: boolean
+              predicate: (x+1 = '10') (type: boolean)
+              Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
               Select Operator
-                expressions:
-                      expr: x+1
-                      type: string
-                      expr: y&y
-                      type: string
-                      expr: !@#$%^&*()_q
-                      type: string
+                expressions: x+1 (type: string), y&y (type: string), !@#$%^&*()_q (type: string)
                 outputColumnNames: x+1, y&y, !@#$%^&*()_q
+                Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
                 Group By Operator
-                  bucketGroup: false
-                  keys:
-                        expr: x+1
-                        type: string
-                        expr: y&y
-                        type: string
-                        expr: !@#$%^&*()_q
-                        type: string
+                  keys: x+1 (type: string), y&y (type: string), !@#$%^&*()_q (type: string)
                   mode: hash
                   outputColumnNames: _col0, _col1, _col2
+                  Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
                   Reduce Output Operator
-                    key expressions:
-                          expr: _col0
-                          type: string
-                          expr: _col1
-                          type: string
-                          expr: _col2
-                          type: string
+                    key expressions: _col0 (type: string), _col1 (type: string), _col2 (type: string)
                     sort order: +++
-                    Map-reduce partition columns:
-                          expr: _col0
-                          type: string
-                          expr: _col1
-                          type: string
-                          expr: _col2
-                          type: string
-                    tag: -1
+                    Map-reduce partition columns: _col0 (type: string), _col1 (type: string), _col2 (type: string)
+                    Statistics: Num rows: 250 Data size: 2656 Basic stats: COMPLETE Column stats: NONE
       Reduce Operator Tree:
         Group By Operator
-          bucketGroup: false
-          keys:
-                expr: KEY._col0
-                type: string
-                expr: KEY._col1
-                type: string
-                expr: KEY._col2
-                type: string
+          keys: KEY._col0 (type: string), KEY._col1 (type: string), KEY._col2 (type: string)
           mode: mergepartial
           outputColumnNames: _col0, _col1, _col2
+          Statistics: Num rows: 125 Data size: 1328 Basic stats: COMPLETE Column stats: NONE
           Select Operator
-            expressions:
-                  expr: _col0
-                  type: string
-                  expr: _col1
-                  type: string
-                  expr: _col2
-                  type: string
+            expressions: _col0 (type: string), _col1 (type: string), _col2 (type: string)
             outputColumnNames: _col0, _col1, _col2
+            Statistics: Num rows: 125 Data size: 1328 Basic stats: COMPLETE Column stats: NONE
             File Output Operator
               compressed: false
-              GlobalTableId: 0
+              Statistics: Num rows: 125 Data size: 1328 Basic stats: COMPLETE Column stats: NONE
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
@@ -120,8 +86,10 @@ STAGE PLANS:
 
 PREHOOK: query: create table src_p2(`x+1` string) partitioned by (`!@#$%^&*()_q` string)
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: create table src_p2(`x+1` string) partitioned by (`!@#$%^&*()_q` string)
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@src_p2
 POSTHOOK: Lineage: src_p PARTITION(!@#$%^&*()_q=a).x+1 SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: src_p PARTITION(!@#$%^&*()_q=a).y&y SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
@@ -286,8 +254,10 @@ POSTHOOK: Lineage: src_p2 PARTITION(!@#$%^&*()_q=val_20).x+1 SIMPLE [(src)src.Fi
 POSTHOOK: Lineage: src_p2 PARTITION(!@#$%^&*()_q=val_2).x+1 SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 PREHOOK: query: show partitions src_p2
 PREHOOK: type: SHOWPARTITIONS
+PREHOOK: Input: default@src_p2
 POSTHOOK: query: show partitions src_p2
 POSTHOOK: type: SHOWPARTITIONS
+POSTHOOK: Input: default@src_p2
 POSTHOOK: Lineage: src_p PARTITION(!@#$%^&*()_q=a).x+1 SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: src_p PARTITION(!@#$%^&*()_q=a).y&y SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: src_p2 PARTITION(!@#$%^&*()_q=val_0).x+1 SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]

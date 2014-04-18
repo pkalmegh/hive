@@ -21,19 +21,23 @@ package org.apache.hadoop.hive.ql.optimizer;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
+import java.lang.StringBuffer;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
+import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.Context;
 import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.exec.ConditionalTask;
@@ -41,10 +45,12 @@ import org.apache.hadoop.hive.ql.exec.DemuxOperator;
 import org.apache.hadoop.hive.ql.exec.DependencyCollectionTask;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
 import org.apache.hadoop.hive.ql.exec.JoinOperator;
-import org.apache.hadoop.hive.ql.exec.MoveTask;
 import org.apache.hadoop.hive.ql.exec.MapJoinOperator;
+import org.apache.hadoop.hive.ql.exec.MoveTask;
+import org.apache.hadoop.hive.ql.exec.NodeUtils;
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.OperatorFactory;
+import org.apache.hadoop.hive.ql.exec.OperatorUtils;
 import org.apache.hadoop.hive.ql.exec.ReduceSinkOperator;
 import org.apache.hadoop.hive.ql.exec.RowSchema;
 import org.apache.hadoop.hive.ql.exec.SMBMapJoinOperator;
@@ -60,14 +66,18 @@ import org.apache.hadoop.hive.ql.io.RCFileInputFormat;
 import org.apache.hadoop.hive.ql.io.rcfile.merge.MergeWork;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.Partition;
+import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.ql.optimizer.GenMRProcContext.GenMRUnionCtx;
 import org.apache.hadoop.hive.ql.optimizer.GenMRProcContext.GenMapRedCtx;
 import org.apache.hadoop.hive.ql.optimizer.listbucketingpruner.ListBucketingPruner;
 import org.apache.hadoop.hive.ql.optimizer.ppr.PartitionPruner;
+import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer.tableSpec;
 import org.apache.hadoop.hive.ql.parse.OpParseContext;
 import org.apache.hadoop.hive.ql.parse.ParseContext;
 import org.apache.hadoop.hive.ql.parse.PrunedPartitionList;
 import org.apache.hadoop.hive.ql.parse.QBJoinTree;
+import org.apache.hadoop.hive.ql.parse.QBParseInfo;
 import org.apache.hadoop.hive.ql.parse.RowResolver;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.plan.BaseWork;
@@ -95,7 +105,6 @@ import org.apache.hadoop.hive.ql.plan.TableScanDesc;
 import org.apache.hadoop.hive.ql.plan.TezWork;
 import org.apache.hadoop.hive.ql.stats.StatsFactory;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
-import org.apache.hadoop.mapred.InputFormat;
 
 /**
  * General utility common functions for the Processor to convert operator into
@@ -421,28 +430,6 @@ public final class GenMapRedUtils {
     setTaskPlan(alias_id, topOp, task, local, opProcCtx, null);
   }
 
-  private static ReadEntity getParentViewInfo(String alias_id,
-      Map<String, ReadEntity> viewAliasToInput) {
-    String[] aliases = alias_id.split(":");
-
-    String currentAlias = null;
-    ReadEntity currentInput = null;
-    // Find the immediate parent possible.
-    // For eg: for a query like 'select * from V3', where V3 -> V2, V2 -> V1, V1 -> T
-    // -> implies depends on.
-    // T's parent would be V1
-    for (int pos = 0; pos < aliases.length; pos++) {
-      currentAlias = currentAlias == null ? aliases[pos] : currentAlias + ":" + aliases[pos];
-      ReadEntity input = viewAliasToInput.get(currentAlias);
-      if (input == null) {
-        return currentInput;
-      }
-      currentInput = input;
-    }
-
-    return currentInput;
-  }
-
   /**
    * set the current task in the mapredWork.
    *
@@ -572,18 +559,23 @@ public final class GenMapRedUtils {
     // Track the dependencies for the view. Consider a query like: select * from V;
     // where V is a view of the form: select * from T
     // The dependencies should include V at depth 0, and T at depth 1 (inferred).
-    ReadEntity parentViewInfo = getParentViewInfo(alias_id, parseCtx.getViewAliasToInput());
+    Map<String, ReadEntity> viewToInput = parseCtx.getViewAliasToInput();
+    ReadEntity parentViewInfo = PlanUtils.getParentViewInfo(alias_id, viewToInput);
 
     // The table should also be considered a part of inputs, even if the table is a
     // partitioned table and whether any partition is selected or not
+
+    //This read entity is a direct read entity and not an indirect read (that is when
+    // this is being read because it is a dependency of a view).
+    boolean isDirectRead = (parentViewInfo == null);
     PlanUtils.addInput(inputs,
-        new ReadEntity(parseCtx.getTopToTable().get(topOp), parentViewInfo));
+        new ReadEntity(parseCtx.getTopToTable().get(topOp), parentViewInfo, isDirectRead));
 
     for (Partition part : parts) {
       if (part.getTable().isPartitioned()) {
-        PlanUtils.addInput(inputs, new ReadEntity(part, parentViewInfo));
+        PlanUtils.addInput(inputs, new ReadEntity(part, parentViewInfo, isDirectRead));
       } else {
-        PlanUtils.addInput(inputs, new ReadEntity(part.getTable(), parentViewInfo));
+        PlanUtils.addInput(inputs, new ReadEntity(part.getTable(), parentViewInfo, isDirectRead));
       }
 
       // Later the properties have to come from the partition as opposed
@@ -851,6 +843,13 @@ public final class GenMapRedUtils {
       if (opMap != null && !opMap.isEmpty()) {
         for (Operator<? extends OperatorDesc> op : opMap.values()) {
           setKeyAndValueDesc(work.getReduceWork(), op);
+        }
+      }
+    } else if (task != null && (task.getWork() instanceof TezWork)) {
+      TezWork work = (TezWork)task.getWork();
+      for (BaseWork w : work.getAllWorkUnsorted()) {
+        if (w instanceof MapWork) {
+          ((MapWork)w).deriveExplainAttributes();
         }
       }
     }
@@ -1250,7 +1249,7 @@ public final class GenMapRedUtils {
       // Check if InputFormatClass is valid
       String inputFormatClass = conf.getVar(ConfVars.HIVEMERGEINPUTFORMATBLOCKLEVEL);
       try {
-        Class c = (Class<? extends InputFormat>) Class.forName(inputFormatClass);
+        Class c = Class.forName(inputFormatClass);
 
         LOG.info("RCFile format- Using block level merge");
         cplan = GenMapRedUtils.createRCFileMergeTask(fsInputDesc, finalName,
@@ -1264,7 +1263,7 @@ public final class GenMapRedUtils {
     } else {
       cplan = createMRWorkForMergingFiles(conf, tsMerge, fsInputDesc);
       if (conf.getVar(ConfVars.HIVE_EXECUTION_ENGINE).equals("tez")) {
-        work = new TezWork();
+        work = new TezWork(conf.getVar(HiveConf.ConfVars.HIVEQUERYID));
         cplan.setName("Merge");
         ((TezWork)work).add(cplan);
       } else {
@@ -1633,6 +1632,13 @@ public final class GenMapRedUtils {
       }
 
       if ((mvTask != null) && !mvTask.isLocal() && fsOp.getConf().canBeMerged()) {
+
+        if (currTask.getWork() instanceof TezWork) {
+          // tez blurs the boundary between map and reduce, thus it has it's own
+          // config
+          return hconf.getBoolVar(ConfVars.HIVEMERGETEZFILES);
+        }
+
         if (fsOp.getConf().isLinkedFileSink()) {
           // If the user has HIVEMERGEMAPREDFILES set to false, the idea was the
           // number of reducers are few, so the number of files anyway are small.
@@ -1646,16 +1652,13 @@ public final class GenMapRedUtils {
           // There are separate configuration parameters to control whether to
           // merge for a map-only job
           // or for a map-reduce job
-          if (currTask.getWork() instanceof TezWork) {
-            return hconf.getBoolVar(ConfVars.HIVEMERGEMAPFILES) || 
-                hconf.getBoolVar(ConfVars.HIVEMERGEMAPREDFILES);
-          } else if (currTask.getWork() instanceof MapredWork) {
+          if (currTask.getWork() instanceof MapredWork) {  
             ReduceWork reduceWork = ((MapredWork) currTask.getWork()).getReduceWork();
             boolean mergeMapOnly =
-                hconf.getBoolVar(ConfVars.HIVEMERGEMAPFILES) && reduceWork == null;
+              hconf.getBoolVar(ConfVars.HIVEMERGEMAPFILES) && reduceWork == null;
             boolean mergeMapRed =
-                hconf.getBoolVar(ConfVars.HIVEMERGEMAPREDFILES) &&
-                reduceWork != null;
+              hconf.getBoolVar(ConfVars.HIVEMERGEMAPREDFILES) &&
+              reduceWork != null;
             if (mergeMapOnly || mergeMapRed) {
               return true;
             }
@@ -1692,7 +1695,12 @@ public final class GenMapRedUtils {
       // generate the temporary file
       // it must be on the same file system as the current destination
       Context baseCtx = parseCtx.getContext();
-      Path tmpDir = baseCtx.getExternalTmpPath(dest.toUri());
+  	  // if we are on viewfs we don't want to use /tmp as tmp dir since rename from /tmp/..
+      // to final location /user/hive/warehouse/ will fail later, so instead pick tmp dir
+      // on same namespace as tbl dir.
+      Path tmpDir = dest.toUri().getScheme().equals("viewfs") ?
+        baseCtx.getExtTmpPathRelTo(dest.toUri()) :
+        baseCtx.getExternalTmpPath(dest.toUri());
 
       FileSinkDesc fileSinkDesc = fsOp.getConf();
       // Change all the linked file sink descriptors
@@ -1718,6 +1726,80 @@ public final class GenMapRedUtils {
     }
 
     return dest;
+  }
+
+  public static Set<Partition> getConfirmedPartitionsForScan(QBParseInfo parseInfo) {
+    Set<Partition> confirmedPartns = new HashSet<Partition>();
+    tableSpec tblSpec = parseInfo.getTableSpec();
+    if (tblSpec.specType == tableSpec.SpecType.STATIC_PARTITION) {
+      // static partition
+      if (tblSpec.partHandle != null) {
+        confirmedPartns.add(tblSpec.partHandle);
+      } else {
+        // partial partition spec has null partHandle
+        assert parseInfo.isNoScanAnalyzeCommand();
+        confirmedPartns.addAll(tblSpec.partitions);
+      }
+    } else if (tblSpec.specType == tableSpec.SpecType.DYNAMIC_PARTITION) {
+      // dynamic partition
+      confirmedPartns.addAll(tblSpec.partitions);
+    }
+    return confirmedPartns;
+  }
+
+  public static List<Path> getInputPathsForPartialScan(QBParseInfo parseInfo, StringBuffer aggregationKey) 
+    throws SemanticException {
+    List<Path> inputPaths = new ArrayList<Path>();
+    switch (parseInfo.getTableSpec().specType) {
+    case TABLE_ONLY:
+      inputPaths.add(parseInfo.getTableSpec().tableHandle.getPath());
+      break;
+    case STATIC_PARTITION:
+      Partition part = parseInfo.getTableSpec().partHandle;
+      try {
+        aggregationKey.append(Warehouse.makePartPath(part.getSpec()));
+      } catch (MetaException e) {
+        throw new SemanticException(ErrorMsg.ANALYZE_TABLE_PARTIALSCAN_AGGKEY.getMsg(
+            part.getDataLocation().toString() + e.getMessage()));
+      }
+      inputPaths.add(part.getDataLocation());
+      break;
+    default:
+      assert false;
+    }
+    return inputPaths;
+  }
+
+  public static Set<String> findAliases(final MapWork work, Operator<?> startOp) {
+    Set<String> aliases = new LinkedHashSet<String>();
+    for (Operator<?> topOp : findTopOps(startOp, null)) {
+      String alias = findAlias(work, topOp);
+      if (alias != null) {
+        aliases.add(alias);
+      }
+    }
+    return aliases;
+  }
+
+  public static Set<Operator<?>> findTopOps(Operator<?> startOp, final Class<?> clazz) {
+    final Set<Operator<?>> operators = new LinkedHashSet<Operator<?>>();
+    OperatorUtils.iterateParents(startOp, new NodeUtils.Function<Operator<?>>() {
+      public void apply(Operator<?> argument) {
+        if (argument.getNumParent() == 0 && (clazz == null || clazz.isInstance(argument))) {
+          operators.add(argument);
+        }
+      }
+    });
+    return operators;
+  }
+
+  public static String findAlias(MapWork work, Operator<?> operator) {
+    for (Entry<String, Operator<?>> entry : work.getAliasToWork().entrySet()) {
+      if (entry.getValue() == operator) {
+        return entry.getKey();
+      }
+    }
+    return null;
   }
 
   private GenMapRedUtils() {

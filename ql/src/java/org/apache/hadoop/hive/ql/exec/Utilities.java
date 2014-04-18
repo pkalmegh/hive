@@ -78,6 +78,11 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.Deflater;
+import java.util.zip.DeflaterOutputStream;
+import java.util.zip.InflaterInputStream;
+
+import javax.security.auth.login.LoginException;
 
 import org.antlr.runtime.CommonToken;
 import org.apache.commons.codec.binary.Base64;
@@ -92,6 +97,8 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.hive.common.FileUtils;
 import org.apache.hadoop.hive.common.HiveInterruptCallback;
 import org.apache.hadoop.hive.common.HiveInterruptUtils;
 import org.apache.hadoop.hive.common.HiveStatsUtils;
@@ -172,6 +179,7 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.Shell;
 
@@ -179,6 +187,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.FieldSerializer;
+import com.esotericsoftware.shaded.org.objenesis.strategy.StdInstantiatorStrategy;
 
 /**
  * Utilities.
@@ -313,11 +322,12 @@ public final class Utilities {
           LOG.debug("Loading plan from string: "+path.toUri().getPath());
           String planString = conf.get(path.toUri().getPath());
           if (planString == null) {
-            LOG.debug("Could not find plan string in conf");
+            LOG.info("Could not find plan string in conf");
             return null;
           }
           byte[] planBytes = Base64.decodeBase64(planString);
           in = new ByteArrayInputStream(planBytes);
+          in = new InflaterInputStream(in);
         } else {
           in = new FileInputStream(localPath.toUri().getPath());
         }
@@ -351,7 +361,7 @@ public final class Utilities {
       return gWork;
     } catch (FileNotFoundException fnf) {
       // happens. e.g.: no reduce work.
-      LOG.debug("No plan file found: "+path);
+      LOG.info("No plan file found: "+path);
       return null;
     } catch (Exception e) {
       LOG.error("Failed to load plan: "+path, e);
@@ -582,11 +592,12 @@ public final class Utilities {
 
       if (HiveConf.getBoolVar(conf, ConfVars.HIVE_RPC_QUERY_PLAN)) {
         // add it to the conf
-        out = new ByteArrayOutputStream();
+        ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+        out = new DeflaterOutputStream(byteOut, new Deflater(Deflater.BEST_SPEED));
         serializePlan(w, out, conf);
         LOG.info("Setting plan: "+planPath.toUri().getPath());
         conf.set(planPath.toUri().getPath(),
-            Base64.encodeBase64String(((ByteArrayOutputStream)out).toByteArray()));
+            Base64.encodeBase64String(byteOut.toByteArray()));
       } else {
         // use the default file system of the conf
         FileSystem fs = planPath.getFileSystem(conf);
@@ -770,6 +781,14 @@ public final class Utilities {
     }
   }
 
+  public static Set<Operator<?>> cloneOperatorTree(Configuration conf, Set<Operator<?>> roots) {
+    ByteArrayOutputStream baos = new ByteArrayOutputStream(4096);
+    serializePlan(roots, baos, conf, true);
+    Set<Operator<?>> result = deserializePlan(new ByteArrayInputStream(baos.toByteArray()),
+        roots.getClass(), conf, true);
+    return result;
+  }
+
   private static void serializePlan(Object plan, OutputStream out, Configuration conf, boolean cloningPlan) {
     PerfLogger perfLogger = PerfLogger.getPerfLogger();
     perfLogger.PerfLogBegin(CLASS_NAME, PerfLogger.SERIALIZE_PLAN);
@@ -817,8 +836,9 @@ public final class Utilities {
   /**
    * Deserializes the plan.
    * @param in The stream to read from.
+   * @param planClass class of plan
+   * @param conf configuration
    * @return The plan, such as QueryPlan, MapredWork, etc.
-   * @param To know what serialization format plan is in
    */
   public static <T> T deserializePlan(InputStream in, Class<T> planClass, Configuration conf) {
     return deserializePlan(in, planClass, conf, false);
@@ -849,6 +869,7 @@ public final class Utilities {
   private static void serializeObjectByJavaXML(Object plan, OutputStream out) {
     XMLEncoder e = new XMLEncoder(out);
     e.setExceptionListener(new ExceptionListener() {
+      @Override
       public void exceptionThrown(Exception e) {
         LOG.warn(org.apache.hadoop.util.StringUtils.stringifyException(e));
         throw new RuntimeException("Cannot serialize object", e);
@@ -905,7 +926,7 @@ public final class Utilities {
 
   // Kryo is not thread-safe,
   // Also new Kryo() is expensive, so we want to do it just once.
-  private static ThreadLocal<Kryo> runtimeSerializationKryo = new ThreadLocal<Kryo>() {
+  public static ThreadLocal<Kryo> runtimeSerializationKryo = new ThreadLocal<Kryo>() {
     @Override
     protected synchronized Kryo initialValue() {
       Kryo kryo = new Kryo();
@@ -913,6 +934,7 @@ public final class Utilities {
       kryo.register(java.sql.Date.class, new SqlDateSerializer());
       kryo.register(java.sql.Timestamp.class, new TimestampSerializer());
       kryo.register(Path.class, new PathSerializer());
+      kryo.setInstantiatorStrategy(new StdInstantiatorStrategy());
       removeField(kryo, Operator.class, "colExprMap");
       removeField(kryo, ColumnInfo.class, "objectInspector");
       removeField(kryo, MapWork.class, "opParseCtxMap");
@@ -935,6 +957,7 @@ public final class Utilities {
       kryo.register(java.sql.Date.class, new SqlDateSerializer());
       kryo.register(java.sql.Timestamp.class, new TimestampSerializer());
       kryo.register(Path.class, new PathSerializer());
+      kryo.setInstantiatorStrategy(new StdInstantiatorStrategy());
       return kryo;
     };
   };
@@ -1240,7 +1263,7 @@ public final class Utilities {
     if (isCompressed) {
       Class<? extends CompressionCodec> codecClass = FileOutputFormat.getOutputCompressorClass(jc,
           DefaultCodec.class);
-      CompressionCodec codec = (CompressionCodec) ReflectionUtils.newInstance(codecClass, jc);
+      CompressionCodec codec = ReflectionUtils.newInstance(codecClass, jc);
       return codec.createOutputStream(out);
     } else {
       return (out);
@@ -1289,7 +1312,7 @@ public final class Utilities {
     if ((hiveOutputFormat instanceof HiveIgnoreKeyTextOutputFormat) && isCompressed) {
       Class<? extends CompressionCodec> codecClass = FileOutputFormat.getOutputCompressorClass(jc,
           DefaultCodec.class);
-      CompressionCodec codec = (CompressionCodec) ReflectionUtils.newInstance(codecClass, jc);
+      CompressionCodec codec = ReflectionUtils.newInstance(codecClass, jc);
       return codec.getDefaultExtension();
     }
     return "";
@@ -1515,17 +1538,17 @@ public final class Utilities {
   /**
    * The first group will contain the task id. The second group is the optional extension. The file
    * name looks like: "0_0" or "0_0.gz". There may be a leading prefix (tmp_). Since getTaskId() can
-   * return an integer only - this should match a pure integer as well. {1,3} is used to limit
-   * matching for attempts #'s 0-999.
+   * return an integer only - this should match a pure integer as well. {1,6} is used to limit
+   * matching for attempts #'s 0-999999.
    */
   private static final Pattern FILE_NAME_TO_TASK_ID_REGEX =
-      Pattern.compile("^.*?([0-9]+)(_[0-9]{1,3})?(\\..*)?$");
+      Pattern.compile("^.*?([0-9]+)(_[0-9]{1,6})?(\\..*)?$");
 
   /**
    * This retruns prefix part + taskID for bucket join for partitioned table
    */
   private static final Pattern FILE_NAME_PREFIXED_TASK_ID_REGEX =
-      Pattern.compile("^.*?((\\(.*\\))?[0-9]+)(_[0-9]{1,3})?(\\..*)?$");
+      Pattern.compile("^.*?((\\(.*\\))?[0-9]+)(_[0-9]{1,6})?(\\..*)?$");
 
   /**
    * This breaks a prefixed bucket number into the prefix and the taskID
@@ -1975,6 +1998,14 @@ public final class Utilities {
     return names;
   }
 
+  public static List<String> getInternalColumnNamesFromSignature(List<ColumnInfo> colInfos) {
+    List<String> names = new ArrayList<String>();
+    for (ColumnInfo ci : colInfos) {
+      names.add(ci.getInternalName());
+    }
+    return names;
+  }
+
   public static List<String> getColumnNames(Properties props) {
     List<String> names = new ArrayList<String>();
     String colNames = props.getProperty(serdeConstants.LIST_COLUMNS);
@@ -2011,6 +2042,9 @@ public final class Utilities {
    * @throws HiveException
    */
   public static String[] getDbTableName(String dbtable) throws HiveException{
+    if(dbtable == null){
+      return new String[2];
+    }
     String[] names =  dbtable.split("\\.");
     switch (names.length) {
     case 2:
@@ -2073,6 +2107,13 @@ public final class Utilities {
    *          configuration which receives configured properties
    */
   public static void copyTableJobPropertiesToConf(TableDesc tbl, JobConf job) {
+    String bucketString = tbl.getProperties()
+        .getProperty(hive_metastoreConstants.BUCKET_COUNT);
+    // copy the bucket count
+    if (bucketString != null) {
+      job.set(hive_metastoreConstants.BUCKET_COUNT, bucketString);
+    }
+
     Map<String, String> jobProperties = tbl.getJobProperties();
     if (jobProperties == null) {
       return;
@@ -2096,14 +2137,14 @@ public final class Utilities {
    * @return the summary of all the input paths.
    * @throws IOException
    */
-  public static ContentSummary getInputSummary(Context ctx, MapWork work, PathFilter filter)
+  public static ContentSummary getInputSummary(final Context ctx, MapWork work, PathFilter filter)
       throws IOException {
     PerfLogger perfLogger = PerfLogger.getPerfLogger();
     perfLogger.PerfLogBegin(CLASS_NAME, PerfLogger.INPUT_SUMMARY);
 
     long[] summary = {0, 0, 0};
 
-    List<String> pathNeedProcess = new ArrayList<String>();
+    final List<String> pathNeedProcess = new ArrayList<String>();
 
     // Since multiple threads could call this method concurrently, locking
     // this method will avoid number of threads out of control.
@@ -2146,6 +2187,13 @@ public final class Utilities {
       HiveInterruptCallback interrup = HiveInterruptUtils.add(new HiveInterruptCallback() {
         @Override
         public void interrupt() {
+          for (String path : pathNeedProcess) {
+            try {
+              new Path(path).getFileSystem(ctx.getConf()).close();
+            } catch (IOException ignore) {
+                LOG.debug(ignore);
+            }
+          }
           if (executor != null) {
             executor.shutdownNow();
           }
@@ -2170,6 +2218,7 @@ public final class Utilities {
           final PartitionDesc partDesc = work.getPathToPartitionInfo().get(
               p.toString());
           Runnable r = new Runnable() {
+            @Override
             public void run() {
               try {
                 Class<? extends InputFormat> inputFormatCls = partDesc
@@ -2262,12 +2311,16 @@ public final class Utilities {
     }
   }
 
-  // return sum of lengths except one alias. returns -1 if any of other alias is unknown
+  public static long sumOf(Map<String, Long> aliasToSize, Set<String> aliases) {
+    return sumOfExcept(aliasToSize, aliases, null);
+  }
+
+  // return sum of lengths except some aliases. returns -1 if any of other alias is unknown
   public static long sumOfExcept(Map<String, Long> aliasToSize,
-      Set<String> aliases, String except) {
+      Set<String> aliases, Set<String> excepts) {
     long total = 0;
     for (String alias : aliases) {
-      if (alias.equals(except)) {
+      if (excepts != null && excepts.contains(alias)) {
         continue;
       }
       Long size = aliasToSize.get(alias);
@@ -2314,7 +2367,7 @@ public final class Utilities {
 
   private static void getTezTasks(List<Task<? extends Serializable>> tasks, List<TezTask> tezTasks) {
     for (Task<? extends Serializable> task : tasks) {
-      if (task instanceof TezTask && !tezTasks.contains((TezTask) task)) {
+      if (task instanceof TezTask && !tezTasks.contains(task)) {
         tezTasks.add((TezTask) task);
       }
 
@@ -2334,7 +2387,7 @@ public final class Utilities {
 
   private static void getMRTasks(List<Task<? extends Serializable>> tasks, List<ExecDriver> mrTasks) {
     for (Task<? extends Serializable> task : tasks) {
-      if (task instanceof ExecDriver && !mrTasks.contains((ExecDriver) task)) {
+      if (task instanceof ExecDriver && !mrTasks.contains(task)) {
         mrTasks.add((ExecDriver) task);
       }
 
@@ -2397,16 +2450,15 @@ public final class Utilities {
    * then it returns an MD5 hash of statsPrefix followed by path separator, otherwise
    * it returns statsPrefix
    *
-   * @param statsPrefix
-   * @param maxPrefixLength
-   * @return
+   * @param statsPrefix prefix of stats key
+   * @param maxPrefixLength max length of stats key
+   * @return if the length of prefix is longer than max, return MD5 hashed value of the prefix
    */
-  public static String getHashedStatsPrefix(String statsPrefix,
-      int maxPrefixLength, int postfixLength) {
+  public static String getHashedStatsPrefix(String statsPrefix, int maxPrefixLength) {
     // todo: this might return possibly longer prefix than
     // maxPrefixLength (if set) when maxPrefixLength - postfixLength < 17,
     // which would make stat values invalid (especially for 'counter' type)
-    if (maxPrefixLength >= 0 && statsPrefix.length() > maxPrefixLength - postfixLength) {
+    if (maxPrefixLength >= 0 && statsPrefix.length() > maxPrefixLength) {
       try {
         MessageDigest digester = MessageDigest.getInstance("MD5");
         digester.update(statsPrefix.getBytes());
@@ -2911,6 +2963,16 @@ public final class Utilities {
   }
 
   /**
+   * On Tez we're not creating dummy files when getting/setting input paths.
+   * We let Tez handle the situation. We're also setting the paths in the AM
+   * so we don't want to depend on scratch dir and context.
+   */
+  public static List<Path> getInputPathsTez(JobConf job, MapWork work) throws Exception {
+    List<Path> paths = getInputPaths(job, work, null, null);
+    return paths;
+  }
+
+  /**
    * Computes a list of all input paths needed to compute the given MapWork. All aliases
    * are considered and a merged list of input paths is returned. If any input path points
    * to an empty table or partition a dummy file in the scratch dir is instead created and
@@ -2950,7 +3012,7 @@ public final class Utilities {
           pathsProcessed.add(path);
 
           LOG.info("Adding input file " + path);
-          if (!HiveConf.getVar(job, ConfVars.HIVE_EXECUTION_ENGINE).equals("tez") 
+          if (!HiveConf.getVar(job, ConfVars.HIVE_EXECUTION_ENGINE).equals("tez")
               && isEmptyPath(job, path, ctx)) {
             path = createDummyFileForEmptyPartition(path, job, work,
                  hiveScratchDir, alias, sequenceNumber++);
@@ -2968,7 +3030,7 @@ public final class Utilities {
       // T2) x;
       // If T is empty and T2 contains 100 rows, the user expects: 0, 100 (2
       // rows)
-      if (path == null 
+      if (path == null
           && !HiveConf.getVar(job, ConfVars.HIVE_EXECUTION_ENGINE).equals("tez")) {
         path = createDummyFileForEmptyTable(job, work, hiveScratchDir,
             alias, sequenceNumber++);
@@ -3117,8 +3179,10 @@ public final class Utilities {
    * Set hive input format, and input format file if necessary.
    */
   public static void setInputAttributes(Configuration conf, MapWork mWork) {
+    HiveConf.ConfVars var = HiveConf.getVar(conf, HiveConf.ConfVars.HIVE_EXECUTION_ENGINE).equals("tez") ?
+      HiveConf.ConfVars.HIVETEZINPUTFORMAT : HiveConf.ConfVars.HIVEINPUTFORMAT;
     if (mWork.getInputformat() != null) {
-      HiveConf.setVar(conf, HiveConf.ConfVars.HIVEINPUTFORMAT, mWork.getInputformat());
+      HiveConf.setVar(conf, var, mWork.getInputformat());
     }
     if (mWork.getIndexIntermediateFile() != null) {
       conf.set("hive.index.compact.file", mWork.getIndexIntermediateFile());
@@ -3176,6 +3240,7 @@ public final class Utilities {
   private static void createTmpDirs(Configuration conf,
       List<Operator<? extends OperatorDesc>> ops) throws IOException {
 
+    FsPermission fsPermission = new FsPermission((short)00777);
     while (!ops.isEmpty()) {
       Operator<? extends OperatorDesc> op = ops.remove(0);
 
@@ -3185,8 +3250,7 @@ public final class Utilities {
 
         if (tempDir != null) {
           Path tempPath = Utilities.toTempPath(tempDir);
-          FileSystem fs = tempPath.getFileSystem(conf);
-          fs.mkdirs(tempPath);
+          createDirsWithPermission(conf, tempPath, fsPermission);
         }
       }
 
@@ -3199,7 +3263,7 @@ public final class Utilities {
   /**
    * Returns true if a plan is both configured for vectorized execution
    * and vectorization is allowed. The plan may be configured for vectorization
-   * but vectorization dissalowed eg. for FetchOperator execution. 
+   * but vectorization dissalowed eg. for FetchOperator execution.
    */
   public static boolean isVectorMode(Configuration conf) {
     if (HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED) &&
@@ -3209,11 +3273,11 @@ public final class Utilities {
     }
     return false;
   }
-  
+
     public static void clearWorkMap() {
     gWorkMap.clear();
   }
-  
+
   /**
    * Create a temp dir in specified baseDir
    * This can go away once hive moves to support only JDK 7
@@ -3307,5 +3371,50 @@ public final class Utilities {
       throw new IOException(nfe);
     }
     return footerCount;
+  }
+
+  /**
+   * @param conf the configuration used to derive the filesystem to create the path
+   * @param mkdir the path to be created
+   * @param fsPermission ignored if it is hive server session and doAs is enabled
+   * @return true if successfully created the directory else false
+   * @throws IOException if hdfs experiences any error conditions
+   */
+  public static boolean createDirsWithPermission(Configuration conf, Path mkdir,
+      FsPermission fsPermission) throws IOException {
+    // this umask is required because by default the hdfs mask is 022 resulting in
+    // all parents getting the fsPermission & !(022) permission instead of fsPermission
+    boolean recursive = false;
+    if (SessionState.get() != null) {
+      recursive = SessionState.get().isHiveServerQuery() &&
+          conf.getBoolean(HiveConf.ConfVars.HIVE_SERVER2_ENABLE_DOAS.varname,
+              HiveConf.ConfVars.HIVE_SERVER2_ENABLE_DOAS.defaultBoolVal);
+      // we reset the permission in case of hive server and doAs enabled because
+      // currently scratch directory uses /tmp/hive-hive as the scratch directory.
+      // However, with doAs enabled, the first user to create this directory would
+      // own the directory and subsequent users cannot access the scratch directory.
+      // The right fix is to have scratch dir per user.
+      fsPermission = new FsPermission((short)00777);
+    }
+
+    // if we made it so far without exception we are good!
+    return createDirsWithPermission(conf, mkdir, fsPermission, recursive);
+  }
+
+  public static boolean createDirsWithPermission(Configuration conf, Path mkdir,
+      FsPermission fsPermission, boolean recursive) throws IOException {
+    String origUmask = null;
+    if (recursive) {
+      origUmask = conf.get("fs.permissions.umask-mode");
+      conf.set("fs.permissions.umask-mode", "000");
+    }
+    FileSystem fs = mkdir.getFileSystem(conf);
+    boolean retval = fs.mkdirs(mkdir, fsPermission);
+    if (origUmask != null) {
+      conf.set("fs.permissions.umask-mode", origUmask);
+    } else {
+      conf.unset("fs.permissions.umask-mode");
+    }
+    return retval;
   }
 }

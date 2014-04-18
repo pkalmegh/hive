@@ -16,7 +16,11 @@
 package org.apache.hadoop.hive.common.type;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
+
+import org.apache.hive.common.util.Decimal128FastBuffer;
 
 /**
  * This code was originally written for Microsoft PolyBase.
@@ -64,13 +68,17 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
   /** Minimum value for #scale. */
   public static final short MIN_SCALE = 0;
 
+  public static final Decimal128 ONE = new Decimal128().update(1);
+
   /** Maximum value that can be represented in this class. */
   public static final Decimal128 MAX_VALUE = new Decimal128(
-      UnsignedInt128.TEN_TO_THIRTYEIGHT, (short) 0, false);
+      UnsignedInt128.TEN_TO_THIRTYEIGHT, (short) 0, false).subtractDestructive(
+          Decimal128.ONE, (short) 0);
 
   /** Minimum value that can be represented in this class. */
   public static final Decimal128 MIN_VALUE = new Decimal128(
-      UnsignedInt128.TEN_TO_THIRTYEIGHT, (short) 0, true);
+      UnsignedInt128.TEN_TO_THIRTYEIGHT, (short) 0, true).addDestructive(
+          Decimal128.ONE, (short) 0);
 
   /** For Serializable. */
   private static final long serialVersionUID = 1L;
@@ -82,7 +90,7 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @serial
    * @see #getUnscaledValue()
    */
-  private final UnsignedInt128 unscaledValue;
+  private UnsignedInt128 unscaledValue;
 
   /**
    * The scale of this Decimal128, as returned by {@link #getScale()}. Unlike
@@ -233,9 +241,10 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
   }
 
   /** Reset the value of this object to zero. */
-  public void zeroClear() {
+  public Decimal128 zeroClear() {
     this.unscaledValue.zeroClear();
     this.signum = 0;
+    return this;
   }
 
   /** @return whether this value represents zero. */
@@ -251,10 +260,23 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param o
    *          object to copy from
    */
-  public void update(Decimal128 o) {
+  public Decimal128 update(Decimal128 o) {
     this.unscaledValue.update(o.unscaledValue);
     this.scale = o.scale;
     this.signum = o.signum;
+    return this;
+  }
+
+  /**
+   * Copy the value of given object and assigns a custom scale.
+   *
+   * @param o
+   *          object to copy from
+   */
+  public Decimal128 update(Decimal128 o, short scale) {
+    update(o);
+    this.changeScaleDestructive(scale);
+    return this;
   }
 
   /**
@@ -264,8 +286,8 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param val
    *          {@code long} value to be set to {@code Decimal128}.
    */
-  public void update(long val) {
-    update(val, (short) 0);
+  public Decimal128 update(long val) {
+    return update(val, (short) 0);
   }
 
   /**
@@ -277,7 +299,7 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param scale
    *          scale of the {@code Decimal128}.
    */
-  public void update(long val, short scale) {
+  public Decimal128 update(long val, short scale) {
     this.scale = 0;
     if (val < 0L) {
       this.unscaledValue.update(-val);
@@ -292,6 +314,7 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
     if (scale != 0) {
       changeScaleDestructive(scale);
     }
+    return this;
   }
 
   /**
@@ -310,7 +333,7 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param scale
    *          scale of the {@code Decimal128}.
    */
-  public void update(double val, short scale) {
+  public Decimal128 update(double val, short scale) {
     if (Double.isInfinite(val) || Double.isNaN(val)) {
       throw new NumberFormatException("Infinite or NaN");
     }
@@ -330,7 +353,7 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
     // zero check
     if (significand == 0) {
       zeroClear();
-      return;
+      return this;
     }
 
     this.signum = sign;
@@ -388,6 +411,7 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
             (short) (twoScaleDown - scale));
       }
     }
+    return this;
   }
 
   /**
@@ -399,12 +423,13 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param precision
    *          0 to 38. Decimal digits.
    */
-  public void update(IntBuffer buf, int precision) {
+  public Decimal128 update(IntBuffer buf, int precision) {
     int scaleAndSignum = buf.get();
     this.scale = (short) (scaleAndSignum >> 16);
     this.signum = (byte) (scaleAndSignum & 0xFF);
     this.unscaledValue.update(buf, precision);
     assert ((signum == 0) == unscaledValue.isZero());
+    return this;
   }
 
   /**
@@ -414,12 +439,13 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param buf
    *          ByteBuffer to read values from
    */
-  public void update128(IntBuffer buf) {
+  public Decimal128 update128(IntBuffer buf) {
     int scaleAndSignum = buf.get();
     this.scale = (short) (scaleAndSignum >> 16);
     this.signum = (byte) (scaleAndSignum & 0xFF);
     this.unscaledValue.update128(buf);
     assert ((signum == 0) == unscaledValue.isZero());
+    return this;
   }
 
   /**
@@ -429,12 +455,13 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param buf
    *          ByteBuffer to read values from
    */
-  public void update96(IntBuffer buf) {
+  public Decimal128 update96(IntBuffer buf) {
     int scaleAndSignum = buf.get();
     this.scale = (short) (scaleAndSignum >> 16);
     this.signum = (byte) (scaleAndSignum & 0xFF);
     this.unscaledValue.update96(buf);
     assert ((signum == 0) == unscaledValue.isZero());
+    return this;
   }
 
   /**
@@ -444,12 +471,13 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param buf
    *          ByteBuffer to read values from
    */
-  public void update64(IntBuffer buf) {
+  public Decimal128 update64(IntBuffer buf) {
     int scaleAndSignum = buf.get();
     this.scale = (short) (scaleAndSignum >> 16);
     this.signum = (byte) (scaleAndSignum & 0xFF);
     this.unscaledValue.update64(buf);
     assert ((signum == 0) == unscaledValue.isZero());
+    return this;
   }
 
   /**
@@ -459,12 +487,13 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param buf
    *          ByteBuffer to read values from
    */
-  public void update32(IntBuffer buf) {
+  public Decimal128 update32(IntBuffer buf) {
     int scaleAndSignum = buf.get();
     this.scale = (short) (scaleAndSignum >> 16);
     this.signum = (byte) (scaleAndSignum & 0xFF);
     this.unscaledValue.update32(buf);
     assert ((signum == 0) == unscaledValue.isZero());
+    return this;
   }
 
   /**
@@ -478,11 +507,12 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param precision
    *          0 to 38. Decimal digits.
    */
-  public void update(int[] array, int offset, int precision) {
+  public Decimal128 update(int[] array, int offset, int precision) {
     int scaleAndSignum = array[offset];
     this.scale = (short) (scaleAndSignum >> 16);
     this.signum = (byte) (scaleAndSignum & 0xFF);
     this.unscaledValue.update(array, offset + 1, precision);
+    return this;
   }
 
   /**
@@ -494,11 +524,12 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param offset
    *          offset of the int array
    */
-  public void update128(int[] array, int offset) {
+  public Decimal128 update128(int[] array, int offset) {
     int scaleAndSignum = array[offset];
     this.scale = (short) (scaleAndSignum >> 16);
     this.signum = (byte) (scaleAndSignum & 0xFF);
     this.unscaledValue.update128(array, offset + 1);
+    return this;
   }
 
   /**
@@ -510,11 +541,12 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param offset
    *          offset of the int array
    */
-  public void update96(int[] array, int offset) {
+  public Decimal128 update96(int[] array, int offset) {
     int scaleAndSignum = array[offset];
     this.scale = (short) (scaleAndSignum >> 16);
     this.signum = (byte) (scaleAndSignum & 0xFF);
     this.unscaledValue.update96(array, offset + 1);
+    return this;
   }
 
   /**
@@ -526,11 +558,12 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param offset
    *          offset of the int array
    */
-  public void update64(int[] array, int offset) {
+  public Decimal128 update64(int[] array, int offset) {
     int scaleAndSignum = array[offset];
     this.scale = (short) (scaleAndSignum >> 16);
     this.signum = (byte) (scaleAndSignum & 0xFF);
     this.unscaledValue.update64(array, offset + 1);
+    return this;
   }
 
   /**
@@ -542,11 +575,41 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param offset
    *          offset of the int array
    */
-  public void update32(int[] array, int offset) {
+  public Decimal128 update32(int[] array, int offset) {
     int scaleAndSignum = array[offset];
     this.scale = (short) (scaleAndSignum >> 16);
     this.signum = (byte) (scaleAndSignum & 0xFF);
     this.unscaledValue.update32(array, offset + 1);
+    return this;
+  }
+
+  /**
+   * Updates the value of this object with the given {@link BigDecimal}. 
+   * @param bigDecimal
+   *    {@link java.math.BigDecimal}
+   */
+   public Decimal128 update(BigDecimal bigDecimal) {
+     return update(bigDecimal.unscaledValue(), (short) bigDecimal.scale());
+   }
+
+  /**
+   * Updates the value of this object with the given {@link BigInteger} and scale.
+   *
+   * @param bigInt
+   *          {@link java.math.BigInteger}
+   * @param scale
+   */
+  public Decimal128 update(BigInteger bigInt, short scale) {
+    this.scale = scale;
+    this.signum = (byte) bigInt.compareTo(BigInteger.ZERO);
+    if (signum == 0) {
+      update(0);
+    } else if (signum < 0) {
+      unscaledValue.update(bigInt.negate());
+    } else {
+      unscaledValue.update(bigInt);
+    }
+    return this;
   }
 
   /**
@@ -557,8 +620,8 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param scale
    *          scale of the {@code Decimal128}.
    */
-  public void update(String str, short scale) {
-    update(str.toCharArray(), 0, str.length(), scale);
+  public Decimal128 update(String str, short scale) {
+    return update(str.toCharArray(), 0, str.length(), scale);
   }
 
   /**
@@ -574,7 +637,7 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param scale
    *          scale of the {@code Decimal128}.
    */
-  public void update(char[] str, int offset, int length, short scale) {
+  public Decimal128 update(char[] str, int offset, int length, short scale) {
     final int end = offset + length;
     assert (end <= str.length);
     int cursor = offset;
@@ -596,7 +659,7 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
     this.scale = scale;
     zeroClear();
     if (cursor == end) {
-      return;
+      return this;
     }
 
     // "1234567" => unscaledValue=1234567, negative=false,
@@ -675,6 +738,15 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
       this.unscaledValue.scaleDownTenDestructive((short) -scaleAdjust);
     }
     this.signum = (byte) (this.unscaledValue.isZero() ? 0 : (negative ? -1 : 1));
+    return this;
+  }
+
+  /**
+   * Serializes the value in a format compatible with the BigDecimal's own representation
+   * @param scratch
+   */
+  public int fastSerializeForHiveDecimal( Decimal128FastBuffer scratch) {
+    return this.unscaledValue.fastSerializeForHiveDecimal(scratch, this.signum);
   }
 
   /**
@@ -894,15 +966,15 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param scale
    *          scale of the result. must be 0 or positive.
    */
-  public void addDestructive(Decimal128 right, short scale) {
+  public Decimal128 addDestructive(Decimal128 right, short scale) {
     this.changeScaleDestructive(scale);
     if (right.signum == 0) {
-      return;
+      return this;
     }
     if (this.signum == 0) {
       this.update(right);
       this.changeScaleDestructive(scale);
-      return;
+      return this;
     }
 
     short rightScaleTen = (short) (scale - right.scale);
@@ -926,6 +998,7 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
     }
 
     this.unscaledValue.throwIfExceedsTenToThirtyEight();
+    return this;
   }
 
   /**
@@ -966,16 +1039,16 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param scale
    *          scale of the result. must be 0 or positive.
    */
-  public void subtractDestructive(Decimal128 right, short scale) {
+  public Decimal128 subtractDestructive(Decimal128 right, short scale) {
     this.changeScaleDestructive(scale);
     if (right.signum == 0) {
-      return;
+      return this;
     }
     if (this.signum == 0) {
       this.update(right);
       this.changeScaleDestructive(scale);
       this.negateDestructive();
-      return;
+      return this;
     }
 
     short rightScaleTen = (short) (scale - right.scale);
@@ -1000,6 +1073,7 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
     }
 
     this.unscaledValue.throwIfExceedsTenToThirtyEight();
+    return this;
   }
 
   /**
@@ -1033,6 +1107,12 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
   }
 
   /**
+   * As of 2/11/2014 this has a known bug in multiplication. See
+   * TestDecimal128.testKnownPriorErrors(). Keeping this source
+   * code available since eventually it is better to fix this.
+   * The fix employed now is to replace this code with code that
+   * uses Java BigDecimal multiply.
+   *
    * Performs multiplication, changing the scale of this object to the specified
    * value.
    *
@@ -1041,7 +1121,7 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param newScale
    *          scale of the result. must be 0 or positive.
    */
-  public void multiplyDestructive(Decimal128 right, short newScale) {
+  public void multiplyDestructiveNativeDecimal128(Decimal128 right, short newScale) {
     if (this.signum == 0 || right.signum == 0) {
       this.zeroClear();
       this.scale = newScale;
@@ -1082,6 +1162,31 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
   }
 
   /**
+   * Performs multiplication, changing the scale of this object to the specified
+   * value.
+   *
+   * @param right
+   *          right operand. this object is not modified.
+   * @param newScale
+   *          scale of the result. must be 0 or positive.
+   */
+  public void multiplyDestructive(Decimal128 right, short newScale) {
+    HiveDecimal rightHD = HiveDecimal.create(right.toBigDecimal());
+    HiveDecimal thisHD = HiveDecimal.create(this.toBigDecimal());
+    HiveDecimal result = thisHD.multiply(rightHD);
+
+    /* If the result is null, throw an exception. This can be caught
+     * by calling code in the vectorized code path and made to yield
+     * a SQL NULL value.
+     */
+    if (result == null) {
+      throw new ArithmeticException("null multiply result");
+    }
+    this.update(result.bigDecimalValue().toPlainString(), newScale);
+    this.unscaledValue.throwIfExceedsTenToThirtyEight();
+  }
+
+  /**
    * Performs division and puts the result into the given object. Both operands
    * are first scaled up/down to the specified scale, then this method performs
    * the operation. This method is static and not destructive (except the result
@@ -1097,23 +1202,27 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    *          right operand
    * @param quotient
    *          result object to receive the calculation result
-   * @param remainder
-   *          result object to receive the calculation result
    * @param scale
    *          scale of the result. must be 0 or positive.
    */
   public static void divide(Decimal128 left, Decimal128 right,
-      Decimal128 quotient, Decimal128 remainder, short scale) {
+      Decimal128 quotient, short scale) {
     if (quotient == left || quotient == right) {
       throw new IllegalArgumentException(
           "result object cannot be left or right operand");
     }
 
     quotient.update(left);
-    quotient.divideDestructive(right, scale, remainder);
+    quotient.divideDestructive(right, scale);
   }
 
   /**
+   * As of 1/20/2014 this has a known bug in division. See
+   * TestDecimal128.testKnownPriorErrors(). Keeping this source
+   * code available since eventually it is better to fix this.
+   * The fix employed now is to replace this code with code that
+   * uses Java BigDecimal divide.
+   *
    * Performs division, changing the scale of this object to the specified
    * value.
    * <p>
@@ -1128,7 +1237,7 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @param remainder
    *          object to receive remainder
    */
-  public void divideDestructive(Decimal128 right, short newScale,
+  public void divideDestructiveNativeDecimal128(Decimal128 right, short newScale,
       Decimal128 remainder) {
     if (right.signum == 0) {
       SqlMathUtil.throwZeroDivisionException();
@@ -1172,6 +1281,67 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
 
     this.unscaledValue.throwIfExceedsTenToThirtyEight();
   }
+
+  /**
+   * Divide the target object by right, and scale the result to newScale.
+   *
+   * This uses HiveDecimal to get a correct answer with the same rounding
+   * behavior as HiveDecimal, but it is expensive.
+   *
+   * In the future, a native implementation could be faster.
+   */
+  public void divideDestructive(Decimal128 right, short newScale) {
+    HiveDecimal rightHD = HiveDecimal.create(right.toBigDecimal());
+    HiveDecimal thisHD = HiveDecimal.create(this.toBigDecimal());
+    HiveDecimal result = thisHD.divide(rightHD);
+
+    /* If the result is null, throw an exception. This can be caught
+     * by calling code in the vectorized code path and made to yield
+     * a SQL NULL value.
+     */
+    if (result == null) {
+      throw new ArithmeticException("null divide result");
+    }
+    this.update(result.bigDecimalValue().toPlainString(), newScale);
+    this.unscaledValue.throwIfExceedsTenToThirtyEight();
+  }
+
+  /**
+    * Performs decimal modulo
+    * <p>
+    * The definition of modulo (x % p) is:
+    *   x - IntegerPart(x / p, resultScale) * p
+    * </p>
+    *
+    * @left
+    *    is x
+    * @right
+    *    is p
+    * @result
+    *    receives the result
+    * @scratch
+    *    scratch space to avoid need to create a new object
+    * @scale
+    *    scale of result
+    */
+   public static void modulo(Decimal128 left, Decimal128 right, Decimal128 result,
+       short scale) {
+
+     // set result to x / p (the quotient)
+     Decimal128.divide(left, right, result, scale);
+
+     // take integer part of it
+     result.zeroFractionPart();
+
+     // multiply by p
+     result.multiplyDestructive(right, scale);
+
+     // negate it
+     result.negateDestructive();
+
+     // add x to it
+     result.addDestructive(left, scale);
+   }
 
   /**
    * Makes this {@code Decimal128} a positive number. Unlike
@@ -1343,7 +1513,7 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
       cmp = this.unscaledValue.compareToScaleTen(val.unscaledValue,
           (short) (this.scale - val.scale));
     } else {
-      cmp = val.unscaledValue.compareToScaleTen(this.unscaledValue,
+      cmp = - val.unscaledValue.compareToScaleTen(this.unscaledValue,
           (short) (val.scale - this.scale));
     }
     return cmp * this.signum;
@@ -1362,7 +1532,7 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    * @return {@code true} if and only if the specified {@code Object} is a
    *         {@code Decimal128} whose value and scale are equal to this
    *         {@code Decimal128}'s.
-   * @see #compareTo(java.math.Decimal128)
+   * @see #compareTo(Decimal128)
    * @see #hashCode
    */
   @Override
@@ -1417,20 +1587,25 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
    */
   @Override
   public long longValue() {
+
+    // Avoid allocating temporary variables for special cases: signum or scale is zero
     if (signum == 0) {
       return 0L;
     }
-
-    long ret;
     if (scale == 0) {
-      ret = (this.unscaledValue.getV1()) << 32L | this.unscaledValue.getV0();
+      long ret;
+      ret = this.unscaledValue.getV1();
+      ret <<= 32L;
+      ret |= SqlMathUtil.LONG_MASK & this.unscaledValue.getV0();
+      if (signum >= 0) {
+        return ret;
+      } else {
+        return -ret;
+      }
     } else {
-      UnsignedInt128 tmp = new UnsignedInt128(this.unscaledValue);
-      tmp.scaleDownTenDestructive(scale);
-      ret = (tmp.getV1()) << 32L | tmp.getV0();
+      HiveDecimal hd = HiveDecimal.create(this.toBigDecimal());
+      return hd.longValue();
     }
-
-    return SqlMathUtil.setSignBitLong(ret, signum > 0);
   }
 
   /**
@@ -1551,6 +1726,67 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
   }
 
   /**
+   * Temporary array used in {@link #getHiveDecimalString}
+   */
+  private int [] tmpArray = new int[2];
+
+  /**
+   * Returns the string representation of this value. It discards the trailing zeros
+   * in the fractional part to match the HiveDecimal's string representation. However,
+   * don't use this string representation for the reconstruction of the object.
+   *
+   * @return string representation of this value
+   */
+  public String getHiveDecimalString() {
+    if (this.signum == 0) {
+      return "0";
+    }
+
+    StringBuilder buf = new StringBuilder(50);
+    if (this.signum < 0) {
+      buf.append('-');
+    }
+
+    char [] unscaled = this.unscaledValue.getDigitsArray(tmpArray);
+    int unscaledLength = tmpArray[0];
+    int trailingZeros = tmpArray[1];
+    int numIntegerDigits = unscaledLength - this.scale;
+    if (numIntegerDigits > 0) {
+
+      // write out integer part first
+      // then write out fractional part
+      for (int i=0; i < numIntegerDigits; i++) {
+        buf.append(unscaled[i]);
+      }
+
+      if (this.scale > trailingZeros) {
+        buf.append('.');
+        for (int i = numIntegerDigits; i < (unscaledLength - trailingZeros); i++) {
+          buf.append(unscaled[i]);
+        }
+      }
+    } else {
+
+      // no integer part
+      buf.append('0');
+
+      if (this.scale > trailingZeros) {
+
+        // fractional part has, starting with zeros
+        buf.append('.');
+        for (int i = unscaledLength; i < this.scale; ++i) {
+          buf.append('0');
+        }
+        for (int i = 0; i < (unscaledLength - trailingZeros); i++) {
+          buf.append(unscaled[i]);
+        }
+      }
+    }
+
+    return new String(buf);
+  }
+
+  /**
    * Returns the formal string representation of this value. Unlike the debug
    * string returned by {@link #toString()}, this method returns a string that
    * can be used to re-construct this object. Remember, toString() is only for
@@ -1613,4 +1849,137 @@ public final class Decimal128 extends Number implements Comparable<Decimal128> {
   public void setNullDataValue() {
     unscaledValue.update(1, 0, 0, 0);
   }
+
+  /**
+   * Update the value to a decimal value with the decimal point equal to
+   * val but with the decimal point inserted scale
+   * digits from the right. Behavior is undefined if scale is > 38 or < 0.
+   *
+   * For example, updateFixedPoint(123456789L, (short) 3) changes the target
+   * to the value 123456.789 with scale 3.
+   */
+  public void updateFixedPoint(long val, short scale) {
+    this.scale = scale;
+    if (val < 0L) {
+      this.unscaledValue.update(-val);
+      this.signum = -1;
+    } else if (val == 0L) {
+      zeroClear();
+    } else {
+      this.unscaledValue.update(val);
+      this.signum = 1;
+    }
+  }
+
+  /**
+   * Zero the fractional part of value.
+   *
+   * Argument scratch is needed to hold unused remainder output, to avoid need to
+   * create a new object.
+   */
+  public void zeroFractionPart(UnsignedInt128 scratch) {
+    short placesToRemove = this.getScale();
+
+    // If there's no fraction part, return immediately to avoid the cost of a divide.
+    if (placesToRemove == 0) {
+      return;
+    }
+
+    /* Divide by a power of 10 equal to 10**scale to logically shift the digits
+     * places right by "scale" positions to eliminate them.
+     */
+    UnsignedInt128 powerTenDivisor = SqlMathUtil.POWER_TENS_INT128[placesToRemove];
+
+    this.getUnscaledValue().divideDestructive(powerTenDivisor, scratch);
+
+    /* Multiply by the same power of ten to shift the decimal point back to
+     * the original place. Places to the right of the decimal will be zero.
+     */
+    this.getUnscaledValue().scaleUpTenDestructive(placesToRemove);
+
+    if (this.unscaledValue.isZero()) {
+      this.signum = 0;
+    }
+  }
+
+  public void zeroFractionPart() {
+    /* A scratch variable is created here. This could be optimized in the future
+     * by perhaps using thread-local storage to allocate this scratch field.
+     */
+    UnsignedInt128 scratch = new UnsignedInt128();
+    zeroFractionPart(scratch);
+  }
+
+  /**
+   * Multiplies this with this, updating this
+   * 
+   * @return self
+   */
+  public Decimal128 squareDestructive() {
+     this.multiplyDestructive(this, this.getScale());
+     return this;
+  }
+
+  /**
+   * For UDAF variance we use the algorithm described by Chan, Golub, and LeVeque in
+   * "Algorithms for computing the sample variance: analysis and recommendations"
+   * The American Statistician, 37 (1983) pp. 242--247.
+   *
+   * variance = variance1 + variance2 + n/(m*(m+n)) * pow(((m/n)*t1 - t2),2)
+   *
+   * where: - variance is sum[x-avg^2] (this is actually n times the variance)
+   * and is updated at every step. - n is the count of elements in chunk1 - m is
+   * the count of elements in chunk2 - t1 = sum of elements in chunk1, t2 =
+   * sum of elements in chunk2.
+   *
+   * This is a helper function doing the intermediate computation:
+   *   t = myagg.count*value - myagg.sum;
+   *   myagg.variance += (t*t) / ((double)myagg.count*(myagg.count-1));
+   *
+   * @return self
+   */
+  public Decimal128 updateVarianceDestructive(
+          Decimal128 scratch, Decimal128 value, Decimal128 sum, long count) {
+      scratch.update(count);
+      scratch.multiplyDestructive(value, value.getScale());
+      scratch.subtractDestructive(sum, sum.getScale());
+      scratch.squareDestructive();
+      scratch.unscaledValue.divideDestructive(count * (count-1));
+      this.addDestructive(scratch, getScale());
+      return this;
+  }
+
+  /**
+   * Fats update from BigInteger two's complement representation
+   * @param internalStorage BigInteger two's complement representation of the unscaled value
+   * @param scale
+   */
+  public Decimal128 fastUpdateFromInternalStorage(byte[] internalStorage, short scale) {
+    this.scale = scale;
+    this.signum = this.unscaledValue.fastUpdateFromInternalStorage(internalStorage);
+
+    return this;
+  }
+
+  /**
+   * This setter is only for de-serialization, should not be used otherwise.
+   */
+  public void setUnscaledValue(UnsignedInt128 unscaledValue) {
+    this.unscaledValue = unscaledValue;
+  }
+
+  /**
+   * This setter is only for de-serialization, should not be used otherwise.
+   */
+  public void setScale(short scale) {
+    this.scale = scale;
+  }
+
+  /**
+   * This setter is only for de-serialization, should not be used otherwise.
+   */
+  public void setSignum(byte signum) {
+    this.signum = signum;
+  }
 }
+

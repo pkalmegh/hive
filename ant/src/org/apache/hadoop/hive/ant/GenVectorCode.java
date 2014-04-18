@@ -119,6 +119,15 @@ public class GenVectorCode extends Task {
       {"ColumnArithmeticColumnDecimal", "Subtract"},
       {"ColumnArithmeticColumnDecimal", "Multiply"},
 
+      {"ColumnDivideScalarDecimal", "Divide"},
+      {"ColumnDivideScalarDecimal", "Modulo"},
+
+      {"ScalarDivideColumnDecimal", "Divide"},
+      {"ScalarDivideColumnDecimal", "Modulo"},
+
+      {"ColumnDivideColumnDecimal", "Divide"},
+      {"ColumnDivideColumnDecimal", "Modulo"},
+
       {"ColumnCompareScalar", "Equal", "long", "double", "=="},
       {"ColumnCompareScalar", "Equal", "double", "double", "=="},
       {"ColumnCompareScalar", "NotEqual", "long", "double", "!="},
@@ -320,6 +329,9 @@ public class GenVectorCode extends Task {
       {"FilterColumnBetween", "long", "!"},
       {"FilterColumnBetween", "double", "!"},
 
+        {"FilterDecimalColumnBetween", ""},
+        {"FilterDecimalColumnBetween", "!"},
+
       {"ColumnCompareColumn", "Equal", "long", "double", "=="},
       {"ColumnCompareColumn", "Equal", "double", "double", "=="},
       {"ColumnCompareColumn", "NotEqual", "long", "double", "!="},
@@ -400,6 +412,13 @@ public class GenVectorCode extends Task {
       {"ColumnUnaryFunc", "FuncSign", "double", "double", "MathExpr.sign", "", "", ""},
       {"ColumnUnaryFunc", "FuncSign", "double", "long", "MathExpr.sign", "(double)", "", ""},
 
+      {"DecimalColumnUnaryFunc", "FuncFloor", "decimal", "DecimalUtil.floor"},
+      {"DecimalColumnUnaryFunc", "FuncCeil", "decimal", "DecimalUtil.ceiling"},
+      {"DecimalColumnUnaryFunc", "FuncAbs", "decimal", "DecimalUtil.abs"},
+      {"DecimalColumnUnaryFunc", "FuncSign", "long", "DecimalUtil.sign"},
+      {"DecimalColumnUnaryFunc", "FuncRound", "decimal", "DecimalUtil.round"},
+      {"DecimalColumnUnaryFunc", "FuncNegate", "decimal", "DecimalUtil.negate"},
+
       // Casts
       {"ColumnUnaryFunc", "Cast", "long", "double", "", "", "(long)", ""},
       {"ColumnUnaryFunc", "Cast", "double", "long", "", "", "(double)", ""},
@@ -451,6 +470,11 @@ public class GenVectorCode extends Task {
       {"VectorUDAFMinMax", "VectorUDAFMaxDouble", "double", ">", "max",
           "_FUNC_(expr) - Returns the maximum value of expr (vectorized, type: double)"},
 
+      {"VectorUDAFMinMaxDecimal", "VectorUDAFMaxDecimal", "<", "max",
+          "_FUNC_(expr) - Returns the maximum value of expr (vectorized, type: decimal)"},
+      {"VectorUDAFMinMaxDecimal", "VectorUDAFMinDecimal", ">", "min",
+          "_FUNC_(expr) - Returns the minimum value of expr (vectorized, type: decimal)"},
+
       {"VectorUDAFMinMaxString", "VectorUDAFMinString", "<", "min",
           "_FUNC_(expr) - Returns the minimum value of expr (vectorized, type: string)"},
       {"VectorUDAFMinMaxString", "VectorUDAFMaxString", ">", "max",
@@ -470,24 +494,36 @@ public class GenVectorCode extends Task {
       {"VectorUDAFVar", "VectorUDAFVarPopDouble", "double", "myagg.variance / myagg.count",
           "variance, var_pop",
           "_FUNC_(x) - Returns the variance of a set of numbers (vectorized, double)"},
+      {"VectorUDAFVarDecimal", "VectorUDAFVarPopDecimal", "myagg.variance / myagg.count",
+          "variance, var_pop",
+          "_FUNC_(x) - Returns the variance of a set of numbers (vectorized, decimal)"},
       {"VectorUDAFVar", "VectorUDAFVarSampLong", "long", "myagg.variance / (myagg.count-1.0)",
           "var_samp",
           "_FUNC_(x) - Returns the sample variance of a set of numbers (vectorized, long)"},
       {"VectorUDAFVar", "VectorUDAFVarSampDouble", "double", "myagg.variance / (myagg.count-1.0)",
           "var_samp",
           "_FUNC_(x) - Returns the sample variance of a set of numbers (vectorized, double)"},
+      {"VectorUDAFVarDecimal", "VectorUDAFVarSampDecimal", "myagg.variance / (myagg.count-1.0)",
+          "var_samp",
+          "_FUNC_(x) - Returns the sample variance of a set of numbers (vectorized, decimal)"},
       {"VectorUDAFVar", "VectorUDAFStdPopLong", "long",
           "Math.sqrt(myagg.variance / (myagg.count))", "std,stddev,stddev_pop",
           "_FUNC_(x) - Returns the standard deviation of a set of numbers (vectorized, long)"},
       {"VectorUDAFVar", "VectorUDAFStdPopDouble", "double",
           "Math.sqrt(myagg.variance / (myagg.count))", "std,stddev,stddev_pop",
           "_FUNC_(x) - Returns the standard deviation of a set of numbers (vectorized, double)"},
+      {"VectorUDAFVarDecimal", "VectorUDAFStdPopDecimal",
+          "Math.sqrt(myagg.variance / (myagg.count))", "std,stddev,stddev_pop",
+          "_FUNC_(x) - Returns the standard deviation of a set of numbers (vectorized, decimal)"},
       {"VectorUDAFVar", "VectorUDAFStdSampLong", "long",
           "Math.sqrt(myagg.variance / (myagg.count-1.0))", "stddev_samp",
           "_FUNC_(x) - Returns the sample standard deviation of a set of numbers (vectorized, long)"},
       {"VectorUDAFVar", "VectorUDAFStdSampDouble", "double",
           "Math.sqrt(myagg.variance / (myagg.count-1.0))", "stddev_samp",
           "_FUNC_(x) - Returns the sample standard deviation of a set of numbers (vectorized, double)"},
+      {"VectorUDAFVarDecimal", "VectorUDAFStdSampDecimal",
+          "Math.sqrt(myagg.variance / (myagg.count-1.0))", "stddev_samp",
+          "_FUNC_(x) - Returns the sample standard deviation of a set of numbers (vectorized, decimal)"},
 
     };
 
@@ -578,6 +614,12 @@ public class GenVectorCode extends Task {
         generateScalarArithmeticColumnDecimal(tdesc);
       } else if (tdesc[0].equals("ColumnArithmeticColumnDecimal")) {
         generateColumnArithmeticColumnDecimal(tdesc);
+      } else if (tdesc[0].equals("ColumnDivideScalarDecimal")) {
+        generateColumnDivideScalarDecimal(tdesc);
+      } else if (tdesc[0].equals("ScalarDivideColumnDecimal")) {
+        generateScalarDivideColumnDecimal(tdesc);
+      } else if (tdesc[0].equals("ColumnDivideColumnDecimal")) {
+        generateColumnDivideColumnDecimal(tdesc);
       } else if (tdesc[0].equals("ColumnCompareScalar")) {
         generateColumnCompareScalar(tdesc);
       } else if (tdesc[0].equals("ScalarCompareColumn")) {
@@ -600,20 +642,28 @@ public class GenVectorCode extends Task {
         generateColumnUnaryMinus(tdesc);
       } else if (tdesc[0].equals("ColumnUnaryFunc")) {
         generateColumnUnaryFunc(tdesc);
+      } else if (tdesc[0].equals("DecimalColumnUnaryFunc")) {
+        generateDecimalColumnUnaryFunc(tdesc);
       } else if (tdesc[0].equals("VectorUDAFMinMax")) {
         generateVectorUDAFMinMax(tdesc);
       } else if (tdesc[0].equals("VectorUDAFMinMaxString")) {
         generateVectorUDAFMinMaxString(tdesc);
+      } else if (tdesc[0].equals("VectorUDAFMinMaxDecimal")) {
+        generateVectorUDAFMinMaxDecimal(tdesc);
       } else if (tdesc[0].equals("VectorUDAFSum")) {
         generateVectorUDAFSum(tdesc);
       } else if (tdesc[0].equals("VectorUDAFAvg")) {
         generateVectorUDAFAvg(tdesc);
       } else if (tdesc[0].equals("VectorUDAFVar")) {
         generateVectorUDAFVar(tdesc);
+      } else if (tdesc[0].equals("VectorUDAFVarDecimal")) {
+        generateVectorUDAFVarDecimal(tdesc);
       } else if (tdesc[0].equals("FilterStringColumnCompareScalar")) {
         generateFilterStringColumnCompareScalar(tdesc);
       } else if (tdesc[0].equals("FilterStringColumnBetween")) {
         generateFilterStringColumnBetween(tdesc);
+      } else if (tdesc[0].equals("FilterDecimalColumnBetween")) {
+        generateFilterDecimalColumnBetween(tdesc);
       } else if (tdesc[0].equals("StringColumnCompareScalar")) {
         generateStringColumnCompareScalar(tdesc);
       } else if (tdesc[0].equals("FilterStringScalarCompareColumn")) {
@@ -660,7 +710,21 @@ public class GenVectorCode extends Task {
         className, templateString);
   }
 
-  private void generateFilterColumnBetween(String[] tdesc) throws IOException {
+  private void generateFilterDecimalColumnBetween(String[] tdesc) throws IOException {
+    String optionalNot = tdesc[1];
+    String className = "FilterDecimalColumn" + (optionalNot.equals("!") ? "Not" : "")
+        + "Between";
+    // Read the template into a string, expand it, and write it.
+    File templateFile = new File(joinPath(this.expressionTemplateDirectory, tdesc[0] + ".txt"));
+    String templateString = readFile(templateFile);
+    templateString = templateString.replaceAll("<ClassName>", className);
+    templateString = templateString.replaceAll("<OptionalNot>", optionalNot);
+
+    writeFile(templateFile.lastModified(), expressionOutputDirectory, expressionClassesDirectory,
+        className, templateString);
+  }
+
+  private void generateFilterColumnBetween(String[] tdesc) throws Exception {
     String operandType = tdesc[1];
     String optionalNot = tdesc[2];
 
@@ -680,7 +744,7 @@ public class GenVectorCode extends Task {
         className, templateString);
   }
 
-  private void generateColumnCompareColumn(String[] tdesc) throws IOException {
+  private void generateColumnCompareColumn(String[] tdesc) throws Exception {
     //The variables are all same as ColumnCompareScalar except that
     //this template doesn't need a return type. Pass anything as return type.
     String operatorName = tdesc[1];
@@ -733,6 +797,23 @@ public class GenVectorCode extends Task {
         className, templateString);
   }
 
+  private void generateVectorUDAFMinMaxDecimal(String[] tdesc) throws Exception {
+      String className = tdesc[1];
+      String operatorSymbol = tdesc[2];
+      String descName = tdesc[3];
+      String descValue = tdesc[4];
+
+      File templateFile = new File(joinPath(this.udafTemplateDirectory, tdesc[0] + ".txt"));
+
+      String templateString = readFile(templateFile);
+      templateString = templateString.replaceAll("<ClassName>", className);
+      templateString = templateString.replaceAll("<OperatorSymbol>", operatorSymbol);
+      templateString = templateString.replaceAll("<DescriptionName>", descName);
+      templateString = templateString.replaceAll("<DescriptionValue>", descValue);
+      writeFile(templateFile.lastModified(), udafOutputDirectory, udafClassesDirectory,
+          className, templateString);
+    }
+
   private void generateVectorUDAFSum(String[] tdesc) throws Exception {
   //template, <ClassName>, <ValueType>, <OutputType>, <OutputTypeInspector>
     String className = tdesc[1];
@@ -753,7 +834,7 @@ public class GenVectorCode extends Task {
         className, templateString);
   }
 
-  private void generateVectorUDAFAvg(String[] tdesc) throws IOException {
+  private void generateVectorUDAFAvg(String[] tdesc) throws Exception {
     String className = tdesc[1];
     String valueType = tdesc[2];
     String columnType = getColumnVectorType(valueType);
@@ -768,7 +849,7 @@ public class GenVectorCode extends Task {
         className, templateString);
   }
 
-  private void generateVectorUDAFVar(String[] tdesc) throws IOException {
+  private void generateVectorUDAFVar(String[] tdesc) throws Exception {
     String className = tdesc[1];
     String valueType = tdesc[2];
     String varianceFormula = tdesc[3];
@@ -789,6 +870,24 @@ public class GenVectorCode extends Task {
         className, templateString);
   }
 
+  private void generateVectorUDAFVarDecimal(String[] tdesc) throws Exception {
+      String className = tdesc[1];
+      String varianceFormula = tdesc[2];
+      String descriptionName = tdesc[3];
+      String descriptionValue = tdesc[4];
+
+      File templateFile = new File(joinPath(this.udafTemplateDirectory, tdesc[0] + ".txt"));
+
+      String templateString = readFile(templateFile);
+      templateString = templateString.replaceAll("<ClassName>", className);
+      templateString = templateString.replaceAll("<VarianceFormula>", varianceFormula);
+      templateString = templateString.replaceAll("<DescriptionName>", descriptionName);
+      templateString = templateString.replaceAll("<DescriptionValue>", descriptionValue);
+      writeFile(templateFile.lastModified(), udafOutputDirectory, udafClassesDirectory,
+          className, templateString);
+    }
+  
+  
   private void generateFilterStringScalarCompareColumn(String[] tdesc) throws IOException {
     String operatorName = tdesc[1];
     String className = "FilterStringScalar" + operatorName + "StringColumn";
@@ -842,7 +941,7 @@ public class GenVectorCode extends Task {
         className, templateString);
   }
 
-  private void generateFilterColumnCompareColumn(String[] tdesc) throws IOException {
+  private void generateFilterColumnCompareColumn(String[] tdesc) throws Exception {
     //The variables are all same as ColumnCompareScalar except that
     //this template doesn't need a return type. Pass anything as return type.
     String operatorName = tdesc[1];
@@ -853,7 +952,7 @@ public class GenVectorCode extends Task {
     generateColumnBinaryOperatorColumn(tdesc, null, className);
   }
 
-  private void generateColumnUnaryMinus(String[] tdesc) throws IOException {
+  private void generateColumnUnaryMinus(String[] tdesc) throws Exception {
     String operandType = tdesc[1];
     String inputColumnVectorType = this.getColumnVectorType(operandType);
     String outputColumnVectorType = inputColumnVectorType;
@@ -871,7 +970,7 @@ public class GenVectorCode extends Task {
         className, templateString);
   }
 
-  private void generateIfExprColumnColumn(String[] tdesc) throws IOException {
+  private void generateIfExprColumnColumn(String[] tdesc) throws Exception {
     String operandType = tdesc[1];
     String inputColumnVectorType = this.getColumnVectorType(operandType);
     String outputColumnVectorType = inputColumnVectorType;
@@ -889,7 +988,7 @@ public class GenVectorCode extends Task {
         className, templateString);
   }
 
-  private void generateIfExprColumnScalar(String[] tdesc) throws IOException {
+  private void generateIfExprColumnScalar(String[] tdesc) throws Exception {
     String operandType2 = tdesc[1];
     String operandType3 = tdesc[2];
     String arg2ColumnVectorType = this.getColumnVectorType(operandType2);
@@ -911,7 +1010,7 @@ public class GenVectorCode extends Task {
         className, templateString);
   }
 
-  private void generateIfExprScalarColumn(String[] tdesc) throws IOException {
+  private void generateIfExprScalarColumn(String[] tdesc) throws Exception {
     String operandType2 = tdesc[1];
     String operandType3 = tdesc[2];
     String arg3ColumnVectorType = this.getColumnVectorType(operandType3);
@@ -933,7 +1032,7 @@ public class GenVectorCode extends Task {
         className, templateString);
   }
 
-  private void generateIfExprScalarScalar(String[] tdesc) throws IOException {
+  private void generateIfExprScalarScalar(String[] tdesc) throws Exception {
     String operandType2 = tdesc[1];
     String operandType3 = tdesc[2];
     String arg3ColumnVectorType = this.getColumnVectorType(operandType3);
@@ -954,8 +1053,27 @@ public class GenVectorCode extends Task {
         className, templateString);
   }
 
+  // template, <ClassNamePrefix>, <ReturnType>, <FuncName>
+  private void generateDecimalColumnUnaryFunc(String [] tdesc) throws Exception {
+    String classNamePrefix = tdesc[1];
+    String returnType = tdesc[2];
+    String operandType = "decimal";
+    String outputColumnVectorType = this.getColumnVectorType(returnType);
+    String className = classNamePrefix + getCamelCaseType(operandType) + "To"
+        + getCamelCaseType(returnType);
+    File templateFile = new File(joinPath(this.expressionTemplateDirectory, tdesc[0] + ".txt"));
+    String templateString = readFile(templateFile);
+    String funcName = tdesc[3];
+    // Expand, and write result
+    templateString = templateString.replaceAll("<ClassName>", className);
+    templateString = templateString.replaceAll("<OutputColumnVectorType>", outputColumnVectorType);
+    templateString = templateString.replaceAll("<FuncName>", funcName);
+    writeFile(templateFile.lastModified(), expressionOutputDirectory, expressionClassesDirectory,
+        className, templateString);
+  }
+
   // template, <ClassNamePrefix>, <ReturnType>, <OperandType>, <FuncName>, <OperandCast>, <ResultCast>
-  private void generateColumnUnaryFunc(String[] tdesc) throws IOException {
+  private void generateColumnUnaryFunc(String[] tdesc) throws Exception {
     String classNamePrefix = tdesc[1];
     String operandType = tdesc[3];
     String inputColumnVectorType = this.getColumnVectorType(operandType);
@@ -983,7 +1101,7 @@ public class GenVectorCode extends Task {
         className, templateString);
   }
 
-  private void generateColumnArithmeticColumn(String [] tdesc) throws IOException {
+  private void generateColumnArithmeticColumn(String [] tdesc) throws Exception {
     String operatorName = tdesc[1];
     String operandType1 = tdesc[2];
     String operandType2 = tdesc[3];
@@ -993,7 +1111,7 @@ public class GenVectorCode extends Task {
     generateColumnBinaryOperatorColumn(tdesc, returnType, className);
   }
 
-  private void generateFilterColumnCompareScalar(String[] tdesc) throws IOException {
+  private void generateFilterColumnCompareScalar(String[] tdesc) throws Exception {
     //The variables are all same as ColumnCompareScalar except that
     //this template doesn't need a return type. Pass anything as return type.
     String operatorName = tdesc[1];
@@ -1004,7 +1122,7 @@ public class GenVectorCode extends Task {
     generateColumnBinaryOperatorScalar(tdesc, null, className);
   }
 
-  private void generateFilterScalarCompareColumn(String[] tdesc) throws IOException {
+  private void generateFilterScalarCompareColumn(String[] tdesc) throws Exception {
     //this template doesn't need a return type. Pass anything as return type.
     String operatorName = tdesc[1];
     String operandType1 = tdesc[2];
@@ -1014,7 +1132,7 @@ public class GenVectorCode extends Task {
     generateScalarBinaryOperatorColumn(tdesc, null, className);
   }
 
-  private void generateColumnCompareScalar(String[] tdesc) throws IOException {
+  private void generateColumnCompareScalar(String[] tdesc) throws Exception {
     String operatorName = tdesc[1];
     String operandType1 = tdesc[2];
     String operandType2 = tdesc[3];
@@ -1024,7 +1142,7 @@ public class GenVectorCode extends Task {
     generateColumnBinaryOperatorScalar(tdesc, returnType, className);
   }
 
-  private void generateScalarCompareColumn(String[] tdesc) throws IOException {
+  private void generateScalarCompareColumn(String[] tdesc) throws Exception {
     String operatorName = tdesc[1];
     String operandType1 = tdesc[2];
     String operandType2 = tdesc[3];
@@ -1035,10 +1153,11 @@ public class GenVectorCode extends Task {
   }
 
   private void generateColumnBinaryOperatorColumn(String[] tdesc, String returnType,
-         String className) throws IOException {
+         String className) throws Exception {
     String operandType1 = tdesc[2];
     String operandType2 = tdesc[3];
-    String outputColumnVectorType = this.getColumnVectorType(returnType);
+    String outputColumnVectorType = this.getColumnVectorType(
+            returnType == null ? "long" : returnType);
     String inputColumnVectorType1 = this.getColumnVectorType(operandType1);
     String inputColumnVectorType2 = this.getColumnVectorType(operandType2);
     String operatorSymbol = tdesc[4];
@@ -1074,10 +1193,11 @@ public class GenVectorCode extends Task {
   }
 
   private void generateColumnBinaryOperatorScalar(String[] tdesc, String returnType,
-     String className) throws IOException {
+     String className) throws Exception {
     String operandType1 = tdesc[2];
     String operandType2 = tdesc[3];
-    String outputColumnVectorType = this.getColumnVectorType(returnType);
+    String outputColumnVectorType = this.getColumnVectorType(
+            returnType == null ? "long" : returnType);
     String inputColumnVectorType = this.getColumnVectorType(operandType1);
     String operatorSymbol = tdesc[4];
 
@@ -1112,10 +1232,11 @@ public class GenVectorCode extends Task {
   }
 
   private void generateScalarBinaryOperatorColumn(String[] tdesc, String returnType,
-     String className) throws IOException {
+     String className) throws Exception {
      String operandType1 = tdesc[2];
      String operandType2 = tdesc[3];
-     String outputColumnVectorType = this.getColumnVectorType(returnType);
+     String outputColumnVectorType = this.getColumnVectorType(
+             returnType == null ? "long" : returnType);
      String inputColumnVectorType = this.getColumnVectorType(operandType2);
      String operatorSymbol = tdesc[4];
 
@@ -1151,7 +1272,7 @@ public class GenVectorCode extends Task {
    }
 
   //Binary arithmetic operator
-  private void generateColumnArithmeticScalar(String[] tdesc) throws IOException {
+  private void generateColumnArithmeticScalar(String[] tdesc) throws Exception {
     String operatorName = tdesc[1];
     String operandType1 = tdesc[2];
     String operandType2 = tdesc[3];
@@ -1203,7 +1324,49 @@ public class GenVectorCode extends Task {
        className, templateString);
   }
 
-  private void generateScalarArithmeticColumn(String[] tdesc) throws IOException {
+  private void generateColumnDivideScalarDecimal(String[] tdesc) throws IOException {
+    String operatorName = tdesc[1];
+    String className = "DecimalCol" + getInitialCapWord(operatorName) + "DecimalScalar";
+
+    // Read the template into a string;
+    File templateFile = new File(joinPath(this.expressionTemplateDirectory, tdesc[0] + ".txt"));
+    String templateString = readFile(templateFile);
+    templateString = templateString.replaceAll("<ClassName>", className);
+    templateString = templateString.replaceAll("<Operator>", operatorName.toLowerCase());
+
+    writeFile(templateFile.lastModified(), expressionOutputDirectory, expressionClassesDirectory,
+       className, templateString);
+  }
+
+  private void generateScalarDivideColumnDecimal(String[] tdesc) throws IOException {
+    String operatorName = tdesc[1];
+    String className = "DecimalScalar" + getInitialCapWord(operatorName) + "DecimalColumn";
+
+    // Read the template into a string;
+    File templateFile = new File(joinPath(this.expressionTemplateDirectory, tdesc[0] + ".txt"));
+    String templateString = readFile(templateFile);
+    templateString = templateString.replaceAll("<ClassName>", className);
+    templateString = templateString.replaceAll("<Operator>", operatorName.toLowerCase());
+
+    writeFile(templateFile.lastModified(), expressionOutputDirectory, expressionClassesDirectory,
+       className, templateString);
+  }
+
+  private void generateColumnDivideColumnDecimal(String[] tdesc) throws IOException {
+    String operatorName = tdesc[1];
+    String className = "DecimalCol" + getInitialCapWord(operatorName) + "DecimalColumn";
+
+    // Read the template into a string;
+    File templateFile = new File(joinPath(this.expressionTemplateDirectory, tdesc[0] + ".txt"));
+    String templateString = readFile(templateFile);
+    templateString = templateString.replaceAll("<ClassName>", className);
+    templateString = templateString.replaceAll("<Operator>", operatorName.toLowerCase());
+
+    writeFile(templateFile.lastModified(), expressionOutputDirectory, expressionClassesDirectory,
+       className, templateString);
+  }
+
+  private void generateScalarArithmeticColumn(String[] tdesc) throws Exception {
     String operatorName = tdesc[1];
     String operandType1 = tdesc[2];
     String operandType2 = tdesc[3];
@@ -1289,9 +1452,19 @@ public class GenVectorCode extends Task {
       return "Long";
     } else if (type.equals("double")) {
       return "Double";
+    } else if (type.equals("decimal")) {
+      return "Decimal";
     } else {
       return type;
     }
+  }
+
+  /**
+   * Return the argument with the first letter capitalized
+   */
+  private static String getInitialCapWord(String word) {
+    String firstLetterAsCap = word.substring(0, 1).toUpperCase();
+    return firstLetterAsCap + word.substring(1);
   }
 
   private String getArithmeticReturnType(String operandType1,
@@ -1304,11 +1477,17 @@ public class GenVectorCode extends Task {
     }
   }
 
-  private String getColumnVectorType(String primitiveType) {
-    if(primitiveType!=null && primitiveType.equals("double")) {
+  private String getColumnVectorType(String primitiveType) throws Exception {
+    if(primitiveType.equals("double")) {
       return "DoubleColumnVector";
+    } else if (primitiveType.equals("long")) {
+        return "LongColumnVector";
+    } else if (primitiveType.equals("decimal")) {
+        return "DecimalColumnVector";
+    } else if (primitiveType.equals("string")) {
+      return "BytesColumnVector";
     }
-    return "LongColumnVector";
+    throw new Exception("Unimplemented primitive column vector type: " + primitiveType);
   }
 
   private String getOutputWritableType(String primitiveType) throws Exception {
@@ -1316,6 +1495,8 @@ public class GenVectorCode extends Task {
       return "LongWritable";
     } else if (primitiveType.equals("double")) {
       return "DoubleWritable";
+    } else if (primitiveType.equals("decimal")) {
+      return "HiveDecimalWritable";
     }
     throw new Exception("Unimplemented primitive output writable: " + primitiveType);
   }
@@ -1325,6 +1506,8 @@ public class GenVectorCode extends Task {
       return "PrimitiveObjectInspectorFactory.writableLongObjectInspector";
     } else if (primitiveType.equals("double")) {
       return "PrimitiveObjectInspectorFactory.writableDoubleObjectInspector";
+    } else if (primitiveType.equals("decimal")) {
+      return "PrimitiveObjectInspectorFactory.writableHiveDecimalObjectInspector";
     }
     throw new Exception("Unimplemented primitive output inspector: " + primitiveType);
   }

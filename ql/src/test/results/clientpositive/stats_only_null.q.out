@@ -1,23 +1,31 @@
 PREHOOK: query: CREATE TABLE temps_null(a double, b int, c STRING, d smallint) STORED AS TEXTFILE
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: CREATE TABLE temps_null(a double, b int, c STRING, d smallint) STORED AS TEXTFILE
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@temps_null
 PREHOOK: query: CREATE TABLE stats_null(a double, b int, c STRING, d smallint) STORED AS TEXTFILE
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: CREATE TABLE stats_null(a double, b int, c STRING, d smallint) STORED AS TEXTFILE
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@stats_null
 PREHOOK: query: CREATE TABLE stats_null_part(a double, b int, c STRING, d smallint) partitioned by (dt string) STORED AS TEXTFILE
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: CREATE TABLE stats_null_part(a double, b int, c STRING, d smallint) partitioned by (dt string) STORED AS TEXTFILE
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@stats_null_part
 PREHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/null.txt' INTO TABLE temps_null
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@temps_null
 POSTHOOK: query: LOAD DATA LOCAL INPATH '../../data/files/null.txt' INTO TABLE temps_null
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@temps_null
 PREHOOK: query: insert overwrite table stats_null select * from temps_null
 PREHOOK: type: QUERY
@@ -85,9 +93,6 @@ POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).a SIMPLE [(temps_null)temp
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).b SIMPLE [(temps_null)temps_null.FieldSchema(name:b, type:int, comment:null), ]
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).c SIMPLE [(temps_null)temps_null.FieldSchema(name:c, type:string, comment:null), ]
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).d SIMPLE [(temps_null)temps_null.FieldSchema(name:d, type:smallint, comment:null), ]
-ABSTRACT SYNTAX TREE:
-  (TOK_QUERY (TOK_FROM (TOK_TABREF (TOK_TABNAME stats_null))) (TOK_INSERT (TOK_DESTINATION (TOK_DIR TOK_TMP_FILE)) (TOK_SELECT (TOK_SELEXPR (TOK_FUNCTIONSTAR count)) (TOK_SELEXPR (TOK_FUNCTION count (TOK_TABLE_OR_COL a))) (TOK_SELEXPR (TOK_FUNCTION count (TOK_TABLE_OR_COL b))) (TOK_SELEXPR (TOK_FUNCTION count (TOK_TABLE_OR_COL c))) (TOK_SELEXPR (TOK_FUNCTION count (TOK_TABLE_OR_COL d))))))
-
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
   Stage-0 is a root stage
@@ -95,72 +100,36 @@ STAGE DEPENDENCIES:
 STAGE PLANS:
   Stage: Stage-1
     Map Reduce
-      Alias -> Map Operator Tree:
-        stats_null 
+      Map Operator Tree:
           TableScan
             alias: stats_null
+            Statistics: Num rows: 10 Data size: 120 Basic stats: COMPLETE Column stats: NONE
             Select Operator
-              expressions:
-                    expr: a
-                    type: double
-                    expr: b
-                    type: int
-                    expr: c
-                    type: string
-                    expr: d
-                    type: smallint
+              expressions: a (type: double), b (type: int), c (type: string), d (type: smallint)
               outputColumnNames: a, b, c, d
+              Statistics: Num rows: 10 Data size: 120 Basic stats: COMPLETE Column stats: NONE
               Group By Operator
-                aggregations:
-                      expr: count()
-                      expr: count(a)
-                      expr: count(b)
-                      expr: count(c)
-                      expr: count(d)
-                bucketGroup: false
+                aggregations: count(), count(a), count(b), count(c), count(d)
                 mode: hash
                 outputColumnNames: _col0, _col1, _col2, _col3, _col4
+                Statistics: Num rows: 1 Data size: 40 Basic stats: COMPLETE Column stats: NONE
                 Reduce Output Operator
                   sort order: 
-                  tag: -1
-                  value expressions:
-                        expr: _col0
-                        type: bigint
-                        expr: _col1
-                        type: bigint
-                        expr: _col2
-                        type: bigint
-                        expr: _col3
-                        type: bigint
-                        expr: _col4
-                        type: bigint
+                  Statistics: Num rows: 1 Data size: 40 Basic stats: COMPLETE Column stats: NONE
+                  value expressions: _col0 (type: bigint), _col1 (type: bigint), _col2 (type: bigint), _col3 (type: bigint), _col4 (type: bigint)
       Reduce Operator Tree:
         Group By Operator
-          aggregations:
-                expr: count(VALUE._col0)
-                expr: count(VALUE._col1)
-                expr: count(VALUE._col2)
-                expr: count(VALUE._col3)
-                expr: count(VALUE._col4)
-          bucketGroup: false
+          aggregations: count(VALUE._col0), count(VALUE._col1), count(VALUE._col2), count(VALUE._col3), count(VALUE._col4)
           mode: mergepartial
           outputColumnNames: _col0, _col1, _col2, _col3, _col4
+          Statistics: Num rows: 1 Data size: 40 Basic stats: COMPLETE Column stats: NONE
           Select Operator
-            expressions:
-                  expr: _col0
-                  type: bigint
-                  expr: _col1
-                  type: bigint
-                  expr: _col2
-                  type: bigint
-                  expr: _col3
-                  type: bigint
-                  expr: _col4
-                  type: bigint
+            expressions: _col0 (type: bigint), _col1 (type: bigint), _col2 (type: bigint), _col3 (type: bigint), _col4 (type: bigint)
             outputColumnNames: _col0, _col1, _col2, _col3, _col4
+            Statistics: Num rows: 1 Data size: 40 Basic stats: COMPLETE Column stats: NONE
             File Output Operator
               compressed: false
-              GlobalTableId: 0
+              Statistics: Num rows: 1 Data size: 40 Basic stats: COMPLETE Column stats: NONE
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
@@ -188,9 +157,6 @@ POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).a SIMPLE [(temps_null)temp
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).b SIMPLE [(temps_null)temps_null.FieldSchema(name:b, type:int, comment:null), ]
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).c SIMPLE [(temps_null)temps_null.FieldSchema(name:c, type:string, comment:null), ]
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).d SIMPLE [(temps_null)temps_null.FieldSchema(name:d, type:smallint, comment:null), ]
-ABSTRACT SYNTAX TREE:
-  (TOK_QUERY (TOK_FROM (TOK_TABREF (TOK_TABNAME stats_null_part))) (TOK_INSERT (TOK_DESTINATION (TOK_DIR TOK_TMP_FILE)) (TOK_SELECT (TOK_SELEXPR (TOK_FUNCTIONSTAR count)) (TOK_SELEXPR (TOK_FUNCTION count (TOK_TABLE_OR_COL a))) (TOK_SELEXPR (TOK_FUNCTION count (TOK_TABLE_OR_COL b))) (TOK_SELEXPR (TOK_FUNCTION count (TOK_TABLE_OR_COL c))) (TOK_SELEXPR (TOK_FUNCTION count (TOK_TABLE_OR_COL d))))))
-
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
   Stage-0 is a root stage
@@ -198,72 +164,36 @@ STAGE DEPENDENCIES:
 STAGE PLANS:
   Stage: Stage-1
     Map Reduce
-      Alias -> Map Operator Tree:
-        stats_null_part 
+      Map Operator Tree:
           TableScan
             alias: stats_null_part
+            Statistics: Num rows: 10 Data size: 120 Basic stats: COMPLETE Column stats: NONE
             Select Operator
-              expressions:
-                    expr: a
-                    type: double
-                    expr: b
-                    type: int
-                    expr: c
-                    type: string
-                    expr: d
-                    type: smallint
+              expressions: a (type: double), b (type: int), c (type: string), d (type: smallint)
               outputColumnNames: a, b, c, d
+              Statistics: Num rows: 10 Data size: 120 Basic stats: COMPLETE Column stats: NONE
               Group By Operator
-                aggregations:
-                      expr: count()
-                      expr: count(a)
-                      expr: count(b)
-                      expr: count(c)
-                      expr: count(d)
-                bucketGroup: false
+                aggregations: count(), count(a), count(b), count(c), count(d)
                 mode: hash
                 outputColumnNames: _col0, _col1, _col2, _col3, _col4
+                Statistics: Num rows: 1 Data size: 40 Basic stats: COMPLETE Column stats: NONE
                 Reduce Output Operator
                   sort order: 
-                  tag: -1
-                  value expressions:
-                        expr: _col0
-                        type: bigint
-                        expr: _col1
-                        type: bigint
-                        expr: _col2
-                        type: bigint
-                        expr: _col3
-                        type: bigint
-                        expr: _col4
-                        type: bigint
+                  Statistics: Num rows: 1 Data size: 40 Basic stats: COMPLETE Column stats: NONE
+                  value expressions: _col0 (type: bigint), _col1 (type: bigint), _col2 (type: bigint), _col3 (type: bigint), _col4 (type: bigint)
       Reduce Operator Tree:
         Group By Operator
-          aggregations:
-                expr: count(VALUE._col0)
-                expr: count(VALUE._col1)
-                expr: count(VALUE._col2)
-                expr: count(VALUE._col3)
-                expr: count(VALUE._col4)
-          bucketGroup: false
+          aggregations: count(VALUE._col0), count(VALUE._col1), count(VALUE._col2), count(VALUE._col3), count(VALUE._col4)
           mode: mergepartial
           outputColumnNames: _col0, _col1, _col2, _col3, _col4
+          Statistics: Num rows: 1 Data size: 40 Basic stats: COMPLETE Column stats: NONE
           Select Operator
-            expressions:
-                  expr: _col0
-                  type: bigint
-                  expr: _col1
-                  type: bigint
-                  expr: _col2
-                  type: bigint
-                  expr: _col3
-                  type: bigint
-                  expr: _col4
-                  type: bigint
+            expressions: _col0 (type: bigint), _col1 (type: bigint), _col2 (type: bigint), _col3 (type: bigint), _col4 (type: bigint)
             outputColumnNames: _col0, _col1, _col2, _col3, _col4
+            Statistics: Num rows: 1 Data size: 40 Basic stats: COMPLETE Column stats: NONE
             File Output Operator
               compressed: false
-              GlobalTableId: 0
+              Statistics: Num rows: 1 Data size: 40 Basic stats: COMPLETE Column stats: NONE
               table:
                   input format: org.apache.hadoop.mapred.TextInputFormat
                   output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
@@ -339,8 +269,10 @@ POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).c SIMPLE [(temps_null)temp
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).d SIMPLE [(temps_null)temps_null.FieldSchema(name:d, type:smallint, comment:null), ]
 PREHOOK: query: describe formatted stats_null_part partition (dt='2010')
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@stats_null_part
 POSTHOOK: query: describe formatted stats_null_part partition (dt='2010')
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@stats_null_part
 POSTHOOK: Lineage: stats_null.a SIMPLE [(temps_null)temps_null.FieldSchema(name:a, type:double, comment:null), ]
 POSTHOOK: Lineage: stats_null.b SIMPLE [(temps_null)temps_null.FieldSchema(name:b, type:int, comment:null), ]
 POSTHOOK: Lineage: stats_null.c SIMPLE [(temps_null)temps_null.FieldSchema(name:c, type:string, comment:null), ]
@@ -355,15 +287,15 @@ POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).c SIMPLE [(temps_null)temp
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).d SIMPLE [(temps_null)temps_null.FieldSchema(name:d, type:smallint, comment:null), ]
 # col_name            	data_type           	comment             
 	 	 
-a                   	double              	None                
-b                   	int                 	None                
-c                   	string              	None                
-d                   	smallint            	None                
+a                   	double              	                    
+b                   	int                 	                    
+c                   	string              	                    
+d                   	smallint            	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-dt                  	string              	None                
+dt                  	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[2010]              	 
@@ -392,8 +324,10 @@ Storage Desc Params:
 	serialization.format	1                   
 PREHOOK: query: describe formatted stats_null_part partition (dt='2011')
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@stats_null_part
 POSTHOOK: query: describe formatted stats_null_part partition (dt='2011')
 POSTHOOK: type: DESCTABLE
+POSTHOOK: Input: default@stats_null_part
 POSTHOOK: Lineage: stats_null.a SIMPLE [(temps_null)temps_null.FieldSchema(name:a, type:double, comment:null), ]
 POSTHOOK: Lineage: stats_null.b SIMPLE [(temps_null)temps_null.FieldSchema(name:b, type:int, comment:null), ]
 POSTHOOK: Lineage: stats_null.c SIMPLE [(temps_null)temps_null.FieldSchema(name:c, type:string, comment:null), ]
@@ -408,15 +342,15 @@ POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).c SIMPLE [(temps_null)temp
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).d SIMPLE [(temps_null)temps_null.FieldSchema(name:d, type:smallint, comment:null), ]
 # col_name            	data_type           	comment             
 	 	 
-a                   	double              	None                
-b                   	int                 	None                
-c                   	string              	None                
-d                   	smallint            	None                
+a                   	double              	                    
+b                   	int                 	                    
+c                   	string              	                    
+d                   	smallint            	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-dt                  	string              	None                
+dt                  	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[2011]              	 
@@ -461,9 +395,6 @@ POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).a SIMPLE [(temps_null)temp
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).b SIMPLE [(temps_null)temps_null.FieldSchema(name:b, type:int, comment:null), ]
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).c SIMPLE [(temps_null)temps_null.FieldSchema(name:c, type:string, comment:null), ]
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).d SIMPLE [(temps_null)temps_null.FieldSchema(name:d, type:smallint, comment:null), ]
-ABSTRACT SYNTAX TREE:
-  (TOK_QUERY (TOK_FROM (TOK_TABREF (TOK_TABNAME stats_null))) (TOK_INSERT (TOK_DESTINATION (TOK_DIR TOK_TMP_FILE)) (TOK_SELECT (TOK_SELEXPR (TOK_FUNCTIONSTAR count)) (TOK_SELEXPR (TOK_FUNCTION count (TOK_TABLE_OR_COL a))) (TOK_SELEXPR (TOK_FUNCTION count (TOK_TABLE_OR_COL b))) (TOK_SELEXPR (TOK_FUNCTION count (TOK_TABLE_OR_COL c))) (TOK_SELEXPR (TOK_FUNCTION count (TOK_TABLE_OR_COL d))))))
-
 STAGE DEPENDENCIES:
   Stage-0 is a root stage
 
@@ -490,9 +421,6 @@ POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).a SIMPLE [(temps_null)temp
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).b SIMPLE [(temps_null)temps_null.FieldSchema(name:b, type:int, comment:null), ]
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).c SIMPLE [(temps_null)temps_null.FieldSchema(name:c, type:string, comment:null), ]
 POSTHOOK: Lineage: stats_null_part PARTITION(dt=2011).d SIMPLE [(temps_null)temps_null.FieldSchema(name:d, type:smallint, comment:null), ]
-ABSTRACT SYNTAX TREE:
-  (TOK_QUERY (TOK_FROM (TOK_TABREF (TOK_TABNAME stats_null_part))) (TOK_INSERT (TOK_DESTINATION (TOK_DIR TOK_TMP_FILE)) (TOK_SELECT (TOK_SELEXPR (TOK_FUNCTIONSTAR count)) (TOK_SELEXPR (TOK_FUNCTION count (TOK_TABLE_OR_COL a))) (TOK_SELEXPR (TOK_FUNCTION count (TOK_TABLE_OR_COL b))) (TOK_SELEXPR (TOK_FUNCTION count (TOK_TABLE_OR_COL c))) (TOK_SELEXPR (TOK_FUNCTION count (TOK_TABLE_OR_COL d))))))
-
 STAGE DEPENDENCIES:
   Stage-0 is a root stage
 

@@ -56,4 +56,17 @@ public interface HiveAuthorizationTaskFactory {
 
   public Task<? extends Serializable> createRevokeTask(ASTNode node, HashSet<ReadEntity> inputs,
       HashSet<WriteEntity> outputs) throws SemanticException;
+
+  public Task<? extends Serializable> createSetRoleTask(String roleName,
+      HashSet<ReadEntity> inputs, HashSet<WriteEntity> outputs) throws SemanticException;
+
+  public Task<? extends Serializable> createShowCurrentRoleTask(HashSet<ReadEntity> inputs,
+      HashSet<WriteEntity> outputs, Path resFile) throws SemanticException;
+
+  public Task<? extends Serializable> createShowRolePrincipalsTask(ASTNode ast, Path resFile,
+      HashSet<ReadEntity> inputs, HashSet<WriteEntity> outputs) throws SemanticException;
+
+  public Task<? extends Serializable> createShowRolesTask(ASTNode ast, Path resFile,
+      HashSet<ReadEntity> inputs, HashSet<WriteEntity> outputs) throws SemanticException;
+
 }

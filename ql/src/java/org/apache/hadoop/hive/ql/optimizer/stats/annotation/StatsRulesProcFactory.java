@@ -988,9 +988,6 @@ public class StatsRulesProcFactory {
             if (limit <= parentStats.getNumRows()) {
               long numRows = limit;
               long avgRowSize = parentStats.getAvgRowSize();
-              if (avgRowSize <= 0) {
-                avgRowSize = HiveConf.getIntVar(conf, HiveConf.ConfVars.HIVE_STATS_AVG_ROW_SIZE);
-              }
               long dataSize = avgRowSize * limit;
               wcStats.setNumRows(numRows);
               wcStats.setDataSize(dataSize);
@@ -1118,7 +1115,7 @@ public class StatsRulesProcFactory {
         // number of distincts should not change. Update the distinct count only when
         // the output number of rows is less than input number of rows.
         if (ratio <= 1.0) {
-          newDV = Math.round(ratio * oldDV);
+          newDV = (long) Math.ceil(ratio * oldDV);
         }
         cs.setNumNulls(newNumNulls);
         cs.setCountDistint(newDV);

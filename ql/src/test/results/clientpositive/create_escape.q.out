@@ -2,23 +2,29 @@ PREHOOK: query: CREATE TABLE table1 (a STRING, b STRING)
 ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t' ESCAPED BY '\\'
 STORED AS TEXTFILE
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: CREATE TABLE table1 (a STRING, b STRING)
 ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t' ESCAPED BY '\\'
 STORED AS TEXTFILE
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@table1
 PREHOOK: query: DESCRIBE table1
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@table1
 POSTHOOK: query: DESCRIBE table1
 POSTHOOK: type: DESCTABLE
-a                   	string              	None                
-b                   	string              	None                
+POSTHOOK: Input: default@table1
+a                   	string              	                    
+b                   	string              	                    
 PREHOOK: query: DESCRIBE EXTENDED table1
 PREHOOK: type: DESCTABLE
+PREHOOK: Input: default@table1
 POSTHOOK: query: DESCRIBE EXTENDED table1
 POSTHOOK: type: DESCTABLE
-a                   	string              	None                
-b                   	string              	None                
+POSTHOOK: Input: default@table1
+a                   	string              	                    
+b                   	string              	                    
 	 	 
 #### A masked pattern was here ####
 PREHOOK: query: INSERT OVERWRITE TABLE table1 SELECT key, '\\\t\\' FROM src WHERE key = 86

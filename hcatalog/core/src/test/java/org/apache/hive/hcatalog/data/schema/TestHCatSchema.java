@@ -18,11 +18,14 @@
  */
 package org.apache.hive.hcatalog.data.schema;
 
-import junit.framework.TestCase;
-import org.apache.hive.hcatalog.common.HCatException;
-
 import java.util.ArrayList;
 import java.util.List;
+
+import junit.framework.TestCase;
+
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
+import org.apache.hive.hcatalog.common.HCatException;
+
 
 public class TestHCatSchema extends TestCase {
   public void testCannotAddFieldMoreThanOnce() throws HCatException {
@@ -60,6 +63,14 @@ public class TestHCatSchema extends TestCase {
   public void testHashCodeEquals() throws HCatException {
     HCatFieldSchema memberID1 = new HCatFieldSchema("memberID", HCatFieldSchema.Type.INT, "as a number");
     HCatFieldSchema memberID2 = new HCatFieldSchema("memberID", HCatFieldSchema.Type.INT, "as a number");
+    assertTrue("Expected objects to be equal", memberID1.equals(memberID2));
+    assertTrue("Expected hash codes to be equal", memberID1.hashCode() == memberID2.hashCode());
+    memberID1 = new HCatFieldSchema("memberID", TypeInfoFactory.getDecimalTypeInfo(5,2), "decimal(5,2)");
+    memberID2 = new HCatFieldSchema("memberID", TypeInfoFactory.getDecimalTypeInfo(5,3), "decimal(5)");
+    assertFalse("Expected objects to be unequal", memberID1.equals(memberID2));
+    assertFalse("Expected hash codes to be unequal", memberID1.hashCode() == memberID2.hashCode());
+    memberID1 = new HCatFieldSchema("memberID", TypeInfoFactory.getVarcharTypeInfo(5), "varchar(5)");
+    memberID2 = new HCatFieldSchema("memberID", TypeInfoFactory.getVarcharTypeInfo(5), "varchar(5)");
     assertTrue("Expected objects to be equal", memberID1.equals(memberID2));
     assertTrue("Expected hash codes to be equal", memberID1.hashCode() == memberID2.hashCode());
   }
@@ -100,4 +111,27 @@ public class TestHCatSchema extends TestCase {
       assertFalse(ex.getMessage(), true);
     }
   }
+
+  // HIVE-5336. Re-number the position after remove such that:
+  // (1) getPosition on a column always returns a value between 0..schema.size()-1
+  // (2) getPosition() on 2 different columns should never give the same value.
+  public void testRemoveAddField2() throws HCatException {
+    List<HCatFieldSchema> fieldSchemaList = new ArrayList<HCatFieldSchema>();
+    HCatFieldSchema memberIDField = new HCatFieldSchema("memberID", HCatFieldSchema.Type.INT, "id as number");
+    HCatFieldSchema locationField = new HCatFieldSchema("location", HCatFieldSchema.Type.STRING, "loc as string");
+    HCatFieldSchema memberNameField = new HCatFieldSchema("memberName", HCatFieldSchema.Type.STRING, "name as string");
+    HCatFieldSchema memberSalaryField = new HCatFieldSchema("memberSalary", HCatFieldSchema.Type.INT, "sal as number");
+    fieldSchemaList.add(memberIDField);
+    fieldSchemaList.add(locationField);
+    fieldSchemaList.add(memberNameField);
+    fieldSchemaList.add(memberSalaryField);
+    HCatSchema schema = new HCatSchema(fieldSchemaList);
+    schema.remove(locationField);
+    assertTrue("The position of atleast one of the fields is incorrect" ,
+        schema.getPosition(memberIDField.getName()) == 0 &&
+        schema.getPosition(locationField.getName()) == null &&
+        schema.getPosition(memberNameField.getName()) == 1 &&
+        schema.getPosition(memberSalaryField.getName()) == 2);
+  }
+
 }

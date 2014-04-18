@@ -20,11 +20,12 @@ package org.apache.hadoop.hive.ql.plan;
 
 public class AbstractOperatorDesc implements OperatorDesc {
 
-  private boolean vectorMode = false;
+  protected boolean vectorMode = false;
   protected transient Statistics statistics;
+  protected transient OpTraits opTraits;
 
   @Override
-  @Explain(displayName = "Statistics", normalExplain = false)
+  @Explain(skipHeader = true, displayName = "Statistics")
   public Statistics getStatistics() {
     return statistics;
   }
@@ -39,12 +40,15 @@ public class AbstractOperatorDesc implements OperatorDesc {
     throw new CloneNotSupportedException("clone not supported");
   }
 
-  @Explain(displayName = "Vectorized execution", displayOnlyOnTrue = true)
-  public boolean getVectorModeOn() {
-    return vectorMode;
-  }
-
   public void setVectorMode(boolean vm) {
     this.vectorMode = vm;
+  }
+  
+  public OpTraits getOpTraits() {
+    return opTraits;
+  }
+  
+  public void setOpTraits(OpTraits opTraits) {
+    this.opTraits = opTraits;
   }
 }

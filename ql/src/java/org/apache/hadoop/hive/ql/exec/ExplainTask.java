@@ -32,6 +32,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -45,6 +46,7 @@ import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.optimizer.physical.StageIDsRearranger;
 import org.apache.hadoop.hive.ql.plan.Explain;
 import org.apache.hadoop.hive.ql.plan.ExplainWork;
+import org.apache.hadoop.hive.ql.plan.TezWork;
 import org.apache.hadoop.hive.ql.plan.OperatorDesc;
 import org.apache.hadoop.hive.ql.plan.api.StageType;
 import org.apache.hadoop.io.IOUtils;
@@ -121,8 +123,20 @@ public class ExplainTask extends Task<ExplainWork> implements Serializable {
       out = null;
     }
 
+    // Print out the parse AST
+    if (work.getAstStringTree() != null) {
+      String jsonAST = outputAST(work.getAstStringTree(), out, jsonOutput, 0);
+      if (out != null) {
+        out.println();
+      }
+
+      if (jsonOutput) {
+        outJSONObject.put("ABSTRACT SYNTAX TREE", jsonAST);
+      }
+    }
+
     if (work.getParseContext() != null) {
-      out.print("LOGICAL PLAN");
+      out.print("LOGICAL PLAN:");
       JSONObject jsonPlan = outputMap(work.getParseContext().getTopOps(), true,
                                       out, jsonOutput, work.getExtended(), 0);
       if (out != null) {
@@ -140,17 +154,24 @@ public class ExplainTask extends Task<ExplainWork> implements Serializable {
 
   public JSONObject getJSONPlan(PrintStream out, ExplainWork work)
       throws Exception {
+    return getJSONPlan(out, work.getAstStringTree(), work.getRootTasks(), work.getFetchTask(),
+                       work.isFormatted(), work.getExtended(), work.isAppendTaskType());
+  }
+
+  public JSONObject getJSONPlan(PrintStream out, String ast, List<Task<?>> tasks, Task<?> fetchTask,
+      boolean jsonOutput, boolean isExtended, boolean appendTaskType) throws Exception {
+    
     // If the user asked for a formatted output, dump the json output
     // in the output stream
     JSONObject outJSONObject = new JSONObject();
-    boolean jsonOutput = work.isFormatted();
+
     if (jsonOutput) {
       out = null;
     }
 
     // Print out the parse AST
-    if (work.getAstStringTree() != null) {
-      String jsonAST = outputAST(work.getAstStringTree(), out, jsonOutput, 0);
+    if (ast != null && isExtended) {
+      String jsonAST = outputAST(ast, out, jsonOutput, 0);
       if (out != null) {
         out.println();
       }
@@ -159,16 +180,15 @@ public class ExplainTask extends Task<ExplainWork> implements Serializable {
         outJSONObject.put("ABSTRACT SYNTAX TREE", jsonAST);
       }
     }
-    List<Task<?>> tasks = work.getRootTasks();
 
     List<Task> ordered = StageIDsRearranger.getExplainOrder(conf, tasks);
-    Task<? extends Serializable> fetchTask = work.getFetchTask();
+
     if (fetchTask != null) {
       fetchTask.setRootTask(true);  // todo HIVE-3925
       ordered.add(fetchTask);
     }
 
-    JSONObject jsonDependencies = outputDependencies(out, work, ordered);
+    JSONObject jsonDependencies = outputDependencies(out, jsonOutput, appendTaskType, ordered);
 
     if (out != null) {
       out.println();
@@ -179,7 +199,8 @@ public class ExplainTask extends Task<ExplainWork> implements Serializable {
     }
 
     // Go over all the tasks and dump out the plans
-    JSONObject jsonPlan = outputStagePlans(out, work, ordered);
+    JSONObject jsonPlan = outputStagePlans(out, ordered,
+         jsonOutput, isExtended);
 
     if (jsonOutput) {
       outJSONObject.put("STAGE PLANS", jsonPlan);
@@ -263,7 +284,45 @@ public class ExplainTask extends Task<ExplainWork> implements Serializable {
           json.put(ent.getKey().toString(), ent.getValue().toString());
         }
       }
-      else if (ent.getValue() instanceof List || ent.getValue() instanceof Map) {
+      else if (ent.getValue() instanceof List) {
+        if (ent.getValue() != null && !((List<?>)ent.getValue()).isEmpty() 
+            && ((List<?>)ent.getValue()).get(0) != null &&
+            ((List<?>)ent.getValue()).get(0) instanceof TezWork.Dependency) {
+          if (out != null) {
+            boolean isFirst = true;
+            for (TezWork.Dependency dep: (List<TezWork.Dependency>)ent.getValue()) {
+              if (!isFirst) {
+                out.print(", ");
+              } else {
+                out.print("<- ");
+                isFirst = false;
+              }
+              out.print(dep.getName());
+              out.print(" (");
+              out.print(dep.getType());
+              out.print(")");
+            }
+            out.println();
+          }
+          if (jsonOutput) {
+            for (TezWork.Dependency dep: (List<TezWork.Dependency>)ent.getValue()) {
+              JSONObject jsonDep = new JSONObject();
+              jsonDep.put("parent", dep.getName());
+              jsonDep.put("type", dep.getType());
+              json.accumulate(ent.getKey().toString(), jsonDep);
+            }
+          }
+        } else {
+          if (out != null) {
+            out.print(ent.getValue().toString());
+            out.println();
+          }
+          if (jsonOutput) {
+            json.put(ent.getKey().toString(), ent.getValue().toString());
+          }
+        }
+      }
+      else if (ent.getValue() instanceof Map) {
         if (out != null) {
           out.print(ent.getValue().toString());
           out.println();
@@ -385,7 +444,7 @@ public class ExplainTask extends Task<ExplainWork> implements Serializable {
         JSONObject jsonOut = outputPlan(operator.getConf(), out, extended,
             jsonOutput, jsonOutput ? 0 : indent, appender);
         if (jsonOutput) {
-          json.put(operator.getOperatorId(), jsonOut);
+            json = jsonOut;
         }
       }
 
@@ -396,19 +455,13 @@ public class ExplainTask extends Task<ExplainWork> implements Serializable {
           for (Operator<? extends OperatorDesc> op : operator.getChildOperators()) {
             JSONObject jsonOut = outputPlan(op, out, extended, jsonOutput, cindent);
             if (jsonOutput) {
-              json.put(operator.getOperatorId(), jsonOut);
+              ((JSONObject)json.get(JSONObject.getNames(json)[0])).accumulate("children", jsonOut);
             }
           }
         }
       }
 
       if (jsonOutput) {
-        if (keyJSONObject != null) {
-          JSONObject ret = new JSONObject();
-          ret.put(keyJSONObject, json);
-          return ret;
-        }
-
         return json;
       }
       return null;
@@ -461,7 +514,7 @@ public class ExplainTask extends Task<ExplainWork> implements Serializable {
               }
               out.println(val);
             }
-            if (jsonOutput) {
+            if (jsonOutput && shouldPrint(xpl_note, val)) {
               json.put(header, val.toString());
             }
             continue;
@@ -486,7 +539,7 @@ public class ExplainTask extends Task<ExplainWork> implements Serializable {
             }
 
             JSONObject jsonOut = outputMap(mp, !skipHeader && !emptyHeader, out, extended, jsonOutput, ind);
-            if (jsonOutput) {
+            if (jsonOutput && !mp.isEmpty()) {
               json.put(header, jsonOut);
             }
             continue;
@@ -497,7 +550,15 @@ public class ExplainTask extends Task<ExplainWork> implements Serializable {
 
           // Try this as a list
           try {
-            List<?> l = (List<?>) val;
+            List l;
+
+            try {
+              l = (List) val;
+            } catch (ClassCastException e) {
+              Set s = (Set) val;
+              l = new LinkedList();
+              l.addAll(s);
+            }
 
             if (out != null && !skipHeader && l != null && !l.isEmpty()) {
               out.print(header);
@@ -505,7 +566,7 @@ public class ExplainTask extends Task<ExplainWork> implements Serializable {
 
             JSONArray jsonOut = outputList(l, out, !skipHeader && !emptyHeader, extended, jsonOutput, ind);
 
-            if (jsonOutput) {
+            if (jsonOutput && !l.isEmpty()) {
               json.put(header, jsonOut);
             }
 
@@ -524,7 +585,13 @@ public class ExplainTask extends Task<ExplainWork> implements Serializable {
             }
             JSONObject jsonOut = outputPlan(s, out, extended, jsonOutput, ind);
             if (jsonOutput) {
-              json.put(header, jsonOut);
+              if (!skipHeader) {
+                json.put(header, jsonOut);
+              } else {
+                for(String k: JSONObject.getNames(jsonOut)) {
+                  json.put(k, jsonOut.get(k));
+                }
+              }
             }
             continue;
           }
@@ -688,10 +755,10 @@ public class ExplainTask extends Task<ExplainWork> implements Serializable {
     return jsonOutput ? treeString : null;
   }
 
-  public JSONObject outputDependencies(PrintStream out, ExplainWork work, List<Task> tasks)
+  public JSONObject outputDependencies(PrintStream out, boolean jsonOutput,
+      boolean appendTaskType, List<Task> tasks)
       throws Exception {
-    boolean jsonOutput = work.isFormatted();
-    boolean appendTaskType = work.isAppendTaskType();
+
     if (out != null) {
       out.println("STAGE DEPENDENCIES:");
     }
@@ -707,16 +774,17 @@ public class ExplainTask extends Task<ExplainWork> implements Serializable {
     return jsonOutput ? json : null;
   }
 
-  public JSONObject outputStagePlans(PrintStream out, ExplainWork work, List<Task> tasks)
+  public JSONObject outputStagePlans(PrintStream out, List<Task> tasks,
+      boolean jsonOutput, boolean isExtended)
       throws Exception {
-    boolean jsonOutput = work.isFormatted();
+
     if (out != null) {
       out.println("STAGE PLANS:");
     }
 
     JSONObject json = jsonOutput ? new JSONObject() : null;
     for (Task task : tasks) {
-      outputPlan(task, out, json, work.getExtended(), jsonOutput, 2);
+      outputPlan(task, out, json, isExtended, jsonOutput, 2);
     }
     return jsonOutput ? json : null;
   }

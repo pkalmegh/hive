@@ -42,9 +42,11 @@ public class <ClassName> extends VectorExpression {
     this.colNum = colNum;
     this.value = value;
     this.outputColumn = outputColumn;
+    this.outputType = "decimal";
   }
 
   public <ClassName>() {
+    this.outputType = "decimal";
   }
 
   @Override
@@ -117,17 +119,15 @@ public class <ClassName> extends VectorExpression {
       }
     }
     
-    NullUtil.setNullDataEntriesDecimal(outputColVector, batch.selectedInUse, sel, n);
+    /*
+     * Null data entries are not set to a special non-zero value because all null math operations
+     * are checked, meaning that a zero-divide always results in a null result.
+     */
   }
 
   @Override
   public int getOutputColumn() {
     return outputColumn;
-  }
-  
-  @Override
-  public String getOutputType() {
-    return "decimal";
   }
   
   public int getColNum() {

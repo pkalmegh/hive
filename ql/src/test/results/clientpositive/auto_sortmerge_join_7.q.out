@@ -1,90 +1,118 @@
 PREHOOK: query: -- small 2 part, 4 bucket & big 2 part, 2 bucket
 CREATE TABLE bucket_small (key string, value string) partitioned by (ds string) CLUSTERED BY (key) SORTED BY (key) INTO 4 BUCKETS STORED AS TEXTFILE
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: -- small 2 part, 4 bucket & big 2 part, 2 bucket
 CREATE TABLE bucket_small (key string, value string) partitioned by (ds string) CLUSTERED BY (key) SORTED BY (key) INTO 4 BUCKETS STORED AS TEXTFILE
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@bucket_small
 PREHOOK: query: load data local inpath '../../data/files/smallsrcsortbucket1outof4.txt' INTO TABLE bucket_small partition(ds='2008-04-08')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@bucket_small
 POSTHOOK: query: load data local inpath '../../data/files/smallsrcsortbucket1outof4.txt' INTO TABLE bucket_small partition(ds='2008-04-08')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@bucket_small
 POSTHOOK: Output: default@bucket_small@ds=2008-04-08
 PREHOOK: query: load data local inpath '../../data/files/smallsrcsortbucket2outof4.txt' INTO TABLE bucket_small partition(ds='2008-04-08')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@bucket_small@ds=2008-04-08
 POSTHOOK: query: load data local inpath '../../data/files/smallsrcsortbucket2outof4.txt' INTO TABLE bucket_small partition(ds='2008-04-08')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@bucket_small@ds=2008-04-08
 PREHOOK: query: load data local inpath '../../data/files/smallsrcsortbucket3outof4.txt' INTO TABLE bucket_small partition(ds='2008-04-08')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@bucket_small@ds=2008-04-08
 POSTHOOK: query: load data local inpath '../../data/files/smallsrcsortbucket3outof4.txt' INTO TABLE bucket_small partition(ds='2008-04-08')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@bucket_small@ds=2008-04-08
 PREHOOK: query: load data local inpath '../../data/files/smallsrcsortbucket4outof4.txt' INTO TABLE bucket_small partition(ds='2008-04-08')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@bucket_small@ds=2008-04-08
 POSTHOOK: query: load data local inpath '../../data/files/smallsrcsortbucket4outof4.txt' INTO TABLE bucket_small partition(ds='2008-04-08')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@bucket_small@ds=2008-04-08
 PREHOOK: query: load data local inpath '../../data/files/smallsrcsortbucket1outof4.txt' INTO TABLE bucket_small partition(ds='2008-04-09')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@bucket_small
 POSTHOOK: query: load data local inpath '../../data/files/smallsrcsortbucket1outof4.txt' INTO TABLE bucket_small partition(ds='2008-04-09')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@bucket_small
 POSTHOOK: Output: default@bucket_small@ds=2008-04-09
 PREHOOK: query: load data local inpath '../../data/files/smallsrcsortbucket2outof4.txt' INTO TABLE bucket_small partition(ds='2008-04-09')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@bucket_small@ds=2008-04-09
 POSTHOOK: query: load data local inpath '../../data/files/smallsrcsortbucket2outof4.txt' INTO TABLE bucket_small partition(ds='2008-04-09')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@bucket_small@ds=2008-04-09
 PREHOOK: query: load data local inpath '../../data/files/smallsrcsortbucket3outof4.txt' INTO TABLE bucket_small partition(ds='2008-04-09')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@bucket_small@ds=2008-04-09
 POSTHOOK: query: load data local inpath '../../data/files/smallsrcsortbucket3outof4.txt' INTO TABLE bucket_small partition(ds='2008-04-09')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@bucket_small@ds=2008-04-09
 PREHOOK: query: load data local inpath '../../data/files/smallsrcsortbucket4outof4.txt' INTO TABLE bucket_small partition(ds='2008-04-09')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@bucket_small@ds=2008-04-09
 POSTHOOK: query: load data local inpath '../../data/files/smallsrcsortbucket4outof4.txt' INTO TABLE bucket_small partition(ds='2008-04-09')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@bucket_small@ds=2008-04-09
 PREHOOK: query: CREATE TABLE bucket_big (key string, value string) partitioned by (ds string) CLUSTERED BY (key) SORTED BY (key) INTO 2 BUCKETS STORED AS TEXTFILE
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: CREATE TABLE bucket_big (key string, value string) partitioned by (ds string) CLUSTERED BY (key) SORTED BY (key) INTO 2 BUCKETS STORED AS TEXTFILE
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@bucket_big
 PREHOOK: query: load data local inpath '../../data/files/srcsortbucket1outof4.txt' INTO TABLE bucket_big partition(ds='2008-04-08')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@bucket_big
 POSTHOOK: query: load data local inpath '../../data/files/srcsortbucket1outof4.txt' INTO TABLE bucket_big partition(ds='2008-04-08')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@bucket_big
 POSTHOOK: Output: default@bucket_big@ds=2008-04-08
 PREHOOK: query: load data local inpath '../../data/files/srcsortbucket2outof4.txt' INTO TABLE bucket_big partition(ds='2008-04-08')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@bucket_big@ds=2008-04-08
 POSTHOOK: query: load data local inpath '../../data/files/srcsortbucket2outof4.txt' INTO TABLE bucket_big partition(ds='2008-04-08')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@bucket_big@ds=2008-04-08
 PREHOOK: query: load data local inpath '../../data/files/srcsortbucket1outof4.txt' INTO TABLE bucket_big partition(ds='2008-04-09')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@bucket_big
 POSTHOOK: query: load data local inpath '../../data/files/srcsortbucket1outof4.txt' INTO TABLE bucket_big partition(ds='2008-04-09')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@bucket_big
 POSTHOOK: Output: default@bucket_big@ds=2008-04-09
 PREHOOK: query: load data local inpath '../../data/files/srcsortbucket2outof4.txt' INTO TABLE bucket_big partition(ds='2008-04-09')
 PREHOOK: type: LOAD
+#### A masked pattern was here ####
 PREHOOK: Output: default@bucket_big@ds=2008-04-09
 POSTHOOK: query: load data local inpath '../../data/files/srcsortbucket2outof4.txt' INTO TABLE bucket_big partition(ds='2008-04-09')
 POSTHOOK: type: LOAD
+#### A masked pattern was here ####
 POSTHOOK: Output: default@bucket_big@ds=2008-04-09
 PREHOOK: query: -- Since size is being used to find the big table, the order of the tables in the join does not matter
 explain extended select count(*) FROM bucket_small a JOIN bucket_big b ON a.key = b.key
@@ -93,7 +121,36 @@ POSTHOOK: query: -- Since size is being used to find the big table, the order of
 explain extended select count(*) FROM bucket_small a JOIN bucket_big b ON a.key = b.key
 POSTHOOK: type: QUERY
 ABSTRACT SYNTAX TREE:
-  (TOK_QUERY (TOK_FROM (TOK_JOIN (TOK_TABREF (TOK_TABNAME bucket_small) a) (TOK_TABREF (TOK_TABNAME bucket_big) b) (= (. (TOK_TABLE_OR_COL a) key) (. (TOK_TABLE_OR_COL b) key)))) (TOK_INSERT (TOK_DESTINATION (TOK_DIR TOK_TMP_FILE)) (TOK_SELECT (TOK_SELEXPR (TOK_FUNCTIONSTAR count)))))
+  
+TOK_QUERY
+   TOK_FROM
+      TOK_JOIN
+         TOK_TABREF
+            TOK_TABNAME
+               bucket_small
+            a
+         TOK_TABREF
+            TOK_TABNAME
+               bucket_big
+            b
+         =
+            .
+               TOK_TABLE_OR_COL
+                  a
+               key
+            .
+               TOK_TABLE_OR_COL
+                  b
+               key
+   TOK_INSERT
+      TOK_DESTINATION
+         TOK_DIR
+            TOK_TMP_FILE
+      TOK_SELECT
+         TOK_SELEXPR
+            TOK_FUNCTIONSTAR
+               count
+
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
@@ -102,12 +159,10 @@ STAGE DEPENDENCIES:
 STAGE PLANS:
   Stage: Stage-1
     Map Reduce
-      Alias -> Map Operator Tree:
-        b 
+      Map Operator Tree:
           TableScan
             alias: b
-            Statistics:
-                numRows: 54 dataSize: 5500 basicStatsState: COMPLETE colStatsState: NONE
+            Statistics: Num rows: 54 Data size: 5500 Basic stats: COMPLETE Column stats: NONE
             GatherStats: false
             Sorted Merge Bucket Map Join Operator
               condition map:
@@ -115,24 +170,19 @@ STAGE PLANS:
               condition expressions:
                 0 
                 1 
-              handleSkewJoin: false
               keys:
-                0 [Column[key]]
-                1 [Column[key]]
+                0 key (type: string)
+                1 key (type: string)
               Position of Big Table: 1
               Select Operator
                 Group By Operator
-                  aggregations:
-                        expr: count()
-                  bucketGroup: false
+                  aggregations: count()
                   mode: hash
                   outputColumnNames: _col0
                   Reduce Output Operator
                     sort order: 
                     tag: -1
-                    value expressions:
-                          expr: _col0
-                          type: bigint
+                    value expressions: _col0 (type: bigint)
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -148,12 +198,14 @@ STAGE PLANS:
               bucket_count 2
               bucket_field_name key
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.bucket_big
               numFiles 2
               numRows 0
               partition_columns ds
+              partition_columns.types string
               rawDataSize 0
               serialization.ddl struct bucket_big { string key, string value}
               serialization.format 1
@@ -169,10 +221,12 @@ STAGE PLANS:
                 bucket_count 2
                 bucket_field_name key
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.bucket_big
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct bucket_big { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -192,12 +246,14 @@ STAGE PLANS:
               bucket_count 2
               bucket_field_name key
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.bucket_big
               numFiles 2
               numRows 0
               partition_columns ds
+              partition_columns.types string
               rawDataSize 0
               serialization.ddl struct bucket_big { string key, string value}
               serialization.format 1
@@ -213,10 +269,12 @@ STAGE PLANS:
                 bucket_count 2
                 bucket_field_name key
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.bucket_big
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct bucket_big { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -230,15 +288,11 @@ STAGE PLANS:
       Needs Tagging: false
       Reduce Operator Tree:
         Group By Operator
-          aggregations:
-                expr: count(VALUE._col0)
-          bucketGroup: false
+          aggregations: count(VALUE._col0)
           mode: mergepartial
           outputColumnNames: _col0
           Select Operator
-            expressions:
-                  expr: _col0
-                  type: bigint
+            expressions: _col0 (type: bigint)
             outputColumnNames: _col0
             File Output Operator
               compressed: false
@@ -289,7 +343,36 @@ PREHOOK: type: QUERY
 POSTHOOK: query: explain extended select count(*) FROM bucket_big a JOIN bucket_small b ON a.key = b.key
 POSTHOOK: type: QUERY
 ABSTRACT SYNTAX TREE:
-  (TOK_QUERY (TOK_FROM (TOK_JOIN (TOK_TABREF (TOK_TABNAME bucket_big) a) (TOK_TABREF (TOK_TABNAME bucket_small) b) (= (. (TOK_TABLE_OR_COL a) key) (. (TOK_TABLE_OR_COL b) key)))) (TOK_INSERT (TOK_DESTINATION (TOK_DIR TOK_TMP_FILE)) (TOK_SELECT (TOK_SELEXPR (TOK_FUNCTIONSTAR count)))))
+  
+TOK_QUERY
+   TOK_FROM
+      TOK_JOIN
+         TOK_TABREF
+            TOK_TABNAME
+               bucket_big
+            a
+         TOK_TABREF
+            TOK_TABNAME
+               bucket_small
+            b
+         =
+            .
+               TOK_TABLE_OR_COL
+                  a
+               key
+            .
+               TOK_TABLE_OR_COL
+                  b
+               key
+   TOK_INSERT
+      TOK_DESTINATION
+         TOK_DIR
+            TOK_TMP_FILE
+      TOK_SELECT
+         TOK_SELEXPR
+            TOK_FUNCTIONSTAR
+               count
+
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
@@ -298,12 +381,10 @@ STAGE DEPENDENCIES:
 STAGE PLANS:
   Stage: Stage-1
     Map Reduce
-      Alias -> Map Operator Tree:
-        a 
+      Map Operator Tree:
           TableScan
             alias: a
-            Statistics:
-                numRows: 54 dataSize: 5500 basicStatsState: COMPLETE colStatsState: NONE
+            Statistics: Num rows: 54 Data size: 5500 Basic stats: COMPLETE Column stats: NONE
             GatherStats: false
             Sorted Merge Bucket Map Join Operator
               condition map:
@@ -311,24 +392,19 @@ STAGE PLANS:
               condition expressions:
                 0 
                 1 
-              handleSkewJoin: false
               keys:
-                0 [Column[key]]
-                1 [Column[key]]
+                0 key (type: string)
+                1 key (type: string)
               Position of Big Table: 0
               Select Operator
                 Group By Operator
-                  aggregations:
-                        expr: count()
-                  bucketGroup: false
+                  aggregations: count()
                   mode: hash
                   outputColumnNames: _col0
                   Reduce Output Operator
                     sort order: 
                     tag: -1
-                    value expressions:
-                          expr: _col0
-                          type: bigint
+                    value expressions: _col0 (type: bigint)
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -344,12 +420,14 @@ STAGE PLANS:
               bucket_count 2
               bucket_field_name key
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.bucket_big
               numFiles 2
               numRows 0
               partition_columns ds
+              partition_columns.types string
               rawDataSize 0
               serialization.ddl struct bucket_big { string key, string value}
               serialization.format 1
@@ -365,10 +443,12 @@ STAGE PLANS:
                 bucket_count 2
                 bucket_field_name key
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.bucket_big
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct bucket_big { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -388,12 +468,14 @@ STAGE PLANS:
               bucket_count 2
               bucket_field_name key
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.bucket_big
               numFiles 2
               numRows 0
               partition_columns ds
+              partition_columns.types string
               rawDataSize 0
               serialization.ddl struct bucket_big { string key, string value}
               serialization.format 1
@@ -409,10 +491,12 @@ STAGE PLANS:
                 bucket_count 2
                 bucket_field_name key
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.bucket_big
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct bucket_big { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -426,15 +510,11 @@ STAGE PLANS:
       Needs Tagging: false
       Reduce Operator Tree:
         Group By Operator
-          aggregations:
-                expr: count(VALUE._col0)
-          bucketGroup: false
+          aggregations: count(VALUE._col0)
           mode: mergepartial
           outputColumnNames: _col0
           Select Operator
-            expressions:
-                  expr: _col0
-                  type: bigint
+            expressions: _col0 (type: bigint)
             outputColumnNames: _col0
             File Output Operator
               compressed: false
@@ -485,7 +565,36 @@ PREHOOK: type: QUERY
 POSTHOOK: query: explain extended select count(*) FROM bucket_big a JOIN bucket_small b ON a.key = b.key
 POSTHOOK: type: QUERY
 ABSTRACT SYNTAX TREE:
-  (TOK_QUERY (TOK_FROM (TOK_JOIN (TOK_TABREF (TOK_TABNAME bucket_big) a) (TOK_TABREF (TOK_TABNAME bucket_small) b) (= (. (TOK_TABLE_OR_COL a) key) (. (TOK_TABLE_OR_COL b) key)))) (TOK_INSERT (TOK_DESTINATION (TOK_DIR TOK_TMP_FILE)) (TOK_SELECT (TOK_SELEXPR (TOK_FUNCTIONSTAR count)))))
+  
+TOK_QUERY
+   TOK_FROM
+      TOK_JOIN
+         TOK_TABREF
+            TOK_TABNAME
+               bucket_big
+            a
+         TOK_TABREF
+            TOK_TABNAME
+               bucket_small
+            b
+         =
+            .
+               TOK_TABLE_OR_COL
+                  a
+               key
+            .
+               TOK_TABLE_OR_COL
+                  b
+               key
+   TOK_INSERT
+      TOK_DESTINATION
+         TOK_DIR
+            TOK_TMP_FILE
+      TOK_SELECT
+         TOK_SELEXPR
+            TOK_FUNCTIONSTAR
+               count
+
 
 STAGE DEPENDENCIES:
   Stage-5 is a root stage , consists of Stage-6, Stage-7, Stage-1
@@ -517,12 +626,14 @@ STAGE PLANS:
                     bucket_count 4
                     bucket_field_name key
                     columns key,value
+                    columns.comments  
                     columns.types string:string
 #### A masked pattern was here ####
                     name default.bucket_small
                     numFiles 4
                     numRows 0
                     partition_columns ds
+                    partition_columns.types string
                     rawDataSize 0
                     serialization.ddl struct bucket_small { string key, string value}
                     serialization.format 1
@@ -538,10 +649,12 @@ STAGE PLANS:
                       bucket_count 4
                       bucket_field_name key
                       columns key,value
+                      columns.comments  
                       columns.types string:string
 #### A masked pattern was here ####
                       name default.bucket_small
                       partition_columns ds
+                      partition_columns.types string
                       serialization.ddl struct bucket_small { string key, string value}
                       serialization.format 1
                       serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -559,12 +672,14 @@ STAGE PLANS:
                     bucket_count 4
                     bucket_field_name key
                     columns key,value
+                    columns.comments  
                     columns.types string:string
 #### A masked pattern was here ####
                     name default.bucket_small
                     numFiles 4
                     numRows 0
                     partition_columns ds
+                    partition_columns.types string
                     rawDataSize 0
                     serialization.ddl struct bucket_small { string key, string value}
                     serialization.format 1
@@ -580,10 +695,12 @@ STAGE PLANS:
                       bucket_count 4
                       bucket_field_name key
                       columns key,value
+                      columns.comments  
                       columns.types string:string
 #### A masked pattern was here ####
                       name default.bucket_small
                       partition_columns ds
+                      partition_columns.types string
                       serialization.ddl struct bucket_small { string key, string value}
                       serialization.format 1
                       serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -600,16 +717,14 @@ STAGE PLANS:
               condition expressions:
                 0 
                 1 
-              handleSkewJoin: false
               keys:
-                0 [Column[key]]
-                1 [Column[key]]
+                0 key (type: string)
+                1 key (type: string)
               Position of Big Table: 0
 
   Stage: Stage-3
     Map Reduce
-      Alias -> Map Operator Tree:
-        a 
+      Map Operator Tree:
           TableScan
             alias: a
             GatherStats: false
@@ -619,24 +734,19 @@ STAGE PLANS:
               condition expressions:
                 0 
                 1 
-              handleSkewJoin: false
               keys:
-                0 [Column[key]]
-                1 [Column[key]]
+                0 key (type: string)
+                1 key (type: string)
               Position of Big Table: 0
               Select Operator
                 Group By Operator
-                  aggregations:
-                        expr: count()
-                  bucketGroup: false
+                  aggregations: count()
                   mode: hash
                   outputColumnNames: _col0
                   Reduce Output Operator
                     sort order: 
                     tag: -1
-                    value expressions:
-                          expr: _col0
-                          type: bigint
+                    value expressions: _col0 (type: bigint)
       Local Work:
         Map Reduce Local Work
       Path -> Alias:
@@ -654,12 +764,14 @@ STAGE PLANS:
               bucket_count 2
               bucket_field_name key
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.bucket_big
               numFiles 2
               numRows 0
               partition_columns ds
+              partition_columns.types string
               rawDataSize 0
               serialization.ddl struct bucket_big { string key, string value}
               serialization.format 1
@@ -675,10 +787,12 @@ STAGE PLANS:
                 bucket_count 2
                 bucket_field_name key
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.bucket_big
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct bucket_big { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -698,12 +812,14 @@ STAGE PLANS:
               bucket_count 2
               bucket_field_name key
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.bucket_big
               numFiles 2
               numRows 0
               partition_columns ds
+              partition_columns.types string
               rawDataSize 0
               serialization.ddl struct bucket_big { string key, string value}
               serialization.format 1
@@ -719,10 +835,12 @@ STAGE PLANS:
                 bucket_count 2
                 bucket_field_name key
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.bucket_big
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct bucket_big { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -741,12 +859,14 @@ STAGE PLANS:
               bucket_count 4
               bucket_field_name key
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.bucket_small
               numFiles 4
               numRows 0
               partition_columns ds
+              partition_columns.types string
               rawDataSize 0
               serialization.ddl struct bucket_small { string key, string value}
               serialization.format 1
@@ -762,10 +882,12 @@ STAGE PLANS:
                 bucket_count 4
                 bucket_field_name key
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.bucket_small
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct bucket_small { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -784,12 +906,14 @@ STAGE PLANS:
               bucket_count 4
               bucket_field_name key
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.bucket_small
               numFiles 4
               numRows 0
               partition_columns ds
+              partition_columns.types string
               rawDataSize 0
               serialization.ddl struct bucket_small { string key, string value}
               serialization.format 1
@@ -805,10 +929,12 @@ STAGE PLANS:
                 bucket_count 4
                 bucket_field_name key
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.bucket_small
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct bucket_small { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -822,15 +948,11 @@ STAGE PLANS:
       Needs Tagging: false
       Reduce Operator Tree:
         Group By Operator
-          aggregations:
-                expr: count(VALUE._col0)
-          bucketGroup: false
+          aggregations: count(VALUE._col0)
           mode: mergepartial
           outputColumnNames: _col0
           Select Operator
-            expressions:
-                  expr: _col0
-                  type: bigint
+            expressions: _col0 (type: bigint)
             outputColumnNames: _col0
             File Output Operator
               compressed: false
@@ -871,12 +993,14 @@ STAGE PLANS:
                     bucket_count 2
                     bucket_field_name key
                     columns key,value
+                    columns.comments  
                     columns.types string:string
 #### A masked pattern was here ####
                     name default.bucket_big
                     numFiles 2
                     numRows 0
                     partition_columns ds
+                    partition_columns.types string
                     rawDataSize 0
                     serialization.ddl struct bucket_big { string key, string value}
                     serialization.format 1
@@ -892,10 +1016,12 @@ STAGE PLANS:
                       bucket_count 2
                       bucket_field_name key
                       columns key,value
+                      columns.comments  
                       columns.types string:string
 #### A masked pattern was here ####
                       name default.bucket_big
                       partition_columns ds
+                      partition_columns.types string
                       serialization.ddl struct bucket_big { string key, string value}
                       serialization.format 1
                       serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -914,12 +1040,14 @@ STAGE PLANS:
                     bucket_count 2
                     bucket_field_name key
                     columns key,value
+                    columns.comments  
                     columns.types string:string
 #### A masked pattern was here ####
                     name default.bucket_big
                     numFiles 2
                     numRows 0
                     partition_columns ds
+                    partition_columns.types string
                     rawDataSize 0
                     serialization.ddl struct bucket_big { string key, string value}
                     serialization.format 1
@@ -935,10 +1063,12 @@ STAGE PLANS:
                       bucket_count 2
                       bucket_field_name key
                       columns key,value
+                      columns.comments  
                       columns.types string:string
 #### A masked pattern was here ####
                       name default.bucket_big
                       partition_columns ds
+                      partition_columns.types string
                       serialization.ddl struct bucket_big { string key, string value}
                       serialization.format 1
                       serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -955,16 +1085,14 @@ STAGE PLANS:
               condition expressions:
                 0 
                 1 
-              handleSkewJoin: false
               keys:
-                0 [Column[key]]
-                1 [Column[key]]
+                0 key (type: string)
+                1 key (type: string)
               Position of Big Table: 1
 
   Stage: Stage-4
     Map Reduce
-      Alias -> Map Operator Tree:
-        b 
+      Map Operator Tree:
           TableScan
             alias: b
             GatherStats: false
@@ -974,24 +1102,19 @@ STAGE PLANS:
               condition expressions:
                 0 
                 1 
-              handleSkewJoin: false
               keys:
-                0 [Column[key]]
-                1 [Column[key]]
+                0 key (type: string)
+                1 key (type: string)
               Position of Big Table: 1
               Select Operator
                 Group By Operator
-                  aggregations:
-                        expr: count()
-                  bucketGroup: false
+                  aggregations: count()
                   mode: hash
                   outputColumnNames: _col0
                   Reduce Output Operator
                     sort order: 
                     tag: -1
-                    value expressions:
-                          expr: _col0
-                          type: bigint
+                    value expressions: _col0 (type: bigint)
       Local Work:
         Map Reduce Local Work
       Path -> Alias:
@@ -1009,12 +1132,14 @@ STAGE PLANS:
               bucket_count 2
               bucket_field_name key
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.bucket_big
               numFiles 2
               numRows 0
               partition_columns ds
+              partition_columns.types string
               rawDataSize 0
               serialization.ddl struct bucket_big { string key, string value}
               serialization.format 1
@@ -1030,10 +1155,12 @@ STAGE PLANS:
                 bucket_count 2
                 bucket_field_name key
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.bucket_big
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct bucket_big { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -1053,12 +1180,14 @@ STAGE PLANS:
               bucket_count 2
               bucket_field_name key
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.bucket_big
               numFiles 2
               numRows 0
               partition_columns ds
+              partition_columns.types string
               rawDataSize 0
               serialization.ddl struct bucket_big { string key, string value}
               serialization.format 1
@@ -1074,10 +1203,12 @@ STAGE PLANS:
                 bucket_count 2
                 bucket_field_name key
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.bucket_big
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct bucket_big { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -1096,12 +1227,14 @@ STAGE PLANS:
               bucket_count 4
               bucket_field_name key
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.bucket_small
               numFiles 4
               numRows 0
               partition_columns ds
+              partition_columns.types string
               rawDataSize 0
               serialization.ddl struct bucket_small { string key, string value}
               serialization.format 1
@@ -1117,10 +1250,12 @@ STAGE PLANS:
                 bucket_count 4
                 bucket_field_name key
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.bucket_small
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct bucket_small { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -1139,12 +1274,14 @@ STAGE PLANS:
               bucket_count 4
               bucket_field_name key
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.bucket_small
               numFiles 4
               numRows 0
               partition_columns ds
+              partition_columns.types string
               rawDataSize 0
               serialization.ddl struct bucket_small { string key, string value}
               serialization.format 1
@@ -1160,10 +1297,12 @@ STAGE PLANS:
                 bucket_count 4
                 bucket_field_name key
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.bucket_small
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct bucket_small { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -1177,15 +1316,11 @@ STAGE PLANS:
       Needs Tagging: false
       Reduce Operator Tree:
         Group By Operator
-          aggregations:
-                expr: count(VALUE._col0)
-          bucketGroup: false
+          aggregations: count(VALUE._col0)
           mode: mergepartial
           outputColumnNames: _col0
           Select Operator
-            expressions:
-                  expr: _col0
-                  type: bigint
+            expressions: _col0 (type: bigint)
             outputColumnNames: _col0
             File Output Operator
               compressed: false
@@ -1210,12 +1345,10 @@ STAGE PLANS:
 
   Stage: Stage-1
     Map Reduce
-      Alias -> Map Operator Tree:
-        a 
+      Map Operator Tree:
           TableScan
             alias: a
-            Statistics:
-                numRows: 54 dataSize: 5500 basicStatsState: COMPLETE colStatsState: NONE
+            Statistics: Num rows: 54 Data size: 5500 Basic stats: COMPLETE Column stats: NONE
             GatherStats: false
             Sorted Merge Bucket Map Join Operator
               condition map:
@@ -1223,24 +1356,19 @@ STAGE PLANS:
               condition expressions:
                 0 
                 1 
-              handleSkewJoin: false
               keys:
-                0 [Column[key]]
-                1 [Column[key]]
+                0 key (type: string)
+                1 key (type: string)
               Position of Big Table: 0
               Select Operator
                 Group By Operator
-                  aggregations:
-                        expr: count()
-                  bucketGroup: false
+                  aggregations: count()
                   mode: hash
                   outputColumnNames: _col0
                   Reduce Output Operator
                     sort order: 
                     tag: -1
-                    value expressions:
-                          expr: _col0
-                          type: bigint
+                    value expressions: _col0 (type: bigint)
       Path -> Alias:
 #### A masked pattern was here ####
       Path -> Partition:
@@ -1256,12 +1384,14 @@ STAGE PLANS:
               bucket_count 2
               bucket_field_name key
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.bucket_big
               numFiles 2
               numRows 0
               partition_columns ds
+              partition_columns.types string
               rawDataSize 0
               serialization.ddl struct bucket_big { string key, string value}
               serialization.format 1
@@ -1277,10 +1407,12 @@ STAGE PLANS:
                 bucket_count 2
                 bucket_field_name key
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.bucket_big
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct bucket_big { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -1300,12 +1432,14 @@ STAGE PLANS:
               bucket_count 2
               bucket_field_name key
               columns key,value
+              columns.comments  
               columns.types string:string
 #### A masked pattern was here ####
               name default.bucket_big
               numFiles 2
               numRows 0
               partition_columns ds
+              partition_columns.types string
               rawDataSize 0
               serialization.ddl struct bucket_big { string key, string value}
               serialization.format 1
@@ -1321,10 +1455,12 @@ STAGE PLANS:
                 bucket_count 2
                 bucket_field_name key
                 columns key,value
+                columns.comments  
                 columns.types string:string
 #### A masked pattern was here ####
                 name default.bucket_big
                 partition_columns ds
+                partition_columns.types string
                 serialization.ddl struct bucket_big { string key, string value}
                 serialization.format 1
                 serialization.lib org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
@@ -1338,15 +1474,11 @@ STAGE PLANS:
       Needs Tagging: false
       Reduce Operator Tree:
         Group By Operator
-          aggregations:
-                expr: count(VALUE._col0)
-          bucketGroup: false
+          aggregations: count(VALUE._col0)
           mode: mergepartial
           outputColumnNames: _col0
           Select Operator
-            expressions:
-                  expr: _col0
-                  type: bigint
+            expressions: _col0 (type: bigint)
             outputColumnNames: _col0
             File Output Operator
               compressed: false

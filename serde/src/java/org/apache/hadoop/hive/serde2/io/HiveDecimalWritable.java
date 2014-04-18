@@ -24,6 +24,7 @@ import java.math.BigInteger;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hive.common.type.Decimal128;
 import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.serde2.ByteStream.Output;
 import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryUtils;
@@ -119,6 +120,14 @@ public class HiveDecimalWritable implements WritableComparable<HiveDecimalWritab
     return getHiveDecimal().compareTo(that.getHiveDecimal());
   }
 
+  public static void writeToByteStream(Decimal128 dec, Output byteStream) {
+    HiveDecimal hd = HiveDecimal.create(dec.toBigDecimal());
+    LazyBinaryUtils.writeVInt(byteStream, hd.scale());
+    byte[] bytes = hd.unscaledValue().toByteArray();
+    LazyBinaryUtils.writeVInt(byteStream, bytes.length);
+    byteStream.write(bytes, 0, bytes.length);
+  }
+
   public void writeToByteStream(Output byteStream) {
     LazyBinaryUtils.writeVInt(byteStream, scale);
     LazyBinaryUtils.writeVInt(byteStream, internalStorage.length);
@@ -147,5 +156,22 @@ public class HiveDecimalWritable implements WritableComparable<HiveDecimalWritab
   @Override
   public int hashCode() {
     return getHiveDecimal().hashCode();
+  }
+
+  /* (non-Javadoc)
+   * In order to update a Decimal128 fast (w/o allocation) we need to expose access to the
+   * internal storage bytes and scale.  
+   * @return
+   */
+  public byte[] getInternalStorage() {
+    return internalStorage;
+  }
+  
+  /* (non-Javadoc)
+   * In order to update a Decimal128 fast (w/o allocation) we need to expose access to the
+   * internal storage bytes and scale.  
+   */
+  public int getScale() {
+    return scale;
   }
 }

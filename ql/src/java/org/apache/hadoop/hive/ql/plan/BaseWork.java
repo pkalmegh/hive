@@ -20,10 +20,15 @@ package org.apache.hadoop.hive.ql.plan;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.Stack;
 
 import org.apache.hadoop.hive.ql.exec.HashTableDummyOperator;
 import org.apache.hadoop.hive.ql.exec.Operator;
+import org.apache.hadoop.mapred.JobConf;
 
 /**
  * BaseWork. Base class for any "work" that's being done on the cluster. Items like stats
@@ -79,22 +84,29 @@ public abstract class BaseWork extends AbstractOperatorDesc {
     dummyOps.add(dummyOp);
   }
 
-  protected abstract List<Operator<?>> getAllRootOperators();
+  public abstract void replaceRoots(Map<Operator<?>, Operator<?>> replacementMap);
 
-  public List<Operator<?>> getAllOperators() {
+  public abstract Set<Operator<?>> getAllRootOperators();
 
-    List<Operator<?>> returnList = new ArrayList<Operator<?>>();
-    List<Operator<?>> opList = getAllRootOperators();
+  public Set<Operator<?>> getAllOperators() {
 
-    //recursively add all children
-    while (!opList.isEmpty()) {
-      Operator<?> op = opList.remove(0);
+    Set<Operator<?>> returnSet = new LinkedHashSet<Operator<?>>();
+    Set<Operator<?>> opSet = getAllRootOperators();
+    Stack<Operator<?>> opStack = new Stack<Operator<?>>();
+
+    // add all children
+    opStack.addAll(opSet);
+    
+    while(!opStack.empty()) {
+      Operator<?> op = opStack.pop();
+      returnSet.add(op);
       if (op.getChildOperators() != null) {
-        opList.addAll(op.getChildOperators());
+        opStack.addAll(op.getChildOperators());
       }
-      returnList.add(op);
     }
 
-    return returnList;
+    return returnSet;
   }
+
+  public abstract void configureJobConf(JobConf job);
 }

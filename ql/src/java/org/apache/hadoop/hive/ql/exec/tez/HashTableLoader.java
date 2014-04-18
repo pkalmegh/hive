@@ -28,13 +28,17 @@ import org.apache.hadoop.hive.ql.exec.MapJoinOperator;
 import org.apache.hadoop.hive.ql.exec.MapredContext;
 import org.apache.hadoop.hive.ql.exec.mr.ExecMapperContext;
 import org.apache.hadoop.hive.ql.exec.persistence.HashMapWrapper;
+import org.apache.hadoop.hive.ql.exec.persistence.MapJoinKeyObject;
+import org.apache.hadoop.hive.ql.exec.persistence.LazyFlatRowContainer;
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinKey;
-import org.apache.hadoop.hive.ql.exec.persistence.MapJoinRowContainer;
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinTableContainer;
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinTableContainerSerDe;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.plan.MapJoinDesc;
+import org.apache.hadoop.hive.serde2.ByteStream.Output;
+import org.apache.hadoop.hive.serde2.lazybinary.LazyBinarySerDe;
 import org.apache.hadoop.hive.serde2.SerDeException;
+import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.Writable;
 import org.apache.tez.runtime.api.LogicalInput;
 import org.apache.tez.runtime.library.api.KeyValueReader;
@@ -45,16 +49,22 @@ import org.apache.tez.runtime.library.api.KeyValueReader;
  */
 public class HashTableLoader implements org.apache.hadoop.hive.ql.exec.HashTableLoader {
 
-  private static final Log LOG = LogFactory.getLog(MapJoinOperator.class.getName());
+  private static final Log LOG = LogFactory.getLog(HashTableLoader.class.getName());
 
-  public HashTableLoader() {
+  private ExecMapperContext context;
+  private Configuration hconf;
+  private MapJoinDesc desc;
+  private MapJoinKey lastKey = null;
+
+  @Override
+  public void init(ExecMapperContext context, Configuration hconf, MapJoinOperator joinOp) {
+    this.context = context;
+    this.hconf = hconf;
+    this.desc = joinOp.getConf();
   }
 
   @Override
-  public void load(ExecMapperContext context,
-      Configuration hconf,
-      MapJoinDesc desc,
-      byte posBigTable,
+  public void load(
       MapJoinTableContainer[] mapJoinTables,
       MapJoinTableContainerSerDe[] mapJoinTableSerdes) throws HiveException {
 
@@ -63,13 +73,22 @@ public class HashTableLoader implements org.apache.hadoop.hive.ql.exec.HashTable
     int hashTableThreshold = HiveConf.getIntVar(hconf, HiveConf.ConfVars.HIVEHASHTABLETHRESHOLD);
     float hashTableLoadFactor = HiveConf.getFloatVar(hconf,
         HiveConf.ConfVars.HIVEHASHTABLELOADFACTOR);
+    boolean useLazyRows = HiveConf.getBoolVar(hconf, HiveConf.ConfVars.HIVEMAPJOINLAZYHASHTABLE);
 
+    TezCacheAccess tezCacheAccess = TezCacheAccess.createInstance(hconf);
+    // We only check if we can use optimized keys here; that is ok because we don't
+    // create optimized keys in MapJoin if hash map doesn't have optimized keys.
+    if (!HiveConf.getBoolVar(hconf, HiveConf.ConfVars.HIVEMAPJOINUSEOPTIMIZEDKEYS)) {
+      lastKey = new MapJoinKeyObject();
+    }
+    Output output = new Output(); // Reusable output for serialization.
     for (int pos = 0; pos < mapJoinTables.length; pos++) {
-      if (pos == posBigTable) {
+      if (pos == desc.getPosBigTable()) {
         continue;
       }
 
-      LogicalInput input = tezContext.getInput(parentToInput.get(pos));
+      String inputName = parentToInput.get(pos);
+      LogicalInput input = tezContext.getInput(inputName);
 
       try {
         KeyValueReader kvReader = (KeyValueReader) input.getReader();
@@ -78,16 +97,20 @@ public class HashTableLoader implements org.apache.hadoop.hive.ql.exec.HashTable
             hashTableLoadFactor);
 
         // simply read all the kv pairs into the hashtable.
-        while (kvReader.next()) {
-          MapJoinKey key = new MapJoinKey();
-          key.read(mapJoinTableSerdes[pos].getKeyContext(), (Writable)kvReader.getCurrentKey());
 
-          MapJoinRowContainer values = tableContainer.get(key);
-          if(values == null){
-        	  values = new MapJoinRowContainer();
-        	  tableContainer.put(key, values);
+        while (kvReader.next()) {
+          // We pass key in as reference, to find out quickly if optimized keys can be used.
+          // However, we do not reuse the object since we are putting them into the hashmap.
+          lastKey = MapJoinKey.read(output, lastKey, mapJoinTableSerdes[pos].getKeyContext(),
+              (Writable)kvReader.getCurrentKey(), false);
+
+          LazyFlatRowContainer values = (LazyFlatRowContainer)tableContainer.get(lastKey);
+          if (values == null) {
+            values = new LazyFlatRowContainer();
+            tableContainer.put(lastKey, values);
           }
-          values.read(mapJoinTableSerdes[pos].getValueContext(), (Writable)kvReader.getCurrentValue());
+          values.add(mapJoinTableSerdes[pos].getValueContext(),
+              (BytesWritable)kvReader.getCurrentValue(), useLazyRows);
         }
 
         mapJoinTables[pos] = tableContainer;
@@ -98,6 +121,17 @@ public class HashTableLoader implements org.apache.hadoop.hive.ql.exec.HashTable
       } catch (Exception e) {
         throw new HiveException(e);
       }
+      // Register that the Input has been cached.
+      LOG.info("Is this a bucket map join: " + desc.isBucketMapJoin());
+      // cache is disabled for bucket map join because of the same reason
+      // given in loadHashTable in MapJoinOperator.
+      if (!desc.isBucketMapJoin()) {
+        tezCacheAccess.registerCachedInput(inputName);
+        LOG.info("Setting Input: " + inputName + " as cached");
+      }
+    }
+    if (lastKey == null) {
+      lastKey = new MapJoinKeyObject(); // No rows in tables, the key type doesn't matter.
     }
   }
 }

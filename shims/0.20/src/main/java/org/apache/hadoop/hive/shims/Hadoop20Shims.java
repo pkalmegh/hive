@@ -28,6 +28,7 @@ import java.net.URL;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -42,6 +43,8 @@ import javax.security.auth.login.LoginException;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -50,8 +53,10 @@ import org.apache.hadoop.fs.ProxyFileSystem;
 import org.apache.hadoop.fs.Trash;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hive.io.HiveIOExceptionHandlerUtil;
+import org.apache.hadoop.hive.shims.HadoopShims.DirectDecompressorShim;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.mapred.ClusterStatus;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.InputFormat;
@@ -93,6 +98,12 @@ public class Hadoop20Shims implements HadoopShims {
   public MiniMrShim getMiniMrCluster(Configuration conf, int numberOfTaskTrackers,
                                      String nameNode, int numDir) throws IOException {
     return new MiniMrShim(conf, numberOfTaskTrackers, nameNode, numDir);
+  }
+
+  @Override
+  public MiniMrShim getMiniTezCluster(Configuration conf, int numberOfTaskTrackers,
+                                     String nameNode, int numDir) throws IOException {
+    throw new IOException("Cannot run tez on current hadoop, Version: " + VersionInfo.getVersion());
   }
 
   /**
@@ -553,6 +564,12 @@ public class Hadoop20Shims implements HadoopShims {
   }
 
   @Override
+  public String addServiceToToken(String tokenStr, String tokenService) throws IOException {
+    throw new UnsupportedOperationException("Tokens are not supported in current hadoop version");
+  }
+
+
+  @Override
   public <T> T doAs(UserGroupInformation ugi, PrivilegedExceptionAction<T> pvea) throws
     IOException, InterruptedException {
     try {
@@ -582,6 +599,13 @@ public class Hadoop20Shims implements HadoopShims {
   }
 
   @Override
+  public UserGroupInformation loginUserFromKeytabAndReturnUGI(
+      String principal, String keytabFile) throws IOException {
+    throwKerberosUnsupportedError();
+    return null;
+  }
+
+  @Override
   public void reLoginUserFromKeytab() throws IOException{
     throwKerberosUnsupportedError();
   }
@@ -602,29 +626,11 @@ public class Hadoop20Shims implements HadoopShims {
   }
 
   @Override
-  public Iterator<FileStatus> listLocatedStatus(final FileSystem fs,
+  public List<FileStatus> listLocatedStatus(final FileSystem fs,
                                                 final Path path,
                                                 final PathFilter filter
                                                ) throws IOException {
-    return new Iterator<FileStatus>() {
-      private final FileStatus[] result = fs.listStatus(path, filter);
-      private int current = 0;
-
-      @Override
-      public boolean hasNext() {
-        return current < result.length;
-      }
-
-      @Override
-      public FileStatus next() {
-        return result[current++];
-      }
-
-      @Override
-      public void remove() {
-        throw new IllegalArgumentException("Not supported");
-      }
-    };
+    return Arrays.asList(fs.listStatus(path, filter));
   }
 
   @Override
@@ -634,6 +640,16 @@ public class Hadoop20Shims implements HadoopShims {
   }
 
   @Override
+  public void hflush(FSDataOutputStream stream) throws IOException {
+    stream.sync();
+  }
+
+  @Override
+  public void authorizeProxyAccess(String proxyUser, UserGroupInformation realUserUgi,
+      String ipAddress, Configuration conf) throws IOException {
+    // This hadoop version doesn't have proxy verification
+  }
+
   public boolean isSecurityEnabled() {
     return false;
   }
@@ -764,13 +780,30 @@ public class Hadoop20Shims implements HadoopShims {
     ret.put("HADOOPMAPREDINPUTDIRRECURSIVE", "mapred.input.dir.recursive");
     ret.put("MAPREDMAXSPLITSIZE", "mapred.max.split.size");
     ret.put("MAPREDMINSPLITSIZE", "mapred.min.split.size");
-    ret.put("MAPREDMINSPLITSIZEPERNODE", "mapred.min.split.size.per.rack");
-    ret.put("MAPREDMINSPLITSIZEPERRACK", "mapred.min.split.size.per.node");
+    ret.put("MAPREDMINSPLITSIZEPERRACK", "mapred.min.split.size.per.rack");
+    ret.put("MAPREDMINSPLITSIZEPERNODE", "mapred.min.split.size.per.node");
     ret.put("HADOOPNUMREDUCERS", "mapred.reduce.tasks");
     ret.put("HADOOPJOBNAME", "mapred.job.name");
     ret.put("HADOOPSPECULATIVEEXECREDUCERS", "mapred.reduce.tasks.speculative.execution");
     ret.put("MAPREDSETUPCLEANUPNEEDED", "mapred.committer.job.setup.cleanup.needed");
     ret.put("MAPREDTASKCLEANUPNEEDED", "mapreduce.job.committer.task.cleanup.needed");
     return ret;
+  }
+
+  @Override
+  public ZeroCopyReaderShim getZeroCopyReader(FSDataInputStream in, ByteBufferPoolShim pool) throws IOException {
+    /* not supported */
+    return null;
+  }
+
+  @Override
+  public DirectDecompressorShim getDirectDecompressor(DirectCompressionType codec) {
+    /* not supported */
+    return null;
+  }
+
+  @Override
+  public Configuration getConfiguration(org.apache.hadoop.mapreduce.JobContext context) {
+    return context.getConfiguration();
   }
 }

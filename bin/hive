@@ -119,7 +119,7 @@ elif [ "${HIVE_AUX_JARS_PATH}" != "" ]; then
       HIVE_AUX_JARS_PATH=`cygpath -p -w "$HIVE_AUX_JARS_PATH"`
       HIVE_AUX_JARS_PATH=`echo $HIVE_AUX_JARS_PATH | sed 's/;/,/g'`
   fi
-  AUX_CLASSPATH=${HIVE_AUX_JARS_PATH}
+  AUX_CLASSPATH=${AUX_CLASSPATH}:${HIVE_AUX_JARS_PATH}
   AUX_PARAM="file://$(echo ${HIVE_AUX_JARS_PATH} | sed 's/:/,file:\/\//g')"
 fi
 
@@ -150,6 +150,11 @@ export HADOOP_HOME_WARN_SUPPRESS=true
 
 # pass classpath to hadoop
 export HADOOP_CLASSPATH="${HADOOP_CLASSPATH}:${CLASSPATH}"
+
+# also pass hive classpath to hadoop
+if [ "$HIVE_CLASSPATH" != "" ]; then
+  export HADOOP_CLASSPATH="${HADOOP_CLASSPATH}:${HIVE_CLASSPATH}";
+fi
 
 # check for hadoop in the path
 HADOOP_IN_PATH=`which hadoop 2>/dev/null`
@@ -230,7 +235,7 @@ if [[ -n $HBASE_BIN ]] ; then
 fi
 
 if [ "${AUX_PARAM}" != "" ]; then
-  HIVE_OPTS="$HIVE_OPTS -hiveconf hive.aux.jars.path=${AUX_PARAM}"
+  HIVE_OPTS="$HIVE_OPTS --hiveconf hive.aux.jars.path=${AUX_PARAM}"
   AUX_JARS_CMD_LINE="-libjars ${AUX_PARAM}"
 fi
 

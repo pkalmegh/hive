@@ -18,10 +18,12 @@
 
 package org.apache.hadoop.hive.ql.plan;
 
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,6 +32,9 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.hive.ql.plan.TezEdgeProperty.EdgeType;
+import org.apache.hadoop.mapred.JobConf;
+import org.apache.tez.dag.api.EdgeProperty;
 
 /**
  * TezWork. This class encapsulates all the work objects that can be executed
@@ -41,24 +46,41 @@ import org.apache.commons.logging.LogFactory;
 @Explain(displayName = "Tez")
 public class TezWork extends AbstractOperatorDesc {
 
-  public enum EdgeType {
-    SIMPLE_EDGE,
-    BROADCAST_EDGE
-  }
-
   private static transient final Log LOG = LogFactory.getLog(TezWork.class);
 
+  private static int counter;
+  private final String name;
   private final Set<BaseWork> roots = new HashSet<BaseWork>();
   private final Set<BaseWork> leaves = new HashSet<BaseWork>();
   private final Map<BaseWork, List<BaseWork>> workGraph = new HashMap<BaseWork, List<BaseWork>>();
   private final Map<BaseWork, List<BaseWork>> invertedWorkGraph = new HashMap<BaseWork, List<BaseWork>>();
-  private final Map<Pair<BaseWork, BaseWork>, EdgeType> edgeProperties =
-      new HashMap<Pair<BaseWork, BaseWork>, EdgeType>();
+  private final Map<Pair<BaseWork, BaseWork>, TezEdgeProperty> edgeProperties =
+      new HashMap<Pair<BaseWork, BaseWork>, TezEdgeProperty>();
+
+  public TezWork(String name) {
+    this.name = name + ":" + (++counter);
+  }
+
+  @Explain(displayName = "DagName")
+  public String getName() {
+    return name;
+  }
+
+  /**
+   * getWorkMap returns a map of "vertex name" to BaseWork
+   */
+  @Explain(displayName = "Vertices")
+  public Map<String, BaseWork> getWorkMap() {
+    Map<String, BaseWork> result = new LinkedHashMap<String, BaseWork>();
+    for (BaseWork w: getAllWork()) {
+      result.put(w.getName(), w);
+    }
+    return result;
+  }
 
   /**
    * getAllWork returns a topologically sorted list of BaseWork
    */
-  @Explain(skipHeader = true, displayName = "Tez Work")
   public List<BaseWork> getAllWork() {
 
     List<BaseWork> result = new LinkedList<BaseWork>();
@@ -70,6 +92,10 @@ public class TezWork extends AbstractOperatorDesc {
     }
 
     return result;
+  }
+
+  public Collection<BaseWork> getAllWorkUnsorted() {
+    return workGraph.keySet();
   }
 
   private void visit(BaseWork child, Set<BaseWork> seen, List<BaseWork> result) {
@@ -119,19 +145,6 @@ public class TezWork extends AbstractOperatorDesc {
     invertedWorkGraph.put(w, new LinkedList<BaseWork>());
     roots.add(w);
     leaves.add(w);
-  }
-
-  /**
-   * connect adds an edge between a and b. Both nodes have
-   * to be added prior to calling connect.
-   */
-  public void connect(BaseWork a, BaseWork b, EdgeType edgeType) {
-    workGraph.get(a).add(b);
-    invertedWorkGraph.get(b).add(a);
-    roots.remove(b);
-    leaves.remove(a);
-    ImmutablePair workPair = new ImmutablePair(a, b);
-    edgeProperties.put(workPair, edgeType);
   }
 
   /**
@@ -217,7 +230,96 @@ public class TezWork extends AbstractOperatorDesc {
     invertedWorkGraph.remove(work);
   }
 
-  public EdgeType getEdgeProperty(BaseWork a, BaseWork b) {
+  public EdgeType getEdgeType(BaseWork a, BaseWork b) {
+    return edgeProperties.get(new ImmutablePair(a,b)).getEdgeType();
+  }
+
+  /**
+   * returns the edge type connecting work a and b
+   */
+  public TezEdgeProperty getEdgeProperty(BaseWork a, BaseWork b) {
     return edgeProperties.get(new ImmutablePair(a,b));
+  }
+
+  /*
+   * Dependency is a class used for explain
+   */ 
+  public class Dependency implements Serializable {
+    public BaseWork w;
+    public EdgeType type;
+
+    @Explain(displayName = "Name")
+    public String getName() {
+      return w.getName();
+    }
+    
+    @Explain(displayName = "Type")
+    public String getType() {
+      return type.toString();
+    }
+  }
+
+  @Explain(displayName = "Edges")
+  public Map<String, List<Dependency>> getDependencyMap() {
+    Map<String, List<Dependency>> result = new LinkedHashMap<String, List<Dependency>>();
+    for (Map.Entry<BaseWork, List<BaseWork>> entry: invertedWorkGraph.entrySet()) {
+      List dependencies = new LinkedList<Dependency>();
+      for (BaseWork d: entry.getValue()) {
+        Dependency dependency = new Dependency();
+        dependency.w = d;
+        dependency.type = getEdgeType(d, entry.getKey());
+        dependencies.add(dependency);
+      }
+      if (!dependencies.isEmpty()) {
+        result.put(entry.getKey().getName(), dependencies);
+      }
+    }
+    return result;
+  }
+  
+  private static final String MR_JAR_PROPERTY = "tmpjars";
+  /**
+   * Calls configureJobConf on instances of work that are part of this TezWork.
+   * Uses the passed job configuration to extract "tmpjars" added by these, so that Tez
+   * could add them to the job proper Tez way. This is a very hacky way but currently
+   * there's no good way to get these JARs - both storage handler interface, and HBase
+   * code, would have to change to get the list directly (right now it adds to tmpjars).
+   * This will happen in 0.14 hopefully.
+   * @param jobConf Job configuration.
+   * @return List of files added to tmpjars by storage handlers.
+   */
+  public String[] configureJobConfAndExtractJars(JobConf jobConf) {
+    String[] oldTmpJars = jobConf.getStrings(MR_JAR_PROPERTY);
+    jobConf.setStrings(MR_JAR_PROPERTY, new String[0]);
+    for (BaseWork work : workGraph.keySet()) {
+      work.configureJobConf(jobConf);
+    }
+    String[] newTmpJars = jobConf.getStrings(MR_JAR_PROPERTY);
+    if (oldTmpJars != null && (oldTmpJars.length != 0)) {
+      if (newTmpJars != null && (newTmpJars.length != 0)) {
+        String[] combinedTmpJars = new String[newTmpJars.length + oldTmpJars.length];
+        System.arraycopy(oldTmpJars, 0, combinedTmpJars, 0, oldTmpJars.length);
+        System.arraycopy(newTmpJars, 0, combinedTmpJars, oldTmpJars.length, newTmpJars.length);
+        jobConf.setStrings(MR_JAR_PROPERTY, combinedTmpJars);
+      } else {
+        jobConf.setStrings(MR_JAR_PROPERTY, oldTmpJars);
+      }
+    }
+    return newTmpJars;
+   }
+
+  /**
+   * connect adds an edge between a and b. Both nodes have
+   * to be added prior to calling connect.
+   * @param  
+   */
+  public void connect(BaseWork a, BaseWork b,
+      TezEdgeProperty edgeProp) {
+    workGraph.get(a).add(b);
+    invertedWorkGraph.get(b).add(a);
+    roots.remove(b);
+    leaves.remove(a);
+    ImmutablePair workPair = new ImmutablePair(a, b);
+    edgeProperties.put(workPair, edgeProp);
   }
 }

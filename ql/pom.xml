@@ -19,7 +19,7 @@
   <parent>
     <groupId>org.apache.hive</groupId>
     <artifactId>hive</artifactId>
-    <version>0.13.0-SNAPSHOT</version>
+    <version>0.14.0-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
@@ -65,6 +65,10 @@
       <groupId>com.esotericsoftware.kryo</groupId>
       <artifactId>kryo</artifactId>
       <version>${kryo.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.twitter</groupId>
+      <artifactId>parquet-hadoop-bundle</artifactId>
     </dependency>
     <dependency>
       <groupId>commons-codec</groupId>
@@ -204,6 +208,12 @@
     <!-- test intra-project -->
     <!-- test inter-project -->
     <dependency>
+      <groupId>com.twitter</groupId>
+      <artifactId>parquet-column</artifactId>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <version>${junit.version}</version>
@@ -342,8 +352,16 @@
         </dependency>
         <dependency>
           <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-mapreduce-client-common</artifactId>
+          <version>${hadoop-23.version}</version>
+          <optional>true</optional>
+          <scope>test</scope>
+        </dependency>
+        <dependency>
+          <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-hdfs</artifactId>
           <version>${hadoop-23.version}</version>
+          <optional>true</optional>
         </dependency>
         <dependency>
           <groupId>org.apache.hadoop</groupId>
@@ -362,6 +380,14 @@
          <artifactId>hadoop-yarn-client</artifactId>
          <version>${hadoop-23.version}</version>
          <optional>true</optional>
+       </dependency>
+       <!-- Test dependencies -->
+       <dependency>
+         <groupId>org.apache.hadoop</groupId>
+         <artifactId>hadoop-mapreduce-client-common</artifactId>
+         <version>${hadoop-23.version}</version>
+         <optional>true</optional>
+         <scope>test</scope>
        </dependency>
       </dependencies>
     </profile>
@@ -476,10 +502,11 @@
                   <include>org.apache.hive:hive-exec</include>
                   <include>org.apache.hive:hive-serde</include>
                   <include>com.esotericsoftware.kryo:kryo</include>
+                  <include>com.twitter:parquet-hadoop-bundle</include>
                   <include>org.apache.thrift:libthrift</include>
                   <include>commons-lang:commons-lang</include>
                   <include>org.json:json</include>
-                  <include>org.apache.avro:arvro-mapred</include>
+                  <include>org.apache.avro:avro-mapred</include>
                   <include>org.apache.hive.shims:hive-shims-0.20</include>
                   <include>org.apache.hive.shims:hive-shims-0.20S</include>
                   <include>org.apache.hive.shims:hive-shims-0.23</include>

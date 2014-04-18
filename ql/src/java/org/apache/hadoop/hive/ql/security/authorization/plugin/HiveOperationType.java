@@ -17,12 +17,14 @@
  */
 package org.apache.hadoop.hive.ql.security.authorization.plugin;
 
-import org.apache.hadoop.hive.common.classification.InterfaceAudience.Public;
+import org.apache.hadoop.hive.common.classification.InterfaceAudience.LimitedPrivate;
+import org.apache.hadoop.hive.common.classification.InterfaceStability.Evolving;
 
 /**
  * List of hive operations types.
  */
-@Public
+@LimitedPrivate(value = { "" })
+@Evolving
 public enum HiveOperationType {
   EXPLAIN,
   LOAD,
@@ -49,6 +51,7 @@ public enum HiveOperationType {
   ALTERTABLE_UNARCHIVE,
   ALTERTABLE_PROPERTIES,
   ALTERTABLE_SERIALIZER,
+  ALTERTABLE_PARTCOLTYPE,
   ALTERPARTITION_SERIALIZER,
   ALTERTABLE_SERDEPROPERTIES,
   ALTERPARTITION_SERDEPROPERTIES,
@@ -88,6 +91,7 @@ public enum HiveOperationType {
   REVOKE_ROLE,
   SHOW_ROLES,
   SHOW_ROLE_GRANT,
+  SHOW_ROLE_PRINCIPALS,
   ALTERTABLE_PROTECTMODE,
   ALTERPARTITION_PROTECTMODE,
   ALTERTABLE_FILEFORMAT,
@@ -100,11 +104,16 @@ public enum HiveOperationType {
   QUERY,
   ALTERINDEX_PROPS,
   ALTERDATABASE,
+  ALTERDATABASE_OWNER,
   DESCDATABASE,
   ALTERTABLE_MERGEFILES,
   ALTERPARTITION_MERGEFILES,
   ALTERTABLE_SKEWED,
   ALTERTBLPART_SKEWED_LOCATION,
   ALTERVIEW_RENAME,
+  ALTERTABLE_COMPACT,
+  SHOW_COMPACTIONS,
+  SHOW_TRANSACTIONS
+
 
 }

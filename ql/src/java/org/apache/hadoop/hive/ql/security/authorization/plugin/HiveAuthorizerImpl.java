@@ -19,8 +19,9 @@ package org.apache.hadoop.hive.ql.security.authorization.plugin;
 
 import java.util.List;
 
-import org.apache.hadoop.hive.common.classification.InterfaceAudience.Public;
+import org.apache.hadoop.hive.common.classification.InterfaceAudience.LimitedPrivate;
 import org.apache.hadoop.hive.common.classification.InterfaceStability.Evolving;
+import org.apache.hadoop.hive.conf.HiveConf;
 
 /**
  * Convenience implementation of HiveAuthorizer.
@@ -28,13 +29,13 @@ import org.apache.hadoop.hive.common.classification.InterfaceStability.Evolving;
  * {@link HiveAccessController} and {@link HiveAuthorizationValidator} to constructor.
  *
  */
-@Public
+@LimitedPrivate(value = { "" })
 @Evolving
 public class HiveAuthorizerImpl implements HiveAuthorizer {
   HiveAccessController accessController;
   HiveAuthorizationValidator authValidator;
 
-   HiveAuthorizerImpl(HiveAccessController accessController, HiveAuthorizationValidator authValidator){
+   public HiveAuthorizerImpl(HiveAccessController accessController, HiveAuthorizationValidator authValidator){
      this.accessController = accessController;
      this.authValidator = authValidator;
    }
@@ -42,7 +43,7 @@ public class HiveAuthorizerImpl implements HiveAuthorizer {
   @Override
   public void grantPrivileges(List<HivePrincipal> hivePrincipals,
       List<HivePrivilege> hivePrivileges, HivePrivilegeObject hivePrivObject,
-      HivePrincipal grantorPrincipal, boolean grantOption) {
+      HivePrincipal grantorPrincipal, boolean grantOption) throws HiveAuthzPluginException, HiveAccessControlException {
     accessController.grantPrivileges(hivePrincipals, hivePrivileges, hivePrivObject,
         grantorPrincipal, grantOption);
   }
@@ -50,53 +51,79 @@ public class HiveAuthorizerImpl implements HiveAuthorizer {
   @Override
   public void revokePrivileges(List<HivePrincipal> hivePrincipals,
       List<HivePrivilege> hivePrivileges, HivePrivilegeObject hivePrivObject,
-      HivePrincipal grantorPrincipal, boolean grantOption) {
+      HivePrincipal grantorPrincipal, boolean grantOption) throws HiveAuthzPluginException, HiveAccessControlException {
     accessController.revokePrivileges(hivePrincipals, hivePrivileges, hivePrivObject,
         grantorPrincipal, grantOption);
   }
 
   @Override
-  public void createRole(String roleName, HivePrincipal adminGrantor) {
+  public void createRole(String roleName, HivePrincipal adminGrantor) throws HiveAuthzPluginException, HiveAccessControlException {
     accessController.createRole(roleName, adminGrantor);
   }
 
   @Override
-  public void dropRole(String roleName) {
+  public void dropRole(String roleName) throws HiveAuthzPluginException, HiveAccessControlException {
     accessController.dropRole(roleName);
   }
 
   @Override
-  public List<String> getRoles(HivePrincipal hivePrincipal) {
-    return accessController.getRoles(hivePrincipal);
-  }
-
-  @Override
   public void grantRole(List<HivePrincipal> hivePrincipals, List<String> roles,
-      boolean grantOption, HivePrincipal grantorPrinc) {
+      boolean grantOption, HivePrincipal grantorPrinc) throws HiveAuthzPluginException, HiveAccessControlException {
     accessController.grantRole(hivePrincipals, roles, grantOption, grantorPrinc);
   }
 
   @Override
   public void revokeRole(List<HivePrincipal> hivePrincipals, List<String> roles,
-      boolean grantOption, HivePrincipal grantorPrinc) {
+      boolean grantOption, HivePrincipal grantorPrinc) throws HiveAuthzPluginException, HiveAccessControlException {
     accessController.revokeRole(hivePrincipals, roles, grantOption, grantorPrinc);
   }
 
   @Override
   public void checkPrivileges(HiveOperationType hiveOpType, List<HivePrivilegeObject> inputHObjs,
-      List<HivePrivilegeObject> outputHObjs) {
+      List<HivePrivilegeObject> outputHObjs) throws HiveAuthzPluginException, HiveAccessControlException {
     authValidator.checkPrivileges(hiveOpType, inputHObjs, outputHObjs);
   }
 
   @Override
-  public List<String> getAllRoles() {
+  public List<String> getAllRoles() throws HiveAuthzPluginException, HiveAccessControlException {
     return accessController.getAllRoles();
   }
 
+  @Override
+  public List<HivePrivilegeInfo> showPrivileges(HivePrincipal principal,
+      HivePrivilegeObject privObj) throws HiveAuthzPluginException, HiveAccessControlException {
+    return accessController.showPrivileges(principal, privObj);
+  }
 
- // other access control functions
+  @Override
+  public VERSION getVersion() {
+    return VERSION.V1;
+  }
 
-//   void validateAuthority(HiveAction, inputs, outputs){
-//     authValidator.validateAuthority(HiveAction, inputs, outputs);
-//   }
+  @Override
+  public void setCurrentRole(String roleName) throws HiveAccessControlException, HiveAuthzPluginException {
+    accessController.setCurrentRole(roleName);
+  }
+
+  @Override
+  public List<String> getCurrentRoleNames() throws HiveAuthzPluginException {
+    return accessController.getCurrentRoleNames();
+  }
+
+  @Override
+  public List<HiveRoleGrant> getPrincipalGrantInfoForRole(String roleName)
+      throws HiveAuthzPluginException, HiveAccessControlException {
+    return accessController.getPrincipalGrantInfoForRole(roleName);
+  }
+
+  @Override
+  public List<HiveRoleGrant> getRoleGrantInfoForPrincipal(HivePrincipal principal)
+      throws HiveAuthzPluginException, HiveAccessControlException {
+    return accessController.getRoleGrantInfoForPrincipal(principal);
+  }
+
+  @Override
+  public void applyAuthorizationConfigPolicy(HiveConf hiveConf) {
+    accessController.applyAuthorizationConfigPolicy(hiveConf);
+  }
 }

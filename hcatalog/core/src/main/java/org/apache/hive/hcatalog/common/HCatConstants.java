@@ -61,6 +61,10 @@ public final class HCatConstants {
 
   // hcatalog specific configurations, that can be put in hive-site.xml
   public static final String HCAT_HIVE_CLIENT_EXPIRY_TIME = "hcatalog.hive.client.cache.expiry.time";
+  // config parameter that suggests to hcat that metastore clients not be cached - default is false
+  // this parameter allows highly-parallel hcat usescases to not gobble up too many connections that
+  // sit in the cache, while not in use.
+  public static final String HCAT_HIVE_CLIENT_DISABLE_CACHE = "hcatalog.hive.client.cache.disabled";
 
   private HCatConstants() { // restrict instantiation
   }
@@ -84,7 +88,9 @@ public final class HCatConstants {
    * The desired number of input splits produced for each partition. When the
    * input files are large and few, we want to split them into many splits,
    * so as to increase the parallelizm of loading the splits. Try also two
-   * other parameters, mapred.min.split.size and mapred.max.split.size, to
+   * other parameters, mapred.min.split.size and mapred.max.split.size for
+   * hadoop 1.x, or mapreduce.input.fileinputformat.split.minsize and
+   * mapreduce.input.fileinputformat.split.maxsize in hadoop 2.x to
    * control the number of input splits.
    */
   public static final String HCAT_DESIRED_PARTITION_NUM_SPLITS =
@@ -115,8 +121,11 @@ public final class HCatConstants {
   public static final String HCAT_MSGBUS_TOPIC_NAMING_POLICY = "hcat.msgbus.topic.naming.policy";
   public static final String HCAT_MSGBUS_TOPIC_PREFIX = "hcat.msgbus.topic.prefix";
 
-  public static final String HCAT_DYNAMIC_PTN_JOBID = HCAT_KEY_OUTPUT_BASE + "dynamic.jobid";
+  public static final String HCAT_OUTPUT_ID_HASH = HCAT_KEY_OUTPUT_BASE + ".id";
+
+  public static final String HCAT_DYNAMIC_PTN_JOBID = HCAT_KEY_OUTPUT_BASE + ".dynamic.jobid";
   public static final boolean HCAT_IS_DYNAMIC_MAX_PTN_CHECK_ENABLED = false;
+  public static final String HCAT_DYNAMIC_CUSTOM_PATTERN = "hcat.dynamic.partitioning.custom.pattern";
 
   // Message Bus related properties.
   public static final String HCAT_DEFAULT_TOPIC_PREFIX = "hcat";

@@ -10,6 +10,7 @@ CREATE table analyze_srcpart_partial_scan (key STRING, value STRING)
 partitioned by (ds string, hr string)
 stored as rcfile
 PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
 POSTHOOK: query: -- INCLUDE_HADOOP_MAJOR_VERSIONS(0.23)
 -- This test uses mapred.max.split.size/mapred.max.split.size for controlling
 -- number of input splits.
@@ -22,6 +23,7 @@ CREATE table analyze_srcpart_partial_scan (key STRING, value STRING)
 partitioned by (ds string, hr string)
 stored as rcfile
 POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
 POSTHOOK: Output: default@analyze_srcpart_partial_scan
 PREHOOK: query: insert overwrite table analyze_srcpart_partial_scan partition (ds, hr) select * from srcpart where ds is not null
 PREHOOK: type: QUERY
@@ -64,14 +66,14 @@ POSTHOOK: Lineage: analyze_srcpart_partial_scan PARTITION(ds=2008-04-09,hr=12).k
 POSTHOOK: Lineage: analyze_srcpart_partial_scan PARTITION(ds=2008-04-09,hr=12).value SIMPLE [(srcpart)srcpart.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-ds                  	string              	None                
-hr                  	string              	None                
+ds                  	string              	                    
+hr                  	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[2008-04-08, 11]    	 
@@ -81,6 +83,11 @@ Table:              	analyze_srcpart_partial_scan
 Protect Mode:       	None                	 
 #### A masked pattern was here ####
 Partition Parameters:	 	 
+	COLUMN_STATS_ACCURATE	false               
+	numFiles            	22                  
+	numRows             	-1                  
+	rawDataSize         	-1                  
+	totalSize           	6954                
 #### A masked pattern was here ####
 	 	 
 # Storage Information	 	 
@@ -109,9 +116,6 @@ POSTHOOK: Lineage: analyze_srcpart_partial_scan PARTITION(ds=2008-04-09,hr=11).k
 POSTHOOK: Lineage: analyze_srcpart_partial_scan PARTITION(ds=2008-04-09,hr=11).value SIMPLE [(srcpart)srcpart.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: analyze_srcpart_partial_scan PARTITION(ds=2008-04-09,hr=12).key SIMPLE [(srcpart)srcpart.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: analyze_srcpart_partial_scan PARTITION(ds=2008-04-09,hr=12).value SIMPLE [(srcpart)srcpart.FieldSchema(name:value, type:string, comment:default), ]
-ABSTRACT SYNTAX TREE:
-  (TOK_ANALYZE (TOK_TAB (TOK_TABNAME analyze_srcpart_partial_scan) (TOK_PARTSPEC (TOK_PARTVAL ds '2008-04-08') (TOK_PARTVAL hr 11))) partialscan)
-
 STAGE DEPENDENCIES:
   Stage-2 is a root stage
   Stage-1 depends on stages: Stage-2
@@ -122,7 +126,6 @@ STAGE PLANS:
 
   Stage: Stage-1
     Stats-Aggr Operator
-
 
 PREHOOK: query: analyze table analyze_srcpart_partial_scan PARTITION(ds='2008-04-08',hr=11) compute statistics partialscan
 PREHOOK: type: QUERY
@@ -160,14 +163,14 @@ POSTHOOK: Lineage: analyze_srcpart_partial_scan PARTITION(ds=2008-04-09,hr=12).k
 POSTHOOK: Lineage: analyze_srcpart_partial_scan PARTITION(ds=2008-04-09,hr=12).value SIMPLE [(srcpart)srcpart.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-ds                  	string              	None                
-hr                  	string              	None                
+ds                  	string              	                    
+hr                  	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[2008-04-08, 11]    	 
@@ -177,6 +180,7 @@ Table:              	analyze_srcpart_partial_scan
 Protect Mode:       	None                	 
 #### A masked pattern was here ####
 Partition Parameters:	 	 
+	COLUMN_STATS_ACCURATE	true                
 	numFiles            	22                  
 	numRows             	500                 
 	rawDataSize         	4812                
@@ -207,14 +211,14 @@ POSTHOOK: Lineage: analyze_srcpart_partial_scan PARTITION(ds=2008-04-09,hr=12).k
 POSTHOOK: Lineage: analyze_srcpart_partial_scan PARTITION(ds=2008-04-09,hr=12).value SIMPLE [(srcpart)srcpart.FieldSchema(name:value, type:string, comment:default), ]
 # col_name            	data_type           	comment             
 	 	 
-key                 	string              	None                
-value               	string              	None                
+key                 	string              	                    
+value               	string              	                    
 	 	 
 # Partition Information	 	 
 # col_name            	data_type           	comment             
 	 	 
-ds                  	string              	None                
-hr                  	string              	None                
+ds                  	string              	                    
+hr                  	string              	                    
 	 	 
 # Detailed Partition Information	 	 
 Partition Value:    	[2008-04-09, 11]    	 
@@ -224,6 +228,11 @@ Table:              	analyze_srcpart_partial_scan
 Protect Mode:       	None                	 
 #### A masked pattern was here ####
 Partition Parameters:	 	 
+	COLUMN_STATS_ACCURATE	false               
+	numFiles            	22                  
+	numRows             	-1                  
+	rawDataSize         	-1                  
+	totalSize           	6954                
 #### A masked pattern was here ####
 	 	 
 # Storage Information	 	 

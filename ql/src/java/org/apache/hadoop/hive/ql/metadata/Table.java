@@ -23,13 +23,11 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -37,6 +35,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.common.JavaUtils;
+import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.hive.metastore.ProtectMode;
 import org.apache.hadoop.hive.metastore.TableType;
@@ -47,11 +46,12 @@ import org.apache.hadoop.hive.metastore.api.Order;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.SkewedInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
-import org.apache.hadoop.hive.ql.ErrorMsg;
+import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.hadoop.hive.ql.io.HiveFileFormatUtils;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
 import org.apache.hadoop.hive.ql.io.HivePassThroughOutputFormat;
 import org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat;
+import org.apache.hadoop.hive.ql.parse.SemanticAnalyzer;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.Deserializer;
@@ -96,17 +96,27 @@ public class Table implements Serializable {
   }
 
   public Table(org.apache.hadoop.hive.metastore.api.Table table) {
+    initialize(table);
+  }
+
+  // Do initialization here, so as to keep the ctor minimal.
+  protected void initialize(org.apache.hadoop.hive.metastore.api.Table table) {
     tTable = table;
-    if (!isView()) {
-      // This will set up field: inputFormatClass
-      getInputFormatClass();
-      // This will set up field: outputFormatClass
-      getOutputFormatClass();
-    }
+    // Note that we do not set up fields like inputFormatClass, outputFormatClass
+    // and deserializer because the Partition needs to be accessed from across
+    // the metastore side as well, which will result in attempting to load
+    // the class associated with them, which might not be available, and
+    // the main reason to instantiate them would be to pre-cache them for
+    // performance. Since those fields are null/cache-check by their accessors
+    // anyway, that's not a concern.
   }
 
   public Table(String databaseName, String tableName) {
     this(getEmptyTable(databaseName, tableName));
+  }
+
+  public boolean isDummyTable() {
+    return tTable.getTableName().equals(SemanticAnalyzer.DUMMY_TABLE);
   }
 
   /**
@@ -399,6 +409,11 @@ public class Table implements Serializable {
     return tTable.getParameters().get(name);
   }
 
+  public boolean isImmutable(){
+    return (tTable.getParameters().containsKey(hive_metastoreConstants.IS_IMMUTABLE)
+        && tTable.getParameters().get(hive_metastoreConstants.IS_IMMUTABLE).equalsIgnoreCase("true"));
+  }
+
   public void setTableType(TableType tableType) {
      tTable.setTableType(tableType.toString());
    }
@@ -602,18 +617,18 @@ public class Table implements Serializable {
   }
 
   public List<FieldSchema> getCols() {
-    boolean getColsFromSerDe = SerDeUtils.shouldGetColsFromSerDe(
-      getSerializationLib());
-    if (!getColsFromSerDe) {
-      return tTable.getSd().getCols();
-    } else {
-      try {
+
+    try {
+      if (null == getSerializationLib() || Hive.get().getConf().getStringCollection(
+        ConfVars.SERDESUSINGMETASTOREFORSCHEMA.varname).contains(getSerializationLib())) {
+        return tTable.getSd().getCols();
+      } else {
         return Hive.getFieldsFromDeserializer(getTableName(), getDeserializer());
-      } catch (HiveException e) {
-        LOG.error("Unable to get field from serde: " + getSerializationLib(), e);
       }
-      return new ArrayList<FieldSchema>();
+    } catch (HiveException e) {
+      LOG.error("Unable to get field from serde: " + getSerializationLib(), e);
     }
+    return new ArrayList<FieldSchema>();
   }
 
   /**
@@ -647,10 +662,14 @@ public class Table implements Serializable {
    *
    * @param srcf
    *          Source directory
+   * @param isSrcLocal
+   *          If the source directory is LOCAL
    */
-  protected void replaceFiles(Path srcf) throws HiveException {
+  protected void replaceFiles(Path srcf, boolean isSrcLocal)
+      throws HiveException {
     Path tableDest = getPath();
-    Hive.replaceFiles(srcf, tableDest, tableDest, Hive.get().getConf());
+    Hive.replaceFiles(srcf, tableDest, tableDest, Hive.get().getConf(),
+        isSrcLocal);
   }
 
   /**
@@ -658,12 +677,14 @@ public class Table implements Serializable {
    *
    * @param srcf
    *          Files to be moved. Leaf directories or globbed file paths
+   * @param isSrcLocal
+   *          If the source directory is LOCAL
    */
-  protected void copyFiles(Path srcf) throws HiveException {
+  protected void copyFiles(Path srcf, boolean isSrcLocal) throws HiveException {
     FileSystem fs;
     try {
       fs = getDataLocation().getFileSystem(Hive.get().getConf());
-      Hive.copyFiles(Hive.get().getConf(), srcf, getPath(), fs);
+      Hive.copyFiles(Hive.get().getConf(), srcf, getPath(), fs, isSrcLocal);
     } catch (IOException e) {
       throw new HiveException("addFiles: filesystem error in check phase", e);
     }
@@ -901,14 +922,7 @@ public class Table implements Serializable {
    * @return protect mode
    */
   public ProtectMode getProtectMode(){
-    Map<String, String> parameters = tTable.getParameters();
-
-    if (!parameters.containsKey(ProtectMode.PARAMETER_NAME)) {
-      return new ProtectMode();
-    } else {
-      return ProtectMode.getProtectModeFromString(
-          parameters.get(ProtectMode.PARAMETER_NAME));
-    }
+    return MetaStoreUtils.getProtectMode(tTable);
   }
 
   /**

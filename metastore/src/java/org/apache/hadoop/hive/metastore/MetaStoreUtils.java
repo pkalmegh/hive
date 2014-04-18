@@ -44,6 +44,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.hive.common.JavaUtils;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -201,7 +202,7 @@ public class MetaStoreUtils {
           }
           params.put(StatsSetupConst.COLUMN_STATS_ACCURATE, StatsSetupConst.FALSE);
         } else {
-          params.remove(StatsSetupConst.STATS_GENERATED_VIA_STATS_TASK);	
+          params.remove(StatsSetupConst.STATS_GENERATED_VIA_STATS_TASK);
           params.put(StatsSetupConst.COLUMN_STATS_ACCURATE, StatsSetupConst.TRUE);
         }
       }
@@ -232,7 +233,7 @@ public class MetaStoreUtils {
     if(newPart.getParameters().containsKey(StatsSetupConst.STATS_GENERATED_VIA_STATS_TASK)) {
       return true;
     }
-    
+
     // requires to calculate stats if new and old have different fast stats
     if ((oldPart != null) && (oldPart.getParameters() != null)) {
       for (String stat : StatsSetupConst.fastStats) {
@@ -471,14 +472,14 @@ public class MetaStoreUtils {
     }
     return false;
   }
-  
+
   /*
    * At the Metadata level there are no restrictions on Column Names.
    */
   public static final boolean validateColumnName(String name) {
     return true;
   }
-  
+
   static public String validateTblColumns(List<FieldSchema> cols) {
     for (FieldSchema fieldSchema : cols) {
       if (!validateColumnName(fieldSchema.getName())) {
@@ -926,14 +927,17 @@ public class MetaStoreUtils {
     }
     StringBuilder colNameBuf = new StringBuilder();
     StringBuilder colTypeBuf = new StringBuilder();
+    StringBuilder colComment = new StringBuilder();
     boolean first = true;
     for (FieldSchema col : tblsd.getCols()) {
       if (!first) {
         colNameBuf.append(",");
         colTypeBuf.append(":");
+        colComment.append('\0');
       }
       colNameBuf.append(col.getName());
       colTypeBuf.append(col.getType());
+      colComment.append((null != col.getComment()) ? col.getComment() : "");
       first = false;
     }
     String colNames = colNameBuf.toString();
@@ -944,6 +948,7 @@ public class MetaStoreUtils {
     schema.setProperty(
         org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.META_TABLE_COLUMN_TYPES,
         colTypes);
+    schema.setProperty("columns.comments", colComment.toString());
     if (sd.getCols() != null) {
       schema.setProperty(
           org.apache.hadoop.hive.serde.serdeConstants.SERIALIZATION_DDL,
@@ -952,11 +957,16 @@ public class MetaStoreUtils {
 
     String partString = "";
     String partStringSep = "";
+    String partTypesString = "";
+    String partTypesStringSep = "";
     for (FieldSchema partKey : partitionKeys) {
       partString = partString.concat(partStringSep);
       partString = partString.concat(partKey.getName());
+      partTypesString = partTypesString.concat(partTypesStringSep);
+      partTypesString = partTypesString.concat(partKey.getType());      
       if (partStringSep.length() == 0) {
         partStringSep = "/";
+        partTypesStringSep = ":";
       }
     }
     if (partString.length() > 0) {
@@ -964,6 +974,10 @@ public class MetaStoreUtils {
           .setProperty(
               org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.META_TABLE_PARTITION_COLUMNS,
               partString);
+      schema
+      .setProperty(
+          org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.META_TABLE_PARTITION_COLUMN_TYPES,
+          partTypesString);      
     }
 
     if (parameters != null) {
@@ -1149,7 +1163,7 @@ public class MetaStoreUtils {
 
   private static final String FROM_SERIALIZER = "from deserializer";
   private static String determineFieldComment(String comment) {
-    return (comment == null || comment.isEmpty()) ? FROM_SERIALIZER : comment;
+    return (comment == null) ? FROM_SERIALIZER : comment;
   }
 
   /**
@@ -1180,6 +1194,29 @@ public class MetaStoreUtils {
     return "TRUE".equalsIgnoreCase(params.get("EXTERNAL"));
   }
 
+  /**
+   * Determines whether a table is an immutable table.
+   * Immutable tables are write-once/replace, and do not support append. Partitioned
+   * immutable tables do support additions by way of creation of new partitions, but
+   * do not allow the partitions themselves to be appended to. "INSERT INTO" will not
+   * work for Immutable tables.
+   *
+   * @param table table of interest
+   *
+   * @return true if immutable
+   */
+  public static boolean isImmutableTable(Table table) {
+    if (table == null){
+      return false;
+    }
+    Map<String, String> params = table.getParameters();
+    if (params == null) {
+      return false;
+    }
+
+    return "TRUE".equalsIgnoreCase(params.get(hive_metastoreConstants.IS_IMMUTABLE));
+  }
+
   public static boolean isArchived(
       org.apache.hadoop.hive.metastore.api.Partition part) {
     Map<String, String> params = part.getParameters();
@@ -1205,6 +1242,36 @@ public class MetaStoreUtils {
       return false;
     }
     return (table.getParameters().get(hive_metastoreConstants.META_TABLE_STORAGE) != null);
+  }
+
+  /**
+   * Filter that filters out hidden files
+   */
+  private static final PathFilter hiddenFileFilter = new PathFilter() {
+    @Override
+    public boolean accept(Path p) {
+      String name = p.getName();
+      return !name.startsWith("_") && !name.startsWith(".");
+    }
+  };
+
+  /**
+   * Utility method that determines if a specified directory already has
+   * contents (non-hidden files) or not - useful to determine if an
+   * immutable table already has contents, for example.
+   *
+   * @param path
+   * @throws IOException
+   */
+  public static boolean isDirEmpty(FileSystem fs, Path path) throws IOException {
+
+    if (fs.exists(path)) {
+      FileStatus[] status = fs.globStatus(new Path(path, "*"), hiddenFileFilter);
+      if (status.length > 0) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -1424,4 +1491,43 @@ public class MetaStoreUtils {
     return null;
   }
 
+  public static ProtectMode getProtectMode(Partition partition) {
+    return getProtectMode(partition.getParameters());
+  }
+
+  public static ProtectMode getProtectMode(Table table) {
+    return getProtectMode(table.getParameters());
+  }
+
+  private static ProtectMode getProtectMode(Map<String, String> parameters) {
+    if (parameters == null) {
+      return null;
+    }
+
+    if (!parameters.containsKey(ProtectMode.PARAMETER_NAME)) {
+      return new ProtectMode();
+    } else {
+      return ProtectMode.getProtectModeFromString(parameters.get(ProtectMode.PARAMETER_NAME));
+    }
+  }
+
+  public static boolean canDropPartition(Table table, Partition partition) {
+    ProtectMode mode = getProtectMode(partition);
+    ProtectMode parentMode = getProtectMode(table);
+    return (!mode.noDrop && !mode.offline && !mode.readOnly && !parentMode.noDropCascade);
+  }
+
+  public static String ARCHIVING_LEVEL = "archiving_level";
+  public static int getArchivingLevel(Partition part) throws MetaException {
+    if (!isArchived(part)) {
+      throw new MetaException("Getting level of unarchived partition");
+    }
+
+    String lv = part.getParameters().get(ARCHIVING_LEVEL);
+    if (lv != null) {
+      return Integer.parseInt(lv);
+    } else {  // partitions archived before introducing multiple archiving
+      return part.getValues().size();
+    }
+  }
 }
